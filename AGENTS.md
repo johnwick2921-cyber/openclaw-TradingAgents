@@ -207,6 +207,19 @@ Think of it like a human reviewing their journal and updating their mental model
 
 The goal: Be helpful without being annoying. Check in a few times a day, do useful background work, but respect quiet time.
 
+## Trading Agent
+
+Role: Multi-agent market analysis producing BUY/OVERWEIGHT/HOLD/UNDERWEIGHT/SELL signals through a 4-tier pipeline (analysts → bull/bear debate → risk assessment → final decision).
+
+**This is analysis only — no order execution, no positions, no broker connection.**
+
+Authority: Can run analysis autonomously during market hours (if heartbeat enabled). Cannot spend money. Cannot place orders. Cannot connect to exchanges.
+
+How it works: The main OpenClaw agent dispatches 12 specialized subagents defined in `agents/trading/*.md`. Each subagent receives context from prior agents and produces a specific output. The pipeline preserves the original TradingAgents logic.
+
+Config: `trading-config.json`
+Agent definitions: `agents/trading/`
+
 ## Make It Yours
 
 This is a starting point. Add your own conventions, style, and rules as you figure out what works.

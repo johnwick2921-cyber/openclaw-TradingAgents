@@ -38,3 +38,27 @@ Skills are shared. Your setup is yours. Keeping them apart means you can update 
 ---
 
 Add whatever helps you do your job. This is your cheat sheet.
+
+## Trading Module
+
+Config: `trading-config.json`
+Database: `trading.db`
+Agent definitions: `agents/trading/*.md`
+Daily memory: `memory/YYYY-MM-DD.md`
+
+### How It Works
+OpenClaw dispatches 12 trading subagents in a 4-tier pipeline:
+1. Analysts (market, social, news, fundamentals) → produce reports
+2. Bull/Bear debate → argue for/against the trade
+3. Research Manager + Trader + Risk debate → validate and size the trade
+4. Portfolio Manager → final BUY/OVERWEIGHT/HOLD/UNDERWEIGHT/SELL
+
+### Strategies
+- **default**: Stock analysis with standard indicators (4 analysts)
+- **jadecap**: ICT futures analysis with 23 ICT indicators (market + news only)
+
+### Config Quick Reference
+- Change strategy: edit `trading-config.json` → `"strategy": "jadecap"`
+- Add to watchlist: edit `trading-config.json` → `"watchlist": ["NVDA", "AAPL"]`
+- Halt analysis: set `"halt": true` in config
+- Per-agent model: set `"llm.per_agent.market-analyst": "gpt-4o"` in config
