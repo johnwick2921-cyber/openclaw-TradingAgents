@@ -1,5 +1,4 @@
-from typing import Annotated, List, Any
-from typing_extensions import TypedDict
+from typing import Annotated, Any, List, TypedDict
 
 
 # Researcher team state

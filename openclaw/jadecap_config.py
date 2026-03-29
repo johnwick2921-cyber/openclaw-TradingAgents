@@ -1736,12 +1736,12 @@ FINAL TRANSACTION PROPOSAL: **BUY/HOLD/SELL**
 # any section via key lookup, or import individual sections directly.
 #
 # Usage in agents:
-#   from tradingagents.jadecap_config import JADECAP_CONFIG
+#   from openclaw.jadecap_config import JADECAP_CONFIG
 #   risk = JADECAP_CONFIG["risk"]
 #   rules = JADECAP_CONFIG["hard_rules"]
 #
 # Or direct imports:
-#   from tradingagents.jadecap_config import RISK, HARD_RULES
+#   from openclaw.jadecap_config import RISK, HARD_RULES
 # =====================================================================
 
 JADECAP_CONFIG = {

@@ -33,12 +33,25 @@ def initialize_config():
 
 
 def set_config(config: Dict):
-    """Update the configuration with custom values (thread-safe)."""
+    """Update the configuration with custom values (thread-safe).
+
+    Uses deep merge so nested dicts (like data_vendors) are merged
+    rather than replaced entirely.
+    """
     global _config
     with _config_lock:
         if _config is None:
             _config = _DATAFLOW_DEFAULTS.copy()
-        _config.update(config)
+        _deep_update(_config, config)
+
+
+def _deep_update(base: Dict, override: Dict) -> None:
+    """Recursively merge override into base (mutates base)."""
+    for key, value in override.items():
+        if key in base and isinstance(base[key], dict) and isinstance(value, dict):
+            _deep_update(base[key], value)
+        else:
+            base[key] = value
 
 
 def get_config() -> Dict:

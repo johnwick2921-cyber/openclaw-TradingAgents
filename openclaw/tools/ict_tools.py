@@ -1,8 +1,6 @@
 """
 JadeCap ICT Tool Functions
 Wraps ict_indicators.py functions as callable tools for subagent dispatch.
-
-Save to: tradingagents/agents/utils/ict_tools.py
 """
 
 import json
@@ -377,10 +375,9 @@ def get_contract_size(
 
 
 def fetch_live_price(symbol: str) -> str:
-    """Fetch current price as a plain Python function (no @tool decorator).
+    """Fetch current price for a symbol.
 
-    Use this from agent node functions to embed price into prompt text.
-    Same logic as the @tool get_live_price but callable without LLM tool-calling.
+    Use this from agent dispatch to embed price into prompt text.
     """
     import os
     import requests

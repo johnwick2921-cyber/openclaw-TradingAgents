@@ -186,6 +186,29 @@ def test_engine_parallel_tier1(config_file):
     assert result.signal in ["BUY", "OVERWEIGHT", "HOLD", "UNDERWEIGHT", "SELL"]
 
 
+def test_engine_persists_run_to_db(config_file):
+    """Successful run should persist run, reports, and debates to SQLite."""
+    from openclaw.database import get_db
+
+    engine = RunEngine(config_path=config_file)
+    result = engine.run("NVDA", "2026-03-27", dispatch_fn=_stub_dispatch)
+
+    assert result.run_id  # Should have a run_id
+
+    db_path = engine.config["paths"]["database"]
+    with get_db(db_path) as conn:
+        run_row = conn.execute("SELECT * FROM runs WHERE id = ?", (result.run_id,)).fetchone()
+        reports = conn.execute("SELECT * FROM reports WHERE run_id = ?", (result.run_id,)).fetchall()
+        debates = conn.execute("SELECT * FROM debates WHERE run_id = ?", (result.run_id,)).fetchall()
+
+    assert run_row is not None
+    assert run_row["status"] == "completed"
+    assert run_row["signal"] == result.signal
+    assert run_row["ticker"] == "NVDA"
+    assert len(reports) > 0  # At least the market report
+    assert len(debates) > 0  # At least the investment debate
+
+
 def test_engine_config_singleton(config_file):
     """CC-9: run() should set the config singleton."""
     engine = RunEngine(config_path=config_file)
@@ -213,12 +236,12 @@ def test_engine_timeout(config_file):
 
 
 def test_engine_partial_state_saved_on_error(config_file, tmp_path):
-    """CC-3: Partial state should be saved when a tier fails."""
+    """Partial state should be saved to SQLite when a tier fails."""
+    from openclaw.database import get_db
+
     engine = RunEngine(config_path=config_file)
-    call_count = {"n": 0}
 
     def failing_dispatch(agent_name, prompt, model):
-        call_count["n"] += 1
         if "bull" in agent_name:
             raise ValueError("Simulated bull failure")
         return f"[Response from {agent_name}]"
@@ -226,12 +249,82 @@ def test_engine_partial_state_saved_on_error(config_file, tmp_path):
     with pytest.raises(ValueError, match="bull failure"):
         engine.run("NVDA", "2026-03-27", dispatch_fn=failing_dispatch)
 
-    # Check that partial state was written
-    results_dir = engine.config["paths"]["results_dir"]
-    partial_file = os.path.join(results_dir, "NVDA_2026-03-27_partial.json")
-    assert os.path.exists(partial_file)
+    # Check that the run was marked as failed in the database
+    db_path = engine.config["paths"]["database"]
+    with get_db(db_path) as conn:
+        row = conn.execute(
+            "SELECT status, error_message FROM runs WHERE ticker = 'NVDA' "
+            "ORDER BY created_at DESC LIMIT 1"
+        ).fetchone()
 
-    with open(partial_file) as f:
-        partial = json.load(f)
-    assert partial["tier_completed"] == 1  # Tier 1 completed, Tier 2 failed
-    assert "market_report" in partial["reports"]
+    assert row is not None
+    assert row["status"] == "failed"
+    assert "bull failure" in row["error_message"]
+
+    # Check that Tier 1 reports were persisted before failure
+    with get_db(db_path) as conn:
+        reports = conn.execute(
+            "SELECT section_name FROM reports WHERE run_id = (SELECT id FROM runs ORDER BY created_at DESC LIMIT 1)"
+        ).fetchall()
+
+    assert len(reports) > 0  # Tier 1 completed before Tier 2 failed
+
+
+def test_parse_frontmatter(config_file):
+    """Frontmatter parser should extract tools, tier, memory from .md files."""
+    engine = RunEngine(config_path=config_file)
+    agents_dir = engine.config["paths"]["agents_dir"]
+
+    # Write an agent .md with full frontmatter
+    md_path = os.path.join(agents_dir, "test-agent.md")
+    with open(md_path, "w") as f:
+        f.write("---\nname: test-agent\nmodel: claude-opus-4-6\n"
+                "tools: [get_stock_data, get_indicators]\n"
+                "tools_jadecap: [get_ict_levels, fetch_live_price]\n"
+                "memory: bull_memory\ntier: deep\n"
+                "input: [trade_date, company_of_interest]\noutput: test_report\n"
+                "---\n# Test Agent\n## Default Strategy Prompt\nYou are a test.\n")
+
+    fm = engine._parse_frontmatter(md_path)
+    assert fm["name"] == "test-agent"
+    assert fm["model"] == "claude-opus-4-6"
+    assert fm["tools"] == ["get_stock_data", "get_indicators"]
+    assert fm["tools_jadecap"] == ["get_ict_levels", "fetch_live_price"]
+    assert fm["memory"] == "bull_memory"
+    assert fm["tier"] == "deep"
+    assert fm["output"] == "test_report"
+
+
+def test_parse_frontmatter_missing_file():
+    """Missing .md file should return empty dict."""
+    fm = RunEngine._parse_frontmatter("/nonexistent/path.md")
+    assert fm == {}
+
+
+def test_prefetch_tool_data_empty():
+    """Empty tool list should return empty dict."""
+    engine = RunEngine.__new__(RunEngine)
+    engine.config = {"strategy": "default"}
+    result = engine._prefetch_tool_data([], "NVDA", "2026-03-28")
+    assert result == {}
+
+
+def test_analyst_prompt_includes_data_section(config_file):
+    """Analyst prompt should include PRE-FETCHED DATA when tools are declared."""
+    import openclaw.tools  # ensure tools are registered
+
+    engine = RunEngine(config_path=config_file)
+    agents_dir = engine.config["paths"]["agents_dir"]
+
+    # Write analyst with tools that will fail (no real API) but gracefully
+    md_path = os.path.join(agents_dir, "market-analyst.md")
+    with open(md_path, "w") as f:
+        f.write("---\nname: market-analyst\ntools: [get_stock_data]\ntier: quick\n---\n"
+                "# Market Analyst\n## Default Strategy Prompt\nAnalyze the market.\n")
+
+    prompt = engine._build_analyst_prompt(agents_dir, "market-analyst", "default", "NVDA", "2026-03-28")
+    # Should contain the prompt text
+    assert "Analyze the market" in prompt
+    assert "NVDA" in prompt
+    # Tool data section should be present (even if data unavailable)
+    assert "PRE-FETCHED DATA" in prompt or "Data unavailable" in prompt or "get_stock_data" in prompt

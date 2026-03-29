@@ -216,3 +216,12 @@ heartbeat-state.json
 # Trading module runtime data
 trading.db
 trading-config.json
+results/
+data_cache/
+
+# Agent runtime data (sessions, logs)
+agents/main/sessions/
+agents/main/agent/
+
+# Old TradingAgents assets (deleted)
+assets/

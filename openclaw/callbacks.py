@@ -118,6 +118,8 @@ class FileMemoryCallback:
 
     def _flush(self):
         """Write accumulated lines to the markdown file."""
+        if not self._date:
+            return
         os.makedirs(self.memory_dir, exist_ok=True)
         filepath = os.path.join(self.memory_dir, f"{self._date}.md")
         mode = "a" if os.path.exists(filepath) else "w"

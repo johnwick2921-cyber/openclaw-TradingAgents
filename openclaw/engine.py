@@ -9,14 +9,18 @@ Features:
 """
 
 import json
+import logging
 import os
+import uuid
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Callable, Optional
 
 from openclaw.config import load_config, save_config, get_model_for_agent
 from openclaw.memory import FinancialSituationMemory
+
+logger = logging.getLogger(__name__)
 
 
 # ---------- Data classes ----------
@@ -24,9 +28,10 @@ from openclaw.memory import FinancialSituationMemory
 @dataclass
 class RunResult:
     """Result of a complete trading analysis run."""
-    ticker: str
-    date: str
-    signal: str  # BUY/OVERWEIGHT/HOLD/UNDERWEIGHT/SELL
+    run_id: str = ""
+    ticker: str = ""
+    date: str = ""
+    signal: str = ""  # BUY/OVERWEIGHT/HOLD/UNDERWEIGHT/SELL
     market_report: str = ""
     sentiment_report: str = ""
     news_report: str = ""
@@ -36,7 +41,6 @@ class RunResult:
     trader_plan: str = ""
     final_decision: str = ""
     duration_seconds: float = 0.0
-    partial_state: Optional[dict] = field(default=None, repr=False)
 
 
 class RunEngine:
@@ -98,41 +102,43 @@ class RunEngine:
         if self.config.get("halt"):
             raise RuntimeError("Analysis is halted. Call engine.resume() to re-enable.")
 
+        from openclaw.database import init_db, get_db
+
         callbacks = callbacks or []
         dispatch = dispatch_fn or self._default_dispatch
         self._running = True
         start_time = datetime.now()
 
-        # Partial state for error recovery (CC-3)
-        partial = {
-            "ticker": ticker,
-            "date": date,
-            "tier_completed": 0,
-            "reports": {},
-            "debate": {},
-            "investment_plan": "",
-            "trader_plan": "",
-            "risk_debate": {},
-            "final_decision": "",
-        }
+        # Generate run_id and init database
+        run_id = str(uuid.uuid4())[:8]
+        db_path = self.config["paths"]["database"]
+        init_db(db_path)
+        now = datetime.now(timezone.utc).isoformat()
+        strategy = self.config["strategy"]
+        agents_dir = self.config["paths"]["agents_dir"]
+
+        # Insert initial run row
+        with get_db(db_path) as conn:
+            conn.execute(
+                "INSERT INTO runs (id, ticker, trade_date, strategy, status, created_at) "
+                "VALUES (?, ?, ?, ?, 'running', ?)",
+                (run_id, ticker, date, strategy, now),
+            )
+            conn.commit()
 
         for cb in callbacks:
             cb.on_run_start(ticker, date)
 
         try:
-            strategy = self.config["strategy"]
-            agents_dir = self.config["paths"]["agents_dir"]
-
             # ─── TIER 1: ANALYSTS ─────────────────────────────────
             try:
                 reports = self._run_tier1_analysts(
                     agents_dir, strategy, ticker, date,
                     dispatch, dispatch_parallel_fn, callbacks,
                 )
-                partial["reports"] = reports
-                partial["tier_completed"] = 1
+                self._persist_reports(db_path, run_id, reports)
             except Exception as e:
-                self._save_partial_state(partial)
+                self._mark_run_failed(db_path, run_id, str(e), start_time)
                 for cb in callbacks:
                     cb.on_error(e)
                 raise
@@ -142,10 +148,9 @@ class RunEngine:
                 debate = self._run_debate(
                     agents_dir, strategy, ticker, date, reports, dispatch, callbacks
                 )
-                partial["debate"] = debate
-                partial["tier_completed"] = 2
+                self._persist_debate(db_path, run_id, "investment", debate)
             except Exception as e:
-                self._save_partial_state(partial)
+                self._mark_run_failed(db_path, run_id, str(e), start_time)
                 for cb in callbacks:
                     cb.on_error(e)
                 raise
@@ -155,12 +160,10 @@ class RunEngine:
                 investment_plan, trader_plan, risk_debate = self._run_judge_trader_risk(
                     agents_dir, strategy, ticker, date, reports, debate, dispatch, callbacks
                 )
-                partial["investment_plan"] = investment_plan
-                partial["trader_plan"] = trader_plan
-                partial["risk_debate"] = risk_debate
-                partial["tier_completed"] = 3
+                self._persist_debate(db_path, run_id, "risk", risk_debate,
+                                     judge_decision=investment_plan)
             except Exception as e:
-                self._save_partial_state(partial)
+                self._mark_run_failed(db_path, run_id, str(e), start_time)
                 for cb in callbacks:
                     cb.on_error(e)
                 raise
@@ -171,10 +174,8 @@ class RunEngine:
                     agents_dir, strategy, ticker, date, reports, debate,
                     investment_plan, trader_plan, risk_debate, dispatch, callbacks
                 )
-                partial["final_decision"] = final_decision
-                partial["tier_completed"] = 4
             except Exception as e:
-                self._save_partial_state(partial)
+                self._mark_run_failed(db_path, run_id, str(e), start_time)
                 for cb in callbacks:
                     cb.on_error(e)
                 raise
@@ -186,7 +187,18 @@ class RunEngine:
                 cb.on_signal(signal)
 
             duration = (datetime.now() - start_time).total_seconds()
+
+            # Mark run completed in database
+            with get_db(db_path) as conn:
+                conn.execute(
+                    "UPDATE runs SET signal = ?, status = 'completed', "
+                    "duration_seconds = ? WHERE id = ?",
+                    (signal, duration, run_id),
+                )
+                conn.commit()
+
             result = RunResult(
+                run_id=run_id,
                 ticker=ticker,
                 date=date,
                 signal=signal,
@@ -201,15 +213,12 @@ class RunEngine:
                 duration_seconds=duration,
             )
 
-            # Persist BM25 memories to SQLite after successful run
+            # Persist BM25 memories to SQLite
             try:
                 from openclaw.memory_persistence import persist_memories
-                from openclaw.database import init_db
-                db_path = self.config["paths"]["database"]
-                init_db(db_path)
-                persist_memories(self.memories, db_path, f"{ticker}_{date}")
-            except Exception:
-                pass  # Best-effort: don't let memory save failure kill the run
+                persist_memories(self.memories, db_path, run_id)
+            except Exception as exc:
+                logger.warning("Failed to persist memories: %s", exc)
 
             for cb in callbacks:
                 cb.on_run_complete(result)
@@ -217,11 +226,8 @@ class RunEngine:
             return result
 
         except Exception as e:
-            # on_error may have already been called per-tier, but also catch
-            # any unexpected errors here
-            if partial["tier_completed"] == 0:
-                for cb in callbacks:
-                    cb.on_error(e)
+            for cb in callbacks:
+                cb.on_error(e)
             raise
         finally:
             self._running = False
@@ -244,7 +250,9 @@ class RunEngine:
             if analyst_key not in analyst_map:
                 continue
             agent_name, report_field = analyst_map[analyst_key]
-            model = get_model_for_agent(self.config, agent_name, "quick")
+            frontmatter = self._parse_frontmatter(os.path.join(agents_dir, f"{agent_name}.md"))
+            tier = frontmatter.get("tier", "quick") or "quick"
+            model = get_model_for_agent(self.config, agent_name, tier)
             prompt = self._build_analyst_prompt(
                 agents_dir, agent_name, strategy, ticker, date
             )
@@ -297,7 +305,8 @@ class RunEngine:
                 agents_dir, "bull-researcher", strategy, ticker, date,
                 reports_context, debate, "bull", reports=reports
             )
-            model = get_model_for_agent(self.config, "bull-researcher", "quick")
+            fm = self._parse_frontmatter(os.path.join(agents_dir, "bull-researcher.md"))
+            model = get_model_for_agent(self.config, "bull-researcher", fm.get("tier", "quick") or "quick")
             for cb in callbacks:
                 cb.on_agent_status("bull-researcher", "running")
 
@@ -315,7 +324,8 @@ class RunEngine:
                 agents_dir, "bear-researcher", strategy, ticker, date,
                 reports_context, debate, "bear", reports=reports
             )
-            model = get_model_for_agent(self.config, "bear-researcher", "quick")
+            fm = self._parse_frontmatter(os.path.join(agents_dir, "bear-researcher.md"))
+            model = get_model_for_agent(self.config, "bear-researcher", fm.get("tier", "quick") or "quick")
             for cb in callbacks:
                 cb.on_agent_status("bear-researcher", "running")
 
@@ -345,7 +355,8 @@ class RunEngine:
             bear_history=debate["bear_history"],
             past_memory_str=self._get_memory_context("invest_judge_memory", ticker, date),
         )
-        model = get_model_for_agent(self.config, "research-manager", "deep")
+        fm = self._parse_frontmatter(os.path.join(agents_dir, "research-manager.md"))
+        model = get_model_for_agent(self.config, "research-manager", fm.get("tier", "deep") or "deep")
         for cb in callbacks:
             cb.on_agent_status("research-manager", "running")
 
@@ -362,7 +373,8 @@ class RunEngine:
             investment_plan=investment_plan,
             past_memory_str=self._get_memory_context("trader_memory", ticker, date),
         )
-        model = get_model_for_agent(self.config, "trader", "quick")
+        fm = self._parse_frontmatter(os.path.join(agents_dir, "trader.md"))
+        model = get_model_for_agent(self.config, "trader", fm.get("tier", "quick") or "quick")
         for cb in callbacks:
             cb.on_agent_status("trader", "running")
 
@@ -399,7 +411,8 @@ class RunEngine:
                     conservative_response=risk_debate.get("last_conservative", ""),
                     neutral_response=risk_debate.get("last_neutral", ""),
                 )
-                model = get_model_for_agent(self.config, agent_name, "quick")
+                fm = self._parse_frontmatter(os.path.join(agents_dir, f"{agent_name}.md"))
+                model = get_model_for_agent(self.config, agent_name, fm.get("tier", "quick") or "quick")
                 for cb in callbacks:
                     cb.on_agent_status(agent_name, "running")
 
@@ -433,7 +446,8 @@ class RunEngine:
             neutral_history=risk_debate["neutral_history"],
             past_memory_str=self._get_memory_context("portfolio_manager_memory", ticker, date),
         )
-        model = get_model_for_agent(self.config, "portfolio-manager", "deep")
+        fm = self._parse_frontmatter(os.path.join(agents_dir, "portfolio-manager.md"))
+        model = get_model_for_agent(self.config, "portfolio-manager", fm.get("tier", "deep") or "deep")
         for cb in callbacks:
             cb.on_agent_status("portfolio-manager", "running")
 
@@ -465,9 +479,19 @@ class RunEngine:
         return last_signal
 
     def _build_analyst_prompt(self, agents_dir, agent_name, strategy, ticker, date):
-        """Build a prompt for an analyst agent from its .md definition."""
+        """Build a prompt for an analyst agent from its .md definition.
+
+        Pre-fetches tool data (stock prices, indicators, news, fundamentals, ICT levels)
+        and injects it directly into the prompt so the subagent has real data to analyze.
+        """
         md_path = os.path.join(agents_dir, f"{agent_name}.md")
         prompt_text = self._read_strategy_prompt(md_path, strategy)
+        frontmatter = self._parse_frontmatter(md_path)
+
+        # Pre-fetch tool data based on agent's declared tools
+        tools_key = "tools_jadecap" if strategy == "jadecap" else "tools"
+        tool_names = frontmatter.get(tools_key, [])
+        tool_data = self._prefetch_tool_data(tool_names, ticker, date)
 
         # Substitute {placeholders} in the template
         context = {
@@ -476,12 +500,20 @@ class RunEngine:
         }
         prompt_text = self._substitute_placeholders(prompt_text, context)
 
+        # Build data sections from prefetched tools
+        data_sections = ""
+        if tool_data:
+            data_sections = "\n\n=== PRE-FETCHED DATA ===\n"
+            for tool_name, result in tool_data.items():
+                data_sections += f"\n--- {tool_name} ---\n{result}\n"
+
         return f"""Analyze {ticker} for trade date {date}.
 
 {prompt_text}
 
 Company/Instrument: {ticker}
 Trade Date: {date}
+{data_sections}
 """
 
     def _build_researcher_prompt(self, agents_dir, agent_name, strategy,
@@ -493,8 +525,10 @@ Trade Date: {date}
         opponent_history = debate["bear_history"] if side == "bull" else debate["bull_history"]
         reports = reports or {}
 
-        # Retrieve BM25 memories for this agent
-        memory_name = "bull_memory" if side == "bull" else "bear_memory"
+        # Retrieve BM25 memories from frontmatter or fallback
+        frontmatter = self._parse_frontmatter(md_path)
+        memory_key = "memory_jadecap" if self.config["strategy"] == "jadecap" else "memory"
+        memory_name = frontmatter.get(memory_key) or ("bull_memory" if side == "bull" else "bear_memory")
         past_memory_str = self._get_memory_context(memory_name, ticker, date)
 
         # Substitute {placeholders} in the template
@@ -603,6 +637,67 @@ Opponent's Last Argument:
             parts.append(f"=== {label} ===\n{value}")
         return "\n\n".join(parts)
 
+    @staticmethod
+    def _parse_frontmatter(md_path: str) -> dict:
+        """Parse YAML frontmatter from an agent .md file.
+
+        Returns a dict with keys like: name, model, tools, tools_jadecap,
+        memory, memory_jadecap, tier, input, output.
+        """
+        if not os.path.exists(md_path):
+            return {}
+
+        with open(md_path, "r") as f:
+            content = f.read()
+
+        # Extract YAML between --- markers
+        if not content.startswith("---"):
+            return {}
+        parts = content.split("---", 2)
+        if len(parts) < 3:
+            return {}
+
+        frontmatter = {}
+        for line in parts[1].strip().split("\n"):
+            if ":" not in line:
+                continue
+            key, _, value = line.partition(":")
+            key = key.strip()
+            value = value.strip()
+
+            # Parse list values: [item1, item2]
+            if value.startswith("[") and value.endswith("]"):
+                items = value[1:-1]
+                frontmatter[key] = [i.strip() for i in items.split(",") if i.strip()]
+            elif value == "null" or value == "":
+                frontmatter[key] = None
+            else:
+                frontmatter[key] = value
+
+        return frontmatter
+
+    def _prefetch_tool_data(self, tool_names: list, ticker: str, date: str) -> dict:
+        """Call registered tool functions and return their results as a dict.
+
+        Uses the global ToolRegistry — any tool registered there can be called
+        by name. New tools can be added without modifying this method.
+        """
+        if not tool_names:
+            return {}
+
+        import openclaw.tools  # ensure all tools are registered
+        from openclaw.tool_registry import registry
+
+        # Ensure ICT tools are registered if any jadecap tools are requested
+        ict_tools = {"get_ict_levels", "fetch_live_price", "get_live_price",
+                     "get_midnight_open_tool", "get_killzone_status_tool",
+                     "get_contract_size", "get_multi_tf_levels"}
+        if any(t in ict_tools for t in tool_names):
+            from openclaw.tools import _ensure_ict_registered
+            _ensure_ict_registered()
+
+        return registry.call_many(tool_names, ticker, date, self.config)
+
     def _get_memory_context(self, memory_name: str, ticker: str, date: str) -> str:
         """Retrieve relevant BM25 memories for an agent as a formatted string."""
         mem = self.memories.get(memory_name)
@@ -637,21 +732,58 @@ Opponent's Last Argument:
                     f"Agent '{agent_name}' timed out after {timeout}s"
                 )
 
-    def _save_partial_state(self, partial: dict) -> None:
-        """Save partial run state for error recovery (CC-3).
-
-        Writes to results_dir/<ticker>_<date>_partial.json.
-        """
-        results_dir = self.config.get("paths", {}).get("results_dir", "results")
+    def _persist_reports(self, db_path: str, run_id: str, reports: dict) -> None:
+        """Save analyst reports to the reports table."""
+        from openclaw.database import get_db
         try:
-            os.makedirs(results_dir, exist_ok=True)
-            filename = f"{partial['ticker']}_{partial['date']}_partial.json"
-            filepath = os.path.join(results_dir, filename)
-            with open(filepath, "w") as f:
-                json.dump(partial, f, indent=2, default=str)
-        except Exception:
-            # Best-effort: don't let save failure mask the original error
-            pass
+            with get_db(db_path) as conn:
+                for section_name, content in reports.items():
+                    conn.execute(
+                        "INSERT INTO reports (run_id, section_name, content) VALUES (?, ?, ?)",
+                        (run_id, section_name, content),
+                    )
+                conn.commit()
+        except Exception as exc:
+            logger.warning("Failed to persist reports: %s", exc)
+
+    def _persist_debate(self, db_path: str, run_id: str, debate_type: str,
+                        debate: dict, judge_decision: str = "") -> None:
+        """Save debate history to the debates table."""
+        from openclaw.database import get_db
+        try:
+            with get_db(db_path) as conn:
+                conn.execute(
+                    "INSERT INTO debates (run_id, debate_type, full_history, "
+                    "side_a_history, side_b_history, side_c_history, judge_decision) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        run_id, debate_type,
+                        debate.get("history", ""),
+                        debate.get("bull_history", debate.get("aggressive_history", "")),
+                        debate.get("bear_history", debate.get("conservative_history", "")),
+                        debate.get("neutral_history", ""),
+                        judge_decision,
+                    ),
+                )
+                conn.commit()
+        except Exception as exc:
+            logger.warning("Failed to persist debate: %s", exc)
+
+    def _mark_run_failed(self, db_path: str, run_id: str, error_msg: str,
+                         start_time) -> None:
+        """Mark a run as failed in the database."""
+        from openclaw.database import get_db
+        duration = (datetime.now() - start_time).total_seconds()
+        try:
+            with get_db(db_path) as conn:
+                conn.execute(
+                    "UPDATE runs SET status = 'failed', error_message = ?, "
+                    "duration_seconds = ? WHERE id = ?",
+                    (error_msg[:500], duration, run_id),
+                )
+                conn.commit()
+        except Exception as exc:
+            logger.warning("Failed to mark run as failed: %s", exc)
 
     def _default_dispatch(self, agent_name: str, prompt: str, model: str) -> str:
         """Default dispatch stub -- prints and returns placeholder."""
@@ -672,16 +804,14 @@ Opponent's Last Argument:
             Dict with reflection results including actual_close, signal, correct, reflection.
         """
         import yfinance as yf
-        from datetime import datetime, timezone, timedelta
+        from datetime import timedelta
 
         callbacks = callbacks or []
         db_path = self.config["paths"]["database"]
 
         # Fetch actual closing price
         stock = yf.Ticker(ticker)
-        # yfinance needs end date to be day after for single-day fetch
-        from datetime import datetime as dt
-        date_obj = dt.strptime(date, "%Y-%m-%d")
+        date_obj = datetime.strptime(date, "%Y-%m-%d")
         end_date = (date_obj + timedelta(days=1)).strftime("%Y-%m-%d")
         hist = stock.history(start=date, end=end_date, interval="1d")
         if hist.empty:
@@ -692,6 +822,7 @@ Opponent's Last Argument:
         # Load today's signal from database
         from openclaw.database import get_db, init_db
         init_db(db_path)
+
         signal = None
         prev_close = None
         run_id = None
