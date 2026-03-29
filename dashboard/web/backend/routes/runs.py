@@ -418,25 +418,34 @@ async def rerun(run_id: str) -> JSONResponse:
     if run is None:
         raise HTTPException(status_code=404, detail="Run not found.")
 
-    # Reconstruct a RunCreate from the stored config
-    selected_analysts = run.get("selected_analysts", "[]")
+    # Unified core schema may not persist old dashboard-only fields.
+    selected_analysts = run.get("selected_analysts", [])
     if isinstance(selected_analysts, str):
-        selected_analysts = json.loads(selected_analysts)
+        try:
+            selected_analysts = json.loads(selected_analysts)
+        except Exception:
+            selected_analysts = []
 
-    data_vendors = run.get("data_vendors", "{}")
+    data_vendors = run.get("data_vendors", {})
     if isinstance(data_vendors, str):
-        data_vendors = json.loads(data_vendors)
+        try:
+            data_vendors = json.loads(data_vendors)
+        except Exception:
+            data_vendors = {}
 
-    tool_vendors = run.get("tool_vendors", "{}")
+    tool_vendors = run.get("tool_vendors", {})
     if isinstance(tool_vendors, str):
-        tool_vendors = json.loads(tool_vendors)
+        try:
+            tool_vendors = json.loads(tool_vendors)
+        except Exception:
+            tool_vendors = {}
 
     body = RunCreate(
         ticker=run["ticker"],
         trade_date=run["trade_date"],
-        provider=run["provider"],
-        deep_model=run["deep_model"],
-        quick_model=run["quick_model"],
+        provider=run.get("provider", "openai"),
+        deep_model=run.get("deep_model") or "gpt-5.4",
+        quick_model=run.get("quick_model") or "gpt-5-mini",
         effort=run.get("effort"),
         backend_url=run.get("backend_url"),
         max_debate_rounds=run.get("max_debate_rounds", 1),
@@ -533,38 +542,17 @@ async def import_run(body: RunImport) -> JSONResponse:
         await db.execute(
             """
             INSERT INTO runs
-                (id, ticker, trade_date, provider, deep_model, quick_model,
-                 effort, backend_url, max_debate_rounds, max_risk_discuss_rounds,
-                 data_vendors, tool_vendors, selected_analysts,
-                 signal, status, error_message,
-                 tokens_in, tokens_out, duration_seconds, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (id, ticker, trade_date, strategy, signal, status, error_message, duration_seconds, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 run_id,
                 run_data.get("ticker", ""),
                 run_data.get("trade_date", ""),
-                run_data.get("provider", ""),
-                run_data.get("deep_model"),
-                run_data.get("quick_model"),
-                run_data.get("effort"),
-                run_data.get("backend_url"),
-                run_data.get("max_debate_rounds", 1),
-                run_data.get("max_risk_discuss_rounds", 1),
-                json.dumps(run_data.get("data_vendors", {}))
-                if not isinstance(run_data.get("data_vendors"), str)
-                else run_data.get("data_vendors", "{}"),
-                json.dumps(run_data.get("tool_vendors", {}))
-                if not isinstance(run_data.get("tool_vendors"), str)
-                else run_data.get("tool_vendors", "{}"),
-                json.dumps(run_data.get("selected_analysts", []))
-                if not isinstance(run_data.get("selected_analysts"), str)
-                else run_data.get("selected_analysts", "[]"),
+                run_data.get("strategy", "default"),
                 run_data.get("signal"),
                 run_data.get("status", "imported"),
                 run_data.get("error_message"),
-                run_data.get("tokens_in", 0),
-                run_data.get("tokens_out", 0),
                 run_data.get("duration_seconds"),
                 run_data.get("created_at", datetime.now(timezone.utc).isoformat()),
             ),
