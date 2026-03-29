@@ -71,6 +71,69 @@ A JadeCap run should not be considered fixed until all of the following pass:
 - At least one end-to-end `NQ` JadeCap test run completes and writes unified DB artifacts.
 - Prompt rendering no longer depends on fragile expression-like placeholders.
 
+### New Important Improvement Track — Unified Provider Configuration + WebUI Editing
+
+The desired end-state is that provider selection is controlled from one canonical OpenClaw config model and exposed consistently in the WebUI and CLI.
+
+#### Goal
+Users should be able to configure provider choice per category, for example:
+- core price/OHLCV provider
+- technical indicator provider
+- fundamentals provider
+- news provider
+- live price provider / live stream preference
+- optional macro-news research provider
+
+#### Source of truth rule
+- `trading-config.json` should be the canonical source of truth.
+- OpenClaw config code should load/save it.
+- WebUI should edit the same underlying config.
+- CLI should edit the same underlying config.
+- The dashboard `settings` table should only remain for temporary UI/session compatibility state, not as a competing long-term config source.
+
+#### Current gap
+Right now provider selection is only partially unified:
+- `trading-config.json` contains `data_vendors` and `tool_vendors`
+- some runtime paths read those values
+- some web/runtime paths still use separate fallback logic or compatibility settings reads
+- live price source selection is not fully governed by the same config path as the rest of the analysis stack
+
+#### Required fixes
+1. Extend config schema so provider categories are explicit and complete.
+2. Add/update WebUI controls to edit provider settings directly.
+3. Make the WebUI save path write back to core config, not only compatibility settings.
+4. Audit all runtime paths to ensure provider selection resolves from one config model.
+5. Keep route-level fallback logic only as graceful degradation, not as competing provider policy.
+
+### New Important Improvement Track — Brave-backed Multi-Headline News Research
+
+The news agent should be able to use richer search-backed research instead of relying only on narrow feed sources.
+
+#### Goal
+Support Brave Search API as a configurable news research provider so the system can gather multiple current headlines/results and synthesize them into the News Analyst prompt context.
+
+#### Desired behavior
+For macro/news analysis, the system should be able to:
+- query multiple relevant searches (Fed, CPI, NFP, GDP, major tech earnings, geopolitics, yields, DXY, etc.)
+- gather multiple headline/snippet results
+- deduplicate overlapping stories
+- organize results by macro theme
+- feed the consolidated research into the News Analyst report
+
+#### Suggested provider model
+Examples of future config options:
+- `news_data: yfinance`
+- `news_data: brave`
+- `news_data: multi`
+- possibly later a split such as `macro_news_data: brave` + `ticker_news_data: yfinance`
+
+#### Acceptance criteria
+- WebUI exposes a news provider selector.
+- `trading-config.json` can persist Brave as the configured news provider.
+- News research path can collect multiple Brave results per run.
+- News results are deduplicated and summarized before prompt injection.
+- JadeCap/news path can use Brave-backed multi-headline context without breaking current yfinance fallback behavior.
+
 ### Important Reality Check
 This is now a mostly-complete OpenClaw-first merge, but not every dashboard/runtime edge path has been fully validated yet. The system is no longer in the design-only stage.
 

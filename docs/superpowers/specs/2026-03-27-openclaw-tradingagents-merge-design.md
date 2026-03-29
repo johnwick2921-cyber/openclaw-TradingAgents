@@ -108,6 +108,31 @@ Frontend implementations:
 | `webui/backend/runner.py` `_execute_run()` (config building, threading, WS events) | `RunEngine.run()` + `WebSocketCallback` |
 | `main.py` (config override, propagate, reflect) | `RunEngine.run()` + `RunEngine.reflect()` |
 
+### Provider Configuration Design Correction
+Provider selection should converge on a single OpenClaw-owned config model.
+
+Design rule:
+- `trading-config.json` is the source of truth.
+- WebUI is an editor for that config, not a separate long-term config store.
+- CLI is another editor for that config.
+- Any remaining dashboard `settings` usage should be treated as compatibility-only, not canonical provider state.
+
+This applies to:
+- core OHLCV / price vendors
+- technical indicators
+- fundamentals
+- news
+- live price / streaming preference
+
+### News Research Design Extension
+The merged system should support richer search-backed news research, not just single-source feed retrieval.
+
+Preferred extension:
+- allow Brave Search API as a configurable news provider
+- support multi-headline/multi-query aggregation for macro-sensitive trading days
+- deduplicate search results and pass a structured summary into the News Analyst context
+- preserve fallback compatibility with existing news providers
+
 ### Additional JadeCap Acceptance Criteria
 The strategy-specific implementation is not complete until these conditions are true:
 - JadeCap analysts render prompts without unresolved expression-like placeholders.
