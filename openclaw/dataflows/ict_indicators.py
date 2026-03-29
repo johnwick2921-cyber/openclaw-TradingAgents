@@ -15,7 +15,10 @@ from datetime import datetime, time, timedelta
 import numpy as np
 import pandas as pd
 import pytz
-from smartmoneyconcepts.smc import smc
+try:
+    from smartmoneyconcepts.smc import smc
+except ImportError:
+    smc = None  # graceful fallback — ICT functions will check before use
 from stockstats import wrap
 
 from openclaw.jadecap_config import (

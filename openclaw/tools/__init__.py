@@ -1,6 +1,7 @@
 """Trading data tools — plain Python functions (no LangChain).
 
 All tools auto-register with the global ToolRegistry on import.
+One unified indicator system — no duplicate tool files.
 """
 
 from openclaw.tools.agent_utils import build_instrument_context, create_msg_delete
@@ -18,34 +19,25 @@ from openclaw.tools.news_data_tools import (
     get_insider_transactions,
 )
 
-# Lazy-import ICT tools to avoid heavy deps unless jadecap is used
-def _register_ict_tools():
-    from openclaw.tools.ict_tools import (
-        get_ict_levels,
-        fetch_live_price,
-        get_midnight_open_tool,
-        get_killzone_status_tool,
-        get_contract_size,
-        get_multi_tf_levels,
-    )
-    return {
-        "get_ict_levels": get_ict_levels,
-        "fetch_live_price": fetch_live_price,
-        "get_live_price": fetch_live_price,  # alias
-        "get_midnight_open_tool": get_midnight_open_tool,
-        "get_killzone_status_tool": get_killzone_status_tool,
-        "get_contract_size": get_contract_size,
-        "get_multi_tf_levels": get_multi_tf_levels,
-    }
-
 
 # ─── Auto-register all tools with the global registry ───────────────────
 
 from openclaw.tool_registry import registry
+from openclaw.indicators import get_indicators_batch, fetch_live_price
 
 # Default indicators per strategy
 _DEFAULT_STOCK_INDICATORS = ["rsi", "macd", "macdh", "boll", "boll_ub", "boll_lb", "atr", "close_50_sma"]
 _DEFAULT_ICT_INDICATORS = ["fvg", "order_blocks", "market_structure", "session_levels", "prev_day_levels"]
+
+
+def _pick_indicators(ctx):
+    """Select which indicators to fetch based on strategy."""
+    strategy = ctx.get("config", {}).get("strategy", "default")
+    if strategy == "jadecap":
+        indicators = _DEFAULT_ICT_INDICATORS + ["rsi", "atr"]
+    else:
+        indicators = _DEFAULT_STOCK_INDICATORS
+    return {"symbol": ctx["ticker"], "indicators": indicators, "date": ctx["date"]}
 
 
 # Stock data
@@ -58,22 +50,24 @@ registry.register(
 )
 
 # Unified indicators — one tool, routes to stockstats or smartmoneyconcepts
-from openclaw.indicators import get_indicators_batch
-
-def _pick_indicators(ctx):
-    """Select which indicators to fetch based on strategy."""
-    strategy = ctx.get("config", {}).get("strategy", "default")
-    if strategy == "jadecap":
-        indicators = _DEFAULT_ICT_INDICATORS + ["rsi", "atr"]
-    else:
-        indicators = _DEFAULT_STOCK_INDICATORS
-    return {"symbol": ctx["ticker"], "indicators": indicators, "date": ctx["date"]}
-
 registry.register(
     name="get_indicators",
     fn=get_indicators_batch,
     param_builder=_pick_indicators,
     description="Fetch technical indicators (stockstats + ICT from both packages)",
+    category="technical",
+)
+
+# ICT levels — convenience alias for full ICT report
+registry.register(
+    name="get_ict_levels",
+    fn=get_indicators_batch,
+    param_builder=lambda ctx: {
+        "symbol": ctx["ticker"], "date": ctx["date"],
+        "indicators": ["fvg", "order_blocks", "market_structure", "session_levels",
+                       "prev_day_levels", "equal_highs_lows"],
+    },
+    description="Fetch all ICT levels (via unified indicator system)",
     category="technical",
 )
 
@@ -130,61 +124,53 @@ registry.register(
     category="news",
 )
 
-# Real-time data tools (NOT indicators — these are live data, contract info, etc.)
-# Lazy-registered to avoid heavy imports unless jadecap strategy is active.
-def _ensure_ict_registered():
-    """Register ICT real-time data tools on first use."""
-    if "fetch_live_price" in registry:
-        return
-    try:
-        ict_tools = _register_ict_tools()
-        registry.register(
-            name="fetch_live_price",
-            fn=ict_tools["fetch_live_price"],
-            param_builder=lambda ctx: {"symbol": ctx["ticker"]},
-            description="Fetch current live price",
-            category="realtime",
-        )
-        registry.register(
-            name="get_live_price",
-            fn=ict_tools["get_live_price"],
-            param_builder=lambda ctx: {"symbol": ctx["ticker"]},
-            description="Fetch current live price (alias)",
-            category="realtime",
-        )
-        registry.register(
-            name="get_killzone_status_tool",
-            fn=ict_tools["get_killzone_status_tool"],
-            param_builder=lambda _: {},
-            description="Get current killzone status",
-            category="realtime",
-        )
-        registry.register(
-            name="get_contract_size",
-            fn=ict_tools["get_contract_size"],
-            param_builder=lambda _: {},
-            description="Get futures contract specifications",
-            category="realtime",
-        )
-        # get_ict_levels = convenience alias that fetches full ICT report via unified indicators
-        from openclaw.indicators import get_indicators_batch
-        registry.register(
-            name="get_ict_levels",
-            fn=get_indicators_batch,
-            param_builder=lambda ctx: {
-                "symbol": ctx["ticker"], "date": ctx["date"],
-                "indicators": ["fvg", "order_blocks", "market_structure", "session_levels",
-                               "prev_day_levels", "equal_highs_lows"],
-            },
-            description="Fetch all ICT levels (via unified indicator system)",
-            category="technical",
-        )
-        registry.register(
-            name="get_midnight_open_tool",
-            fn=ict_tools["get_midnight_open_tool"],
-            param_builder=lambda ctx: {"symbol": ctx["ticker"], "trade_date": ctx["date"]},
-            description="Fetch midnight open reference price",
-            category="realtime",
-        )
-    except ImportError:
-        pass  # ICT deps not installed
+# Real-time data (live price, killzone, contract size, midnight open)
+registry.register(
+    name="fetch_live_price",
+    fn=fetch_live_price,
+    param_builder=lambda ctx: {"symbol": ctx["ticker"]},
+    description="Fetch current live price",
+    category="realtime",
+)
+registry.register(
+    name="get_live_price",
+    fn=fetch_live_price,
+    param_builder=lambda ctx: {"symbol": ctx["ticker"]},
+    description="Fetch current live price (alias)",
+    category="realtime",
+)
+
+# Killzone and contract size — use ICT indicators directly
+def _killzone_wrapper(**kwargs):
+    from openclaw.indicators import get_indicator
+    return get_indicator("", "killzone_status", kwargs.get("date", "2026-01-01"))
+
+def _contract_wrapper(**kwargs):
+    from openclaw.dataflows.ict_indicators import get_contract_calc
+    return get_contract_calc(kwargs.get("stop_points", 10))
+
+def _midnight_wrapper(**kwargs):
+    from openclaw.indicators import get_indicator
+    return get_indicator(kwargs["symbol"], "midnight_open", kwargs["date"], timeframe="1m")
+
+registry.register(
+    name="get_killzone_status_tool",
+    fn=_killzone_wrapper,
+    param_builder=lambda ctx: {"date": ctx["date"]},
+    description="Get current killzone status",
+    category="realtime",
+)
+registry.register(
+    name="get_contract_size",
+    fn=_contract_wrapper,
+    param_builder=lambda _: {"stop_points": 10},
+    description="Get futures contract specifications",
+    category="realtime",
+)
+registry.register(
+    name="get_midnight_open_tool",
+    fn=_midnight_wrapper,
+    param_builder=lambda ctx: {"symbol": ctx["ticker"], "date": ctx["date"]},
+    description="Fetch midnight open reference price",
+    category="realtime",
+)

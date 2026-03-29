@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "openclaw"
+version = "0.1.0"
+description = "OpenClaw — self-evolving AI agent framework with trading analysis module"
+requires-python = ">=3.10"
+
+dependencies = [
+    # Core
+    "python-dotenv>=1.0",
+    # Trading data
+    "yfinance>=0.2",
+    "stockstats>=0.6",
+    "pandas>=1.5",
+    "requests>=2.28",
+    # Memory
+    "rank-bm25>=0.2",
+    # Dashboard (terminal)
+    "rich>=13.0",
+]
+
+[project.optional-dependencies]
+ict = [
+    "smartmoneyconcepts>=0.0.9",
+    "databento>=0.30",
+]
+web = [
+    "fastapi>=0.100",
+    "uvicorn>=0.23",
+    "websockets>=11.0",
+    "aiosqlite>=0.19",
+]
+dev = [
+    "pytest>=7.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["openclaw*", "dashboard*", "agents*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

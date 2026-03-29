@@ -687,15 +687,6 @@ Opponent's Last Argument:
 
         import openclaw.tools  # ensure all tools are registered
         from openclaw.tool_registry import registry
-
-        # Ensure ICT tools are registered if any jadecap tools are requested
-        ict_tools = {"get_ict_levels", "fetch_live_price", "get_live_price",
-                     "get_midnight_open_tool", "get_killzone_status_tool",
-                     "get_contract_size", "get_multi_tf_levels"}
-        if any(t in ict_tools for t in tool_names):
-            from openclaw.tools import _ensure_ict_registered
-            _ensure_ict_registered()
-
         return registry.call_many(tool_names, ticker, date, self.config)
 
     def _get_memory_context(self, memory_name: str, ticker: str, date: str) -> str:
