@@ -52,9 +52,14 @@ async def init_db() -> None:
 
 @asynccontextmanager
 async def get_db() -> AsyncGenerator[aiosqlite.Connection, None]:
-    """Yield an async connection to the unified trading database."""
+    """Yield an async connection to the unified trading database.
+
+    Self-initializes the schema on first access so route tests and direct module
+    use do not depend on lifespan startup having already run.
+    """
     global DB_PATH
     DB_PATH = _resolve_db_path()
+    await init_db()
     db = await aiosqlite.connect(DB_PATH)
     db.row_factory = aiosqlite.Row
     await db.execute("PRAGMA foreign_keys = ON")

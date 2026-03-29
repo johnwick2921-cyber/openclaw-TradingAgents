@@ -107,25 +107,14 @@ async def create_run(body: RunCreate) -> JSONResponse:
         await db.execute(
             """
             INSERT INTO runs
-                (id, ticker, trade_date, provider, deep_model, quick_model,
-                 effort, backend_url, max_debate_rounds, max_risk_discuss_rounds,
-                 data_vendors, tool_vendors, selected_analysts, status, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'running', ?)
+                (id, ticker, trade_date, strategy, status, created_at)
+            VALUES (?, ?, ?, ?, 'running', ?)
             """,
             (
                 run_id,
                 body.ticker,
                 body.trade_date,
-                body.provider,
-                body.deep_model,
-                body.quick_model,
-                body.effort,
-                body.backend_url,
-                body.max_debate_rounds,
-                body.max_risk_discuss_rounds,
-                json.dumps(body.data_vendors or {}),
-                json.dumps(body.tool_vendors or {}),
-                json.dumps(body.selected_analysts),
+                "default",
                 now,
             ),
         )
@@ -158,6 +147,14 @@ async def create_run(body: RunCreate) -> JSONResponse:
                     except (ValueError, TypeError):
                         pass
                 saved_data_vendors = parsed if isinstance(parsed, dict) else {}
+
+    # Persist selected strategy into the unified run row
+    async with get_db() as db:
+        await db.execute(
+            "UPDATE runs SET strategy = ? WHERE id = ?",
+            (strategy_name, run_id),
+        )
+        await db.commit()
 
     # Build the config dict expected by the runner
     # Priority: request body > saved settings > defaults
