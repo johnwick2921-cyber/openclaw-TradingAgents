@@ -156,6 +156,23 @@ async def get_config() -> dict:
     }
 
 
+@router.get("/trading-config")
+async def get_trading_config() -> dict:
+    """Return the unified trading config (from trading-config.json)."""
+    from openclaw.config import load_config
+    return load_config()
+
+
+@router.put("/trading-config")
+async def put_trading_config(payload: Dict[str, Any]) -> dict:
+    """Update trading config (merges with existing, writes to trading-config.json)."""
+    from openclaw.config import load_config, save_config, deep_merge
+    current = load_config()
+    updated = deep_merge(current, payload)
+    save_config(updated)
+    return {"status": "ok", "config": updated}
+
+
 @router.get("/settings")
 async def get_settings() -> Dict[str, Any]:
     """Read all settings from the settings table and return as a dict."""
