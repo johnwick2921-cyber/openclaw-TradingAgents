@@ -1,10 +1,38 @@
 # OpenClaw + TradingAgents Merge — Full Implementation Plan
 
+> **Status note (updated 2026-03-29):** Core merge is implemented and partially runtime-validated. This plan now serves as both implementation history and remaining-work tracker.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Dissolve TradingAgents into OpenClaw as a trading module. Full subagent architecture — each trading agent becomes an AI-agnostic .md file dispatched by OpenClaw's main agent. No LangGraph. No duplicate infrastructure. OpenClaw is main.
 
-**Architecture:** 12 trading agent .md files in `agents/trading/`, dispatched sequentially by a RunEngine orchestrator in the original 4-tier pipeline (analysts → debate → risk → trader). Data tools (yfinance, databento, ICT indicators) stay as Python. Config in `trading-config.json`. Memory in SQLite + markdown. Dashboard in Rich terminal + React web.
+**Architecture:** 12 trading agent `.md` files in `agents/trading/`, dispatched by an OpenClaw `RunEngine` orchestrator in the original 4-tier pipeline (analysts → debate → judge/trader/risk → portfolio manager). Data tools (yfinance, databento, ICT indicators) stay as Python. Config in `trading-config.json`. Memory in SQLite + markdown. Dashboard in Rich terminal + React/FastAPI web.
+
+## Current Implementation Status (2026-03-29)
+
+### Completed
+- `openclaw/engine.py` is the main orchestration engine.
+- Trading agent prompts live in `agents/trading/*.md`.
+- Core config lives in `trading-config.json` + `openclaw/config.py`.
+- Core persistence lives in `openclaw/database.py`.
+- BM25 memory lives in `openclaw/memory.py` + `openclaw/memory_persistence.py`.
+- Dashboard web runner now uses the OpenClaw-native `RunEngine` instead of old graph/callback leftovers.
+- Dashboard DB compatibility layer now points at the unified core DB path/schema.
+- Dashboard memory bridge is aligned with `FinancialSituationMemory` and core agent memory namespaces.
+- Web runtime compatibility fixes landed for:
+  - automatic dashboard DB/settings initialization
+  - unified `runs` table insertion from `POST /api/runs`
+- Test suite passes (`57 passed` at last verification).
+
+### Still Remaining / Not Fully Validated
+- Full end-to-end WebSocket streaming verification during a live run.
+- Full cancel-flow verification from web request → background runner → DB/event state.
+- Reflection route verification with real market-data conditions.
+- Live price streaming verification with real vendor/API conditions.
+- Final doc cleanup so README + design docs exactly match implemented runtime behavior.
+
+### Important Reality Check
+This is now a mostly-complete OpenClaw-first merge, but not every dashboard/runtime edge path has been fully validated yet. The system is no longer in the design-only stage.
 
 **Tech Stack:** Python 3.10+, rank_bm25, aiosqlite, yfinance, Rich
 

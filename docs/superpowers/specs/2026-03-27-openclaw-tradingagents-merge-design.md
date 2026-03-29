@@ -1,14 +1,22 @@
 # Design: Merge TradingAgents into OpenClaw
 
 **Date:** 2026-03-27
-**Status:** Approved
+**Status:** Approved, partially implemented, and revised 2026-03-29 to reflect actual architecture
 **Goal:** Unify TradingAgents (4-tier LLM trading analysis pipeline) with OpenClaw (agent identity/memory framework) into a single system with one engine, one config, one memory store, and no duplication.
 
 ---
 
-## 1. RunEngine (`tradingagents/engine.py`)
+## 1. RunEngine (`openclaw/engine.py`)
 
 Single orchestration class replacing the three separate entry points (`main.py`, `cli/main.py`, `webui/backend/runner.py`).
+
+### Implementation Status
+Implemented in `openclaw/engine.py`.
+
+Key differences from the earliest design draft:
+- The engine is OpenClaw-native and dispatches via `dispatch_fn(...)` instead of rebuilding the original graph runtime.
+- The web dashboard runner has been updated to call `RunEngine` directly.
+- Runtime result persistence uses the unified core schema in `openclaw/database.py`.
 
 ### API
 
@@ -103,7 +111,7 @@ Frontend implementations:
 
 ## 2. Config (`trading-config.json`)
 
-Single JSON file replacing `default_config.py` dict, `jadecap_config.py` module globals + `apply_settings()`, and WebUI SQLite `settings` table.
+Single JSON file replacing `default_config.py` dict and serving as the core config source. In the current implementation, the dashboard still retains a small compatibility `settings` table for web-specific state and backwards-compatible route behavior, but core trading config is loaded from `trading-config.json` via `openclaw/config.py`.
 
 ### Schema
 
@@ -328,6 +336,12 @@ CREATE TABLE outcomes (
 ```
 
 ### Sync Timing
+
+### Implementation Status
+- Core DB schema is implemented in `openclaw/database.py`.
+- Dashboard async DB access now uses a compatibility layer pointing at the same DB path/schema.
+- Dashboard memory bridge has been updated to use `FinancialSituationMemory` directly.
+- A small dashboard-only `settings` table still exists for route compatibility.
 
 ```
 run_start:
