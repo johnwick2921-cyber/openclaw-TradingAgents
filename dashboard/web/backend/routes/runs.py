@@ -350,18 +350,28 @@ async def reflect_run(run_id: str, body: ReflectRequest) -> dict:
     if run is None:
         raise HTTPException(status_code=404, detail="Run not found.")
 
-    # Load reports for this run
+    # Load reports and debates for this run
     async with get_db() as db:
         cursor = await db.execute(
             "SELECT section_name, content FROM reports WHERE run_id = ?", (run_id,)
         )
         report_rows = await cursor.fetchall()
+        cursor = await db.execute(
+            "SELECT debate_type, full_history, judge_decision FROM debates WHERE run_id = ?", (run_id,)
+        )
+        debate_rows = await cursor.fetchall()
 
     reports = {r["section_name"]: r["content"] for r in report_rows}
+    debates = {d["debate_type"]: {"history": d["full_history"], "judge_decision": d["judge_decision"]} for d in debate_rows}
     situation = "\n\n".join(
-        reports.get(k, "") for k in
-        ["market_report", "sentiment_report", "news_report", "fundamentals_report"]
-        if reports.get(k)
+        part for part in [
+            reports.get("market_report", ""),
+            reports.get("sentiment_report", ""),
+            reports.get("news_report", ""),
+            reports.get("fundamentals_report", ""),
+            debates.get("investment", {}).get("history", ""),
+            debates.get("risk", {}).get("history", ""),
+        ] if part
     )
 
     if not situation:
@@ -377,13 +387,19 @@ async def reflect_run(run_id: str, body: ReflectRequest) -> dict:
     now = datetime.now(timezone.utc).isoformat()
     inserted = 0
 
-    # For each agent, create a memory entry linking situation to outcome
+    # For each agent, create a memory entry linking situation to outcome.
+    # Unified schema stores analyst reports + debate rows, not old dashboard-only plan columns.
+    investment_decision = debates.get("investment", {}).get("judge_decision", "")
+    risk_decision = debates.get("risk", {}).get("judge_decision", "")
+    investment_history = debates.get("investment", {}).get("history", "")
+    risk_history = debates.get("risk", {}).get("history", "")
+
     agent_reports = {
-        "bull": reports.get("investment_plan", ""),
-        "bear": reports.get("investment_plan", ""),
-        "trader": reports.get("trader_investment_plan", ""),
-        "invest_judge": reports.get("investment_plan", ""),
-        "portfolio_manager": reports.get("final_trade_decision", ""),
+        "bull": investment_history or reports.get("market_report", ""),
+        "bear": investment_history or reports.get("news_report", ""),
+        "trader": risk_decision or investment_decision,
+        "invest_judge": investment_decision or investment_history,
+        "portfolio_manager": f"Signal: {run.get('signal') or 'UNKNOWN'}\n{risk_history}".strip(),
     }
 
     async with get_db() as db:
