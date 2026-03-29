@@ -48,6 +48,24 @@ SCHEMA_DEFAULTS: Dict[str, Any] = {
         "hard_close_time": "15:45",
         "atr_stop_multiplier": 1.5,
         "t1_close_pct": 0.5,
+        "sessions": {
+            "asia": {"start": "20:00", "end": "00:00"},
+            "london": {"start": "02:00", "end": "05:00"},
+            "ny_am": {"start": "09:30", "end": "11:30"},
+            "ny_pm": {"start": "13:00", "end": "16:00"},
+        },
+        "kill_zones": {
+            "ny_am": {"start": "09:30", "end": "11:30"},
+            "ny_pm": {"start": "13:00", "end": "16:00"},
+            "silver_bullet_1": {"start": "10:00", "end": "11:00"},
+            "silver_bullet_2": {"start": "14:00", "end": "15:00"},
+        },
+        "midday_avoidance": {"start": "11:30", "end": "13:00"},
+        "instruments": {
+            "NQ": {"ticker": "NQ=F", "point_value": 20, "description": "Nasdaq 100 E-mini Futures"},
+            "ES": {"ticker": "ES=F", "point_value": 50, "description": "S&P 500 E-mini Futures"},
+            "MNQ": {"ticker": "MNQ=F", "point_value": 2, "description": "Micro Nasdaq Futures"},
+        },
     },
 
     "halt": False,
