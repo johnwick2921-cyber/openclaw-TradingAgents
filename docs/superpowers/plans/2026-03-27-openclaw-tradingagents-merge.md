@@ -30,6 +30,46 @@
 - Reflection route verification with real market-data conditions.
 - Live price streaming verification with real vendor/API conditions.
 - Final doc cleanup so README + design docs exactly match implemented runtime behavior.
+- **JadeCap runtime strategy path is not end-to-end healthy yet.** A live `NQ` JadeCap run exposed a deeper prompt/runtime integration gap: the JadeCap markdown prompts expect a rich computed context (e.g. `instrument['description']`, `BULL_SETUP[...]`, `RISK[...]`, `AMD[...]`, `kz_str`, `checklist_str`, `hard_rules_str`, `live_price_str`, and expression-like placeholders such as `active_firm.upper()` / `int(t1_pct * 100)`) that the current `RunEngine` does not fully construct.
+
+### New Critical Remediation Track — JadeCap Strategy Fix
+
+This is now a top remaining implementation task, not a hypothetical improvement.
+
+#### Symptoms observed
+- Live JadeCap run failed in Tier 1 before analyst completion.
+- Crash site: `openclaw/engine.py` → `_build_analyst_prompt()` → `_substitute_placeholders()`.
+- Error: `TypeError: string indices must be integers, not 'str'`.
+- Additional operational fragility observed around Sunday/overnight `NQ=F` data fetch behavior.
+
+#### Root causes
+1. JadeCap prompts were migrated with rich template expressions intact.
+2. Current prompt rendering supports mostly flat placeholder substitution.
+3. Current engine context building does not provide a dedicated JadeCap runtime context layer.
+4. Some JadeCap fields exist in `openclaw/jadecap_config.py` but are not normalized into prompt-ready values.
+5. Some risk/config fields referenced by prompts do not cleanly map to the merged JSON config schema.
+
+#### Required fixes
+1. Add a dedicated JadeCap context builder in `openclaw/engine.py`.
+2. Compute prompt-ready values for:
+   - `active`, `active_firm`, `instrument`, `point_value`, `max_loss`, `min_rr`
+   - `live_price_str`, `kz_str`, `checklist_str`, `hard_rules_str`
+   - `bull_req`, `bear_req`, `holiday_list`, `instrument_context`
+   - `TRADE_OUTPUT_FORMAT`, `BULL_SETUP`, `BEAR_SETUP`, `AMD`, `RISK`
+   - `atr_mult`, `t1_pct`, `half_risk_losses`, `max_streak`
+3. Decide one of two strategies and apply consistently:
+   - **Preferred:** simplify JadeCap prompt placeholders so they use plain variable names only
+   - or support a safer structured templating layer for expression-style placeholders
+4. Normalize missing schema fields between `trading-config.json` and `openclaw/jadecap_config.py`.
+5. Re-run live JadeCap validation after the context layer is implemented.
+
+#### Strategy-specific acceptance criteria
+A JadeCap run should not be considered fixed until all of the following pass:
+- `RunEngine.run('NQ', today)` with `strategy='jadecap'` completes Tier 1 without prompt-render failure.
+- Tier 2, 3, and 4 complete with JadeCap prompts rendered successfully.
+- Live/fallback price context is included without crashing the run.
+- At least one end-to-end `NQ` JadeCap test run completes and writes unified DB artifacts.
+- Prompt rendering no longer depends on fragile expression-like placeholders.
 
 ### Important Reality Check
 This is now a mostly-complete OpenClaw-first merge, but not every dashboard/runtime edge path has been fully validated yet. The system is no longer in the design-only stage.

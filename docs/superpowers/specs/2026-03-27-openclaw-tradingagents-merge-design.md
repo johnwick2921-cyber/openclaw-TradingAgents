@@ -17,6 +17,7 @@ Key differences from the earliest design draft:
 - The engine is OpenClaw-native and dispatches via `dispatch_fn(...)` instead of rebuilding the original graph runtime.
 - The web dashboard runner has been updated to call `RunEngine` directly.
 - Runtime result persistence uses the unified core schema in `openclaw/database.py`.
+- **Important current gap:** JadeCap prompt rendering is not fully implemented at the same maturity level as the default strategy path.
 
 ### API
 
@@ -106,6 +107,14 @@ Frontend implementations:
 | `cli/main.py` lines 400-900 (config building, graph streaming, Rich display) | `RunEngine.run()` + `RichCallback` |
 | `webui/backend/runner.py` `_execute_run()` (config building, threading, WS events) | `RunEngine.run()` + `WebSocketCallback` |
 | `main.py` (config override, propagate, reflect) | `RunEngine.run()` + `RunEngine.reflect()` |
+
+### Additional JadeCap Acceptance Criteria
+The strategy-specific implementation is not complete until these conditions are true:
+- JadeCap analysts render prompts without unresolved expression-like placeholders.
+- JadeCap judge/trader/portfolio prompts receive the same class of structured context as the original strategy expected.
+- The merged JSON config and `openclaw/jadecap_config.py` are reconciled for all prompt-referenced fields.
+- Live/fallback price lookup failures degrade gracefully instead of crashing prompt construction.
+- A real `NQ` JadeCap run completes end-to-end through the unified OpenClaw engine and database.
 
 ---
 
@@ -257,6 +266,23 @@ STRATEGY_REGISTRY = {
 ```
 
 ### Unified Agent Files
+
+### JadeCap Runtime Design Correction (added after live validation)
+
+The original merge direction preserved the JadeCap prompts, but live validation showed that prompt preservation alone is insufficient. The JadeCap agent files currently depend on a **computed runtime context layer** that the engine must supply before rendering.
+
+Required runtime context categories:
+- **instrument metadata**: active symbol, description, point value, prop firm
+- **risk/materialized config values**: max loss, min R:R, ATR multiplier, target split %, consecutive-loss thresholds
+- **rendered helper strings**: kill-zone summary, checklist summary, hard rules, holiday list, bull/bear requirement summaries
+- **structured strategy constants**: AMD, RISK, BULL_SETUP, BEAR_SETUP, TRADE_OUTPUT_FORMAT
+- **live market values**: current/live price string and session-sensitive context
+
+This means the final OpenClaw design should not treat JadeCap prompts as plain markdown templates with only flat substitutions. It needs either:
+1. a dedicated JadeCap context builder producing prompt-ready simple variables, or
+2. a stronger structured templating layer.
+
+**Design decision update:** prefer option (1). Normalize prompts toward simple placeholders and make `RunEngine` responsible for materializing JadeCap strategy state into a deterministic prompt context.
 
 Each agent file has one factory function that reads from the registry:
 
