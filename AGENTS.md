@@ -217,7 +217,8 @@ Authority: Can run analysis autonomously during market hours (if heartbeat enabl
 
 How it works: The main OpenClaw agent dispatches 12 specialized subagents defined in `agents/trading/*.md`. Each subagent receives context from prior agents and produces a specific output. The pipeline preserves the original TradingAgents logic.
 
-Config: `trading-config.json`
+Control panel: `TRADING.md` — read on startup, shows status/bias/watchlist/config
+Config: `trading-config.json` — programmatic config (synced from TRADING.md)
 Agent definitions: `agents/trading/`
 
 ## Make It Yours

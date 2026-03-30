@@ -95,12 +95,16 @@ Helper: `openclaw/heartbeat.py` — market phase detection, heartbeat state mana
 
 ## What To Do When Called
 
-1. **Read trading-config.json** to understand current state
-2. **Check halt flag** — if halted, inform user and ask if they want to resume
-3. **For config changes**: edit trading-config.json directly
-4. **For analysis runs**: use RunEngine.run() with appropriate dispatch_fn
-5. **For troubleshooting**: check trading.db for partial runs, read memory/ for recent summaries
-6. **For agent updates**: edit files in agents/trading/*.md
+1. **Read TRADING.md** — this is the OpenClaw control panel, shows current status, bias, watchlist, config at a glance
+2. **Read trading-config.json** for programmatic config details
+3. **Check halt flag** — if halted, inform user and ask if they want to resume
+4. **For bias changes**: update TRADING.md "Market Bias" section AND trading-config.json
+5. **For config changes**: edit trading-config.json, then update TRADING.md to reflect the change
+6. **For watchlist changes**: update both TRADING.md watchlist table and trading-config.json watchlist array
+7. **For analysis runs**: use RunEngine.run() with appropriate dispatch_fn
+8. **For troubleshooting**: check trading.db for partial runs, read memory/ for recent summaries
+9. **For agent updates**: edit files in agents/trading/*.md
+10. **Always keep TRADING.md in sync** — it's the user-facing view of trading state
 
 ## What NOT To Do
 

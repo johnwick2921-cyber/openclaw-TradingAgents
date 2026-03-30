@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS reports (
 CREATE TABLE IF NOT EXISTS debates (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
-    debate_type TEXT,
+    debate_type TEXT NOT NULL,
     full_history TEXT,
     side_a_history TEXT,
     side_b_history TEXT,
@@ -43,18 +43,18 @@ CREATE TABLE IF NOT EXISTS debates (
 CREATE TABLE IF NOT EXISTS memories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     agent_name TEXT NOT NULL,
-    situation TEXT,
-    recommendation TEXT,
-    run_id TEXT,
+    situation TEXT NOT NULL,
+    recommendation TEXT NOT NULL,
+    run_id TEXT,  -- intentionally no FK: memories can exist independently of runs
     created_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS outcomes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    run_id TEXT,
+    run_id TEXT,  -- intentionally no FK: outcomes can be recorded for runs from other systems
     ticker TEXT NOT NULL,
     trade_date TEXT NOT NULL,
-    signal TEXT,
+    signal TEXT NOT NULL,
     actual_close REAL,
     actual_change_pct REAL,
     correct INTEGER,

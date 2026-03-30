@@ -32,8 +32,17 @@ async def lifespan(app):
         )
         await db.commit()
     # Load saved memories from SQLite into BM25 instances
-    from dashboard.web.backend.memory_bridge import memory_bridge
-    await memory_bridge.load_from_db()
+    from openclaw.memory import FinancialSituationMemory
+    from openclaw.memory_persistence import hydrate_memories
+    from dashboard.web.backend.database import DB_PATH
+    _memories = {
+        "bull_memory": FinancialSituationMemory("bull_memory"),
+        "bear_memory": FinancialSituationMemory("bear_memory"),
+        "trader_memory": FinancialSituationMemory("trader_memory"),
+        "invest_judge_memory": FinancialSituationMemory("invest_judge_memory"),
+        "portfolio_manager_memory": FinancialSituationMemory("portfolio_manager_memory"),
+    }
+    hydrate_memories(_memories, DB_PATH)
     # Capture event loop once at startup for background thread → async bridge
     from dashboard.web.backend.routes.prices import init_event_loop
     init_event_loop()

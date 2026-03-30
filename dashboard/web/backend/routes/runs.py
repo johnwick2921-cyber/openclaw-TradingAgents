@@ -381,7 +381,9 @@ async def reflect_run(run_id: str, body: ReflectRequest) -> dict:
     returns_str = f"Actual P&L: ${body.returns_losses:.2f}"
     outcome = "profitable" if body.returns_losses > 0 else "loss"
 
-    from dashboard.web.backend.memory_bridge import memory_bridge
+    from openclaw.memory import FinancialSituationMemory
+    from openclaw.memory_persistence import hydrate_memories
+    from dashboard.web.backend.database import DB_PATH
     from datetime import datetime, timezone
 
     now = datetime.now(timezone.utc).isoformat()
@@ -419,7 +421,14 @@ async def reflect_run(run_id: str, body: ReflectRequest) -> dict:
         await db.commit()
 
     # Reload memories into BM25 instances
-    await memory_bridge.load_from_db()
+    _memories = {
+        "bull_memory": FinancialSituationMemory("bull_memory"),
+        "bear_memory": FinancialSituationMemory("bear_memory"),
+        "trader_memory": FinancialSituationMemory("trader_memory"),
+        "invest_judge_memory": FinancialSituationMemory("invest_judge_memory"),
+        "portfolio_manager_memory": FinancialSituationMemory("portfolio_manager_memory"),
+    }
+    hydrate_memories(_memories, DB_PATH)
 
     return {"status": "completed", "memories_created": inserted, "returns_losses": body.returns_losses}
 

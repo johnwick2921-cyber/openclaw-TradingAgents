@@ -12,6 +12,12 @@ SCHEMA_DEFAULTS: Dict[str, Any] = {
     "strategy": "default",
     "watchlist": [],
 
+    "bias": {
+        "direction": "neutral",  # bullish / bearish / neutral
+        "reason": "",
+        "confidence": "medium",  # low / medium / high
+    },
+
     "llm": {
         "default": "gpt-4o",
         "deep_think": "claude-opus-4-6",

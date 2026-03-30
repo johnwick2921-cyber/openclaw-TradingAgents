@@ -106,6 +106,33 @@ class TestPersistAndHydrate:
             os.unlink(db_path)
 
 
+class TestMarkdownSummary:
+    def test_markdown_summary_written(self):
+        """FileMemoryCallback should write summary to memory/YYYY-MM-DD.md."""
+        import tempfile
+        from openclaw.callbacks import FileMemoryCallback
+        from openclaw.engine import RunResult
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cb = FileMemoryCallback(memory_dir=tmpdir)
+            cb.on_run_start("NVDA", "2026-03-28")
+            cb.on_report_section("market_report", "Market looks bullish")
+            cb.on_signal("BUY")
+            result = RunResult(
+                run_id="test-001", ticker="NVDA", date="2026-03-28",
+                signal="BUY", duration_seconds=5.0,
+            )
+            cb.on_run_complete(result)
+
+            filepath = os.path.join(tmpdir, "2026-03-28.md")
+            assert os.path.exists(filepath), "Summary file not created"
+            with open(filepath) as f:
+                content = f.read()
+            assert "NVDA" in content
+            assert "BUY" in content
+            assert "Market looks bullish" in content
+
+
 class TestOutcomeRecording:
     def test_outcome_recording(self):
         """Insert outcome row, read back, verify fields."""

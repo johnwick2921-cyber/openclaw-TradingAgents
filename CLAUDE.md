@@ -15,6 +15,7 @@
 | `BOOTSTRAP.md` | First-run onboarding — deleted after initial setup |
 | `TOOLS.md` | Local environment notes (cameras, SSH, TTS, device names) |
 | `HEARTBEAT.md` | Periodic task checklist for proactive background work |
+| `TRADING.md` | Trading control panel — bias, watchlist, strategy, risk, status |
 | `.openclaw/` | Internal state (workspace-state.json) |
 
 ## Key Concepts
@@ -26,9 +27,10 @@
 - **Boundaries**: No data exfiltration, `trash` over `rm`, ask before external actions
 - **Identity evolution**: Agent fills in IDENTITY.md during first conversation, evolves SOUL.md over time
 
-## Merge: TradingAgents → OpenClaw (IN PROGRESS)
+## Merge: TradingAgents → OpenClaw (COMPLETE)
 
 **Full plan:** `docs/superpowers/plans/2026-03-27-openclaw-tradingagents-merge.md`
+**Tag:** `v0.1.0-merge`
 
 ### Architecture Decisions (locked in)
 
@@ -85,20 +87,23 @@ Tier 4: Portfolio Manager → FINAL SIGNAL (BUY/OVERWEIGHT/HOLD/UNDERWEIGHT/SELL
 ### File Structure After Merge
 
 ```
+TRADING.md             ← Trading control panel (bias, watchlist, status)
 openclaw/              ← THE Python package (everything)
 ├── engine.py          ← RunEngine (dispatch_fn hook)
-├── config.py          ← trading-config.json loader
-├── memory.py          ← BM25 (moved from tradingagents)
-├── database.py        ← SQLite schema
-├── memory_persistence.py ← BM25 ↔ SQLite
+├── config.py          ← trading-config.json loader + SCHEMA_DEFAULTS
+├── indicators.py      ← Unified indicator interface (stockstats + smartmoneyconcepts)
+├── tool_registry.py   ← Dynamic tool registry (register/call by name)
+├── memory.py          ← BM25 financial situation memory
+├── database.py        ← SQLite schema (runs, reports, debates, memories, outcomes)
+├── memory_persistence.py ← BM25 ↔ SQLite sync
 ├── heartbeat.py       ← market phase detection
-├── callbacks.py       ← RunCallback protocol
-├── dataflows/         ← MOVED from tradingagents/dataflows/ (15 files)
-└── tools/             ← MOVED from tradingagents/agents/utils/ (6 files, @tool removed)
+├── callbacks.py       ← RunCallback protocol (Print, Collector, FileMemory)
+├── dataflows/         ← data vendor integrations (15 files)
+└── tools/             ← plain Python tool functions (5 files, auto-registered)
 
 agents/trading/        ← 12 subagent .md definitions
 dashboard/terminal/    ← Rich monitor + analysis viewer
-dashboard/web/         ← Migrated React WebUI
+dashboard/web/         ← React + FastAPI web dashboard
 ```
 
 ### Key Dependencies (after merge)
