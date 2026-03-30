@@ -1,6 +1,16 @@
-"""Trading monitor API endpoints."""
-import os
+"""Trading monitor API endpoints.
+
+Endpoints:
+    GET  /api/trading/status    — full trading state (config + DB + market phase)
+    PUT  /api/trading/bias      — update market bias direction/reason/confidence
+    PUT  /api/trading/halt      — toggle halt state
+    PUT  /api/trading/watchlist  — add/remove/set tickers
+    PUT  /api/trading/risk      — update risk parameters (deep merge)
+"""
+import logging
 from typing import Any, Dict
+
+logger = logging.getLogger(__name__)
 from fastapi import APIRouter
 from openclaw.config import load_config, save_config, deep_merge
 from openclaw.database import safe_get_db
@@ -27,8 +37,8 @@ async def get_trading_status() -> dict:
                 last_run = dict(row)
             rows = conn.execute("SELECT agent_name, COUNT(*) as count FROM memories GROUP BY agent_name ORDER BY count DESC").fetchall()
             memory_stats = [{"agent": r["agent_name"], "count": r["count"]} for r in rows]
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Trading status DB query failed: %s", exc)
     return {"state": "halted" if config.get("halt") else "active", "strategy": config.get("strategy", "default"), "market_phase": phase, "bias": config.get("bias", {"direction": "neutral", "reason": "", "confidence": "medium"}), "watchlist": watchlist_data, "last_run": last_run, "memory_stats": memory_stats, "risk": config.get("risk", {}), "llm": config.get("llm", {}), "analysis": config.get("analysis", {}), "schedule": config.get("schedule", {}), "jadecap": config.get("jadecap", {}) if config.get("strategy") == "jadecap" else None}
 
 @router.put("/bias")
