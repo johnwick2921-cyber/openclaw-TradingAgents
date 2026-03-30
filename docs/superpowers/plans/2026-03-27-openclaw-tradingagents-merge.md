@@ -4262,3 +4262,79 @@ Allows origins: localhost:5173, localhost:8000, 127.0.0.1:8000, 127.0.0.1:5173.
 **JadeCap prompt (first 2 lines):** You are the JadeCap Portfolio Manager -- the FINAL decision authority for {active} Futures. Point Value: ${point_value} | Max Risk: ${max_loss} | Min R:R: {min_rr}:1
 **Line count:** 242
 
+
+---
+
+## Phase 10: WebUI Trading Monitor + OpenClaw Agent Registration (added 2026-03-29)
+
+> Full detailed plan with all code: `docs/superpowers/plans/2026-03-29-openclaw-trading-integration.md`
+
+### What This Phase Adds
+
+**OpenClaw Agent Registration:**
+- `openclaw.json` → `agents.list` includes `trading-monitor` with label, description, tools profile, boot files
+- `agents/trading-monitor/agent/models.json` — model config (GPT-5.4 primary, Claude Opus 4.6 deep think)
+
+**Backend (5 new endpoints in `dashboard/web/backend/routes/trading.py`):**
+- `GET /api/trading/status` → full state: config + DB runs + market phase + bias + watchlist signals + memory stats + risk + LLM + analysis + schedule + jadecap
+- `PUT /api/trading/bias` → update direction (bullish/bearish/neutral) + reason + confidence (low/medium/high)
+- `PUT /api/trading/halt` → toggle halt boolean, persists to trading-config.json
+- `PUT /api/trading/watchlist` → add/remove/set tickers, persists to trading-config.json
+- `PUT /api/trading/risk` → deep-merge risk parameters, persists to trading-config.json
+
+**Frontend (7 new files):**
+- `TradingMonitor.jsx` — main page (7 cards: halt switch, bias control, last run, watchlist, pipeline, risk, memory stats, LLM config). Auto-refreshes every 30 seconds.
+- `HaltSwitch.jsx` — green ACTIVE / red HALTED toggle button. Calls `PUT /api/trading/halt`.
+- `BiasControl.jsx` — 3 direction buttons (bullish/neutral/bearish) + 3 confidence buttons (low/medium/high) + reason text input. Calls `PUT /api/trading/bias`.
+- `WatchlistPanel.jsx` — ticker input + add button + table (ticker, signal badge, date, status, correct, remove). Calls `PUT /api/trading/watchlist`.
+- `PipelineStatus.jsx` — 4-tier pipeline visualization showing analysts, debate rounds, risk rotation, final signal. Reads from `/api/trading/status`.
+- `RiskPanel.jsx` — 2-column grid of risk params. Adapts for JadeCap (adds ATR stop, T1 close, hard close, instrument).
+
+**Modified Files:**
+- `App.jsx` — add `/trading` route for TradingMonitor
+- `Layout.jsx` — add "Trading" nav link, rename header from "TradingAgents" to "OpenClaw"
+- `app.py` — register trading router
+
+**Tests (5 new in `tests/test_trading_api.py`):**
+- `test_bias_roundtrip` — set bias, reload, verify persisted
+- `test_halt_roundtrip` — set halt, reload, verify
+- `test_watchlist_add_remove` — add/remove tickers
+- `test_risk_update` — update risk params, verify deep merge
+- `test_schema_defaults_has_bias` — SCHEMA_DEFAULTS includes bias section
+
+### Function Details
+
+#### `GET /api/trading/status` Response Shape:
+```json
+{
+  "state": "active" | "halted",
+  "strategy": "default" | "jadecap",
+  "market_phase": "pre" | "open" | "midday" | "close" | "post" | "closed",
+  "bias": {"direction": "bullish", "reason": "...", "confidence": "high"},
+  "watchlist": [{"ticker": "NVDA", "signal": "BUY", "date": "2026-03-28", "status": "completed", "correct": true}],
+  "last_run": {"id": "...", "ticker": "NVDA", "trade_date": "...", "strategy": "...", "signal": "BUY", "status": "completed", "duration_seconds": 45.2, "created_at": "..."},
+  "memory_stats": [{"agent": "bull_memory", "count": 5}],
+  "risk": {"max_loss_per_trade": 500, ...},
+  "llm": {"default": "gpt-4o", "deep_think": "claude-opus-4-6", "quick_think": "gpt-4o-mini", "per_agent": {}},
+  "analysis": {"analysts": ["market", "news"], "max_debate_rounds": 1, ...},
+  "schedule": {...},
+  "jadecap": {...} | null
+}
+```
+
+#### Component Props:
+- `HaltSwitch({ halted: bool, onToggle: (newState) => void })`
+- `BiasControl({ bias: {direction, reason, confidence}, onUpdate: (newBias) => void })`
+- `WatchlistPanel({ watchlist: [{ticker, signal, date, status, correct}], onUpdate: (newWatchlist) => void })`
+- `PipelineStatus({ analysis: {analysts, max_debate_rounds, ...}, strategy: string })`
+- `RiskPanel({ risk: {max_loss_per_trade, ...}, jadecap: {...} | null })`
+
+### Summary
+| Phase | Tasks | Creates | Modifies |
+|-------|-------|---------|----------|
+| A. Agent Registration | 2 | `openclaw.json` entry, `agents/trading-monitor/` | `openclaw.json` |
+| B. Backend API | 1 | `routes/trading.py`, `test_trading_api.py` | `app.py` |
+| C. Frontend Components | 5 | 6 React components | — |
+| D. Wire + Build | 1 | — | `App.jsx`, `Layout.jsx`, `dist/` |
+| E. Plan + Push | 1 | — | plan .md |
+| **Total** | **10** | **9 new files** | **4 modified** |
