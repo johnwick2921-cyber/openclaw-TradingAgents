@@ -24,8 +24,12 @@ SCHEMA_DEFAULTS: Dict[str, Any] = {
         "technical_indicators": "yfinance",
         "fundamental_data": "yfinance",
         "news_data": "yfinance",
+        "live_price_data": "auto",
+        "macro_news_data": "auto",
     },
-    "tool_vendors": {},
+    "tool_vendors": {
+        "web_search": "auto",
+    },
 
     "analysis": {
         "max_debate_rounds": 1,

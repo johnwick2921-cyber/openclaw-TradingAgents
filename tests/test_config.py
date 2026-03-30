@@ -25,6 +25,9 @@ def test_load_config_defaults():
         assert config["llm"]["quick_think"] == "gpt-4o-mini"
         assert config["analysis"]["max_debate_rounds"] == 1
         assert config["data_vendors"]["core_stock_apis"] == "yfinance"
+        assert config["data_vendors"]["live_price_data"] == "auto"
+        assert config["data_vendors"]["macro_news_data"] == "auto"
+        assert config["tool_vendors"]["web_search"] == "auto"
         assert config["halt"] is False
         assert config["paths"]["database"] == "trading.db"
         assert config["schedule"]["market_hours"]["timezone"] == "US/Eastern"

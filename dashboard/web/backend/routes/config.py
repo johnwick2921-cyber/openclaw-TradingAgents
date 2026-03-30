@@ -103,6 +103,19 @@ ANALYST_TYPES = [
     {"value": "fundamentals", "label": "Fundamentals Analyst"},
 ]
 
+DATA_PROVIDER_OPTIONS = {
+    "core_stock_apis": ["yfinance", "databento", "alpha_vantage"],
+    "technical_indicators": ["yfinance", "databento", "alpha_vantage"],
+    "fundamental_data": ["yfinance", "alpha_vantage"],
+    "news_data": ["yfinance", "brave"],
+    "live_price_data": ["auto", "databento", "yfinance", "alpha_vantage"],
+    "macro_news_data": ["auto", "brave", "yfinance"],
+}
+
+TOOL_PROVIDER_OPTIONS = {
+    "web_search": ["auto", "brave"],
+}
+
 # Keys we track for /api/keys/status
 _TRACKED_API_KEYS = [
     "OPENAI_API_KEY",
@@ -153,6 +166,8 @@ async def get_config() -> dict:
         "deep_models": deep,
         "quick_models": quick,
         "analyst_types": ANALYST_TYPES,
+        "data_provider_options": DATA_PROVIDER_OPTIONS,
+        "tool_provider_options": TOOL_PROVIDER_OPTIONS,
     }
 
 
