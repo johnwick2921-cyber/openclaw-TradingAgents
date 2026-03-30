@@ -14,8 +14,8 @@ from dashboard.web.backend.routes.prices import router as prices_router, _ws_rou
 from dashboard.web.backend.ws import router as ws_router
 from dashboard.web.backend.routes.trading import router as trading_router
 
-_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-_FRONTEND_DIST = os.path.join(_PROJECT_ROOT, "webui", "frontend", "dist")
+_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+_FRONTEND_DIST = os.path.join(_PROJECT_ROOT, "frontend", "dist")
 
 from contextlib import asynccontextmanager
 
