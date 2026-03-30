@@ -12,6 +12,7 @@ from dashboard.web.backend.routes.memories import router as memories_router
 from dashboard.web.backend.routes.cache import router as cache_router
 from dashboard.web.backend.routes.prices import router as prices_router, _ws_router as prices_ws_router
 from dashboard.web.backend.ws import router as ws_router
+from dashboard.web.backend.routes.trading import router as trading_router
 
 _PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 _FRONTEND_DIST = os.path.join(_PROJECT_ROOT, "webui", "frontend", "dist")
@@ -76,6 +77,7 @@ app.include_router(config_router)
 app.include_router(memories_router)
 app.include_router(cache_router)
 app.include_router(prices_router)
+app.include_router(trading_router)
 
 
 @app.get("/api/health")
