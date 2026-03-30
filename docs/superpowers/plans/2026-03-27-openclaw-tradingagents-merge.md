@@ -3761,3 +3761,504 @@ TradingAgents/ ← DOES NOT EXIST (fully deleted)
 
 **OpenClaw is main. Zero LangChain. Zero duplication. Everything accounted for.**
 
+## Appendix: Actual Implementation Details
+
+> Auto-generated 2026-03-28 from reading every file listed below.
+
+---
+
+### engine.py
+**Path:** `openclaw/engine.py`
+**Purpose:** Orchestrates the 4-tier trading analysis pipeline via subagent dispatch.
+
+#### Dataclass: RunResult
+Fields: `run_id: str`, `ticker: str`, `date: str`, `signal: str`, `market_report: str`, `sentiment_report: str`, `news_report: str`, `fundamentals_report: str`, `investment_debate: dict`, `risk_debate: dict`, `trader_plan: str`, `final_decision: str`, `duration_seconds: float`. All default to empty/zero.
+
+#### Class: RunEngine
+
+##### Methods:
+- `__init__(self, config_path: str = "trading-config.json") -> None` -- Loads config via `load_config()`, initializes 5 BM25 `FinancialSituationMemory` instances (bull, bear, trader, invest_judge, portfolio_manager), hydrates memories from SQLite if DB exists.
+- `run(self, ticker: str, date: str, dispatch_fn: Optional[Callable] = None, dispatch_parallel_fn: Optional[Callable] = None, callbacks: Optional[list] = None) -> RunResult` -- Main entry point. Bridges config to dataflow singleton via `set_dataflow_config()`. Checks halt flag. Creates run UUID, inserts `runs` row. Executes 4 tiers sequentially with try/except per tier (partial state saved on failure). Extracts signal from PM response. Persists memories. Returns `RunResult`.
+- `_run_tier1_analysts(self, agents_dir, strategy, ticker, date, dispatch, dispatch_parallel_fn, callbacks) -> dict` -- Runs selected analysts (market/social/news/fundamentals). Uses `dispatch_parallel_fn` if provided and >1 task, otherwise sequential. Parses frontmatter for tier/model. Returns dict of `{report_field: response}`.
+- `_run_debate(self, agents_dir, strategy, ticker, date, reports, dispatch, callbacks) -> dict` -- Runs bull/bear debate for `max_debate_rounds`. Each round: bull argues, then bear counters. Returns debate dict with `history`, `bull_history`, `bear_history`, `count`.
+- `_run_judge_trader_risk(self, agents_dir, strategy, ticker, date, reports, debate, dispatch, callbacks) -> tuple[str, str, dict]` -- Runs research-manager (investment plan), trader (trade plan), then risk debate (aggressive/conservative/neutral for `max_risk_discuss_rounds`). Returns `(investment_plan, trader_plan, risk_debate)`.
+- `_run_portfolio_manager(self, agents_dir, strategy, ticker, date, reports, debate, investment_plan, trader_plan, risk_debate, dispatch, callbacks) -> str` -- Runs portfolio-manager agent with full context. Returns final decision string.
+- `_extract_signal(self, final_decision: str) -> str` -- Parses final decision text for BUY/OVERWEIGHT/HOLD/UNDERWEIGHT/SELL. Checks formatted patterns first, then falls back to last occurrence. Returns signal string.
+- `_build_analyst_prompt(self, agents_dir, agent_name, strategy, ticker, date) -> str` -- Reads agent .md, extracts strategy prompt, parses frontmatter for tool list, pre-fetches tool data via registry, substitutes placeholders, builds JadeCap context if needed. Returns complete prompt string.
+- `_build_researcher_prompt(self, agents_dir, agent_name, strategy, ticker, date, reports_context, debate, side, reports=None) -> str` -- Builds prompt for bull/bear researchers with debate history, opponent history, memory context, and report data. Returns prompt string.
+- `_build_prompt_with_context(self, agents_dir, agent_name, strategy, **context) -> str` -- Generic prompt builder for manager/trader/risk/PM agents. Reads strategy prompt, merges JadeCap context if needed, substitutes placeholders. Returns prompt string.
+- `_substitute_placeholders(template: str, context: dict) -> str` (static) -- Regex-based placeholder resolver. Handles `.upper()`, `int()`, dict access like `instrument['description']`, and nested dict access like `BULL_SETUP['target']`. Returns resolved string.
+- `_build_jadecap_context(self, ticker: str, date: str) -> dict` -- Imports from `jadecap_config.py` (JADECAP_CONFIG, AMD, RISK, HARD_RULES, BULL_SETUP, BEAR_SETUP, CHECKLIST, TRADE_OUTPUT_FORMAT, HOLIDAY_RULES, KILL_ZONES). Builds ~40 context variables including live price, kill zones, checklist, hard rules, requirements, instruments. Returns context dict.
+- `_safe_live_price(self, symbol: str) -> str` -- Calls `fetch_live_price()` wrapped in try/except. Returns price string or "unavailable".
+- `_format_kill_zones(kill_zones: dict) -> str` (static) -- Formats kill zone dict into bullet list. Returns string.
+- `_format_checklist(items: list) -> str` (static) -- Formats checklist items with required/optional tags. Returns string.
+- `_format_hard_rules(rules: list) -> str` (static) -- Formats hard rules as bullet list. Returns string.
+- `_format_requirements(reqs: list) -> str` (static) -- Formats requirement list as bullets. Returns string.
+- `_read_strategy_prompt(self, md_path: str, strategy: str) -> str` -- Reads agent .md file, extracts content under `## JadeCap Strategy Prompt` or `## Default Strategy Prompt` heading. Falls back to content after frontmatter. Returns prompt text.
+- `_format_reports(self, reports: dict) -> str` -- Formats report dict into labeled sections. Returns string.
+- `_parse_frontmatter(md_path: str) -> dict` (static) -- Parses YAML-like frontmatter between `---` markers. Handles lists `[a, b]`, null, and string values. Returns dict.
+- `_prefetch_tool_data(self, tool_names: list, ticker: str, date: str) -> dict` -- Calls `registry.call_many()` for the given tool names. Returns `{tool_name: result_string}`.
+- `_get_memory_context(self, memory_name: str, ticker: str, date: str) -> str` -- BM25 retrieves top 3 matching memories for the given ticker/date situation. Returns formatted string or empty.
+- `_dispatch_with_timeout(self, dispatch_fn, agent_name: str, prompt: str, model: str) -> str` -- Wraps dispatch in `ThreadPoolExecutor` with configurable timeout (default 300s). Raises `TimeoutError` on expiry. Returns dispatch result string.
+- `_persist_reports(self, db_path: str, run_id: str, reports: dict) -> None` -- Inserts report sections into `reports` table.
+- `_persist_debate(self, db_path: str, run_id: str, debate_type: str, debate: dict, judge_decision: str = "") -> None` -- Inserts debate record into `debates` table with side histories.
+- `_mark_run_failed(self, db_path: str, run_id: str, error_msg: str, start_time) -> None` -- Updates run row to status='failed' with error message and duration.
+- `_default_dispatch(self, agent_name: str, prompt: str, model: str) -> str` -- Stub dispatcher that prints and returns a placeholder response.
+- `reflect(self, ticker: str, date: str, dispatch_fn=None, callbacks=None) -> dict` -- Post-session reflection. Fetches actual close via yfinance, compares to stored signal, determines correctness (BUY+up=correct, SELL+down=correct), inserts into `outcomes` table. Returns dict with ticker, date, actual_close, signal, correct, actual_change_pct, reflection.
+- `halt(self) -> None` -- Sets `config["halt"] = True` and saves config to disk.
+- `resume(self) -> None` -- Sets `config["halt"] = False` and saves config to disk.
+- `status` (property) -> `dict` -- Returns `{"state": "running"|"idle"|"halted", "strategy": ..., "watchlist": ..., "config_path": ...}`.
+
+---
+
+### config.py
+**Path:** `openclaw/config.py`
+**Purpose:** Unified config: JSON file + schema defaults. Replaces default_config.py, jadecap_config.py globals, and WebUI settings table.
+
+#### Constants:
+- `SCHEMA_DEFAULTS: Dict[str, Any]` -- Full default config tree with keys: strategy, watchlist, llm (default/deep_think/quick_think/per_agent), data_vendors, tool_vendors, analysis, risk, jadecap (instruments/sessions/kill_zones/midday_avoidance), halt, schedule (market_hours), paths.
+
+#### Functions:
+- `deep_merge(base: dict, override: dict) -> dict` -- Recursively merges override into base without mutation. Override values win. Returns new dict.
+- `load_config(path: str = "trading-config.json") -> Dict[str, Any]` -- Loads JSON config file, deep-merges with `SCHEMA_DEFAULTS`. Returns defaults if file missing.
+- `save_config(config: Dict[str, Any], path: str = "trading-config.json") -> None` -- Writes config dict to JSON file with indent=2.
+- `get_model_for_agent(config: Dict[str, Any], agent_name: str, tier: str = "quick") -> str` -- Resolves LLM model for agent. Priority: per_agent override > tier default (deep_think/quick_think) > global default. Returns model string.
+
+---
+
+### database.py
+**Path:** `openclaw/database.py`
+**Purpose:** SQLite database schema for trading run persistence.
+
+#### Schema (5 tables):
+- **runs** -- `id TEXT PK`, `ticker TEXT NOT NULL`, `trade_date TEXT NOT NULL`, `strategy TEXT DEFAULT 'default'`, `signal TEXT`, `status TEXT DEFAULT 'running'`, `error_message TEXT`, `duration_seconds REAL`, `created_at TEXT NOT NULL`
+- **reports** -- `id INTEGER PK AUTOINCREMENT`, `run_id TEXT FK->runs(id) CASCADE`, `section_name TEXT NOT NULL`, `content TEXT`
+- **debates** -- `id INTEGER PK AUTOINCREMENT`, `run_id TEXT FK->runs(id) CASCADE`, `debate_type TEXT NOT NULL`, `full_history TEXT`, `side_a_history TEXT`, `side_b_history TEXT`, `side_c_history TEXT`, `judge_decision TEXT`
+- **memories** -- `id INTEGER PK AUTOINCREMENT`, `agent_name TEXT NOT NULL`, `situation TEXT NOT NULL`, `recommendation TEXT NOT NULL`, `run_id TEXT` (no FK), `created_at TEXT NOT NULL`
+- **outcomes** -- `id INTEGER PK AUTOINCREMENT`, `run_id TEXT` (no FK), `ticker TEXT NOT NULL`, `trade_date TEXT NOT NULL`, `signal TEXT NOT NULL`, `actual_close REAL`, `actual_change_pct REAL`, `correct INTEGER`, `reflection TEXT`, `created_at TEXT NOT NULL`
+
+#### Functions:
+- `init_db(db_path: str) -> None` -- Creates all tables with `PRAGMA foreign_keys = ON` and `PRAGMA journal_mode = WAL`.
+- `safe_get_db(db_path: str) -> ContextManager[sqlite3.Connection]` -- Returns `get_db()` context manager, calling `init_db()` first if DB file does not exist.
+- `get_db(db_path: str) -> Generator[sqlite3.Connection, None, None]` -- Context manager yielding a `sqlite3.Connection` with `Row` factory and foreign keys enabled.
+
+---
+
+### memory.py
+**Path:** `openclaw/memory.py`
+**Purpose:** Financial situation memory using BM25 for lexical similarity matching. No API calls, no token limits, works offline.
+
+#### Class: FinancialSituationMemory
+
+##### Methods:
+- `__init__(self, name: str, config: dict = None) -> None` -- Initializes with name identifier. Stores `documents: List[str]`, `recommendations: List[str]`, `bm25: Optional[BM25Okapi]`.
+- `_tokenize(self, text: str) -> List[str]` -- Lowercases and splits on non-alphanumeric boundaries. Returns token list.
+- `_rebuild_index(self) -> None` -- Rebuilds BM25Okapi index from all stored documents. Sets `bm25 = None` if no documents.
+- `add_situations(self, situations_and_advice: List[Tuple[str, str]]) -> None` -- Appends (situation, recommendation) pairs to documents/recommendations lists, then rebuilds BM25 index.
+- `get_memories(self, current_situation: str, n_matches: int = 1) -> List[dict]` -- BM25 similarity search. Returns list of dicts with keys `matched_situation`, `recommendation`, `similarity_score` (normalized 0-1). Returns empty list if no documents.
+- `clear(self) -> None` -- Clears all documents, recommendations, and BM25 index.
+
+---
+
+### memory_persistence.py
+**Path:** `openclaw/memory_persistence.py`
+**Purpose:** BM25 <-> SQLite synchronization for FinancialSituationMemory. Persist and reload across sessions.
+
+#### Functions:
+- `persist_memories(memories_dict: Dict[str, FinancialSituationMemory], db_path: str, run_id: str) -> int` -- Writes BM25 entries to SQLite `memories` table, deduplicating against existing rows for each agent. Returns count of new rows inserted.
+- `hydrate_memories(memories_dict: Dict[str, FinancialSituationMemory], db_path: str) -> int` -- Clears each memory instance, loads from `memories` table ordered by `created_at ASC`, calls `add_situations()`. Returns total memories loaded.
+
+---
+
+### callbacks.py
+**Path:** `openclaw/callbacks.py`
+**Purpose:** Callback protocol for RunEngine event streaming.
+
+#### Class: RunCallback (Protocol)
+- `on_run_start(self, ticker: str, date: str) -> None`
+- `on_agent_status(self, agent: str, status: str) -> None`
+- `on_report_section(self, name: str, content: str) -> None`
+- `on_debate_turn(self, speaker: str, argument: str) -> None`
+- `on_signal(self, signal: str) -> None`
+- `on_run_complete(self, result: Any) -> None`
+- `on_error(self, error: Exception) -> None`
+
+#### Class: PrintCallback
+Implements `RunCallback`. Prints all events to stdout with formatting. `on_run_complete` shows signal and duration.
+
+#### Class: CollectorCallback
+Implements `RunCallback`. Stores all events in `self.events: list` as tuples for testing. Each event type is a tuple like `("run_start", ticker, date)`.
+
+#### Class: FileMemoryCallback
+- `__init__(self, memory_dir: str = "memory") -> None` -- Accumulates lines in memory.
+- `on_run_start/on_agent_status/on_report_section/on_debate_turn/on_signal/on_run_complete/on_error` -- Append formatted lines. Complete/error calls `_flush()`.
+- `_flush(self) -> None` -- Writes accumulated lines to `memory/<date>.md`. Appends if file exists.
+
+---
+
+### heartbeat.py
+**Path:** `openclaw/heartbeat.py`
+**Purpose:** Market phase detection and heartbeat state management.
+
+#### Functions:
+- `get_market_phase(config: dict) -> str` -- Returns current market phase: `'pre'|'open'|'midday'|'close'|'post'|'closed'`. Uses config timezone (default US/Eastern). Auto-selects stock/futures hours based on strategy. Handles futures overnight session (18:00-17:00).
+- `should_run_phase(config: dict, heartbeat_state: dict, phase: str) -> tuple[bool, str]` -- Checks if a heartbeat phase should run. Phases: `pre_session` (once/day), `during_session` (interval-based), `post_session` (once/day). Returns `(should_run, reason)`. Checks halt flag, market phase, and last-run timestamps.
+- `load_heartbeat_state(path: str = "heartbeat-state.json") -> dict` -- Loads JSON state file. Returns empty dict if missing.
+- `update_heartbeat_state(path: str, phase: str, result: dict = None) -> dict` -- Updates heartbeat state with current ISO timestamp for the phase key (`lastPreSession`/`lastMonitor`/`lastPostSession`). Merges result into `todaySignals`. Writes to disk. Returns updated state.
+
+---
+
+### indicators.py
+**Path:** `openclaw/indicators.py`
+**Purpose:** Unified indicator interface routing to stockstats or smartmoneyconcepts backends.
+
+#### Constants:
+- `STOCKSTATS_INDICATORS: set` -- 13 indicators: close_50_sma, close_200_sma, close_10_ema, macd, macds, macdh, rsi, mfi, boll, boll_ub, boll_lb, atr, vwma.
+- `SMC_INDICATORS: set` -- 17 ICT indicators: fvg, order_blocks, session_levels, equal_highs_lows, market_structure, prev_day_levels, midnight_open, killzone_status, fib_ote, math_indicators, ndog, nwog, sfp_detection, displacement_candle, liquidity_sweep, breaker_block, amd_phase.
+- `ALL_INDICATORS: set` -- Union of both sets (30 total).
+
+#### Functions:
+- `get_indicator(symbol: str, indicator: str, date: str, timeframe: str = "1D", look_back_days: int = 30) -> str` -- Routes to stockstats or SMC backend. Falls back to stockstats for unknown indicators. Returns formatted string.
+- `get_indicators_batch(symbol: str, indicators: list, date: str, timeframe: str = "1D", look_back_days: int = 30) -> str` -- Calls `get_indicator()` for each, combines with headers. Returns combined string.
+- `list_indicators() -> dict` -- Returns `{"stockstats": [...], "smartmoneyconcepts": [...]}`.
+- `_get_stockstats(symbol: str, indicator: str, date: str, look_back_days: int) -> str` -- Delegates to `route_to_vendor("get_indicators", ...)`.
+- `_get_smc(symbol: str, indicator: str, date: str, timeframe: str) -> str` -- Fetches OHLCV via `_fetch_ohlcv_df()`, dispatches to appropriate `ict_indicators` function. Returns string result or error.
+- `_get_configured_vendor() -> str` -- Reads vendor from dataflow config singleton. Defaults to "yfinance".
+- `_fetch_ohlcv_df(symbol: str, timeframe: str, trade_date: str) -> pd.DataFrame | str | None` -- Fetches OHLCV data via databento or yfinance depending on config. Parses CSV, normalizes columns, sets Date index. Returns DataFrame, error string, or None.
+- `fetch_live_price(symbol: str) -> str` -- Tries 3 methods in order: WebUI endpoint (localhost:8000), Databento Historical API (15min delayed), yfinance fallback. Returns `"CURRENT PRICE: {symbol} = {price}"` or `"unavailable"`.
+
+---
+
+### tool_registry.py
+**Path:** `openclaw/tool_registry.py`
+**Purpose:** Dynamic tool registry for the trading pipeline. Tools register with name, callable, and param_builder.
+
+#### Module-level:
+- `_build_context(ticker: str, date: str, config: Optional[dict] = None) -> dict` -- Builds standard context with `ticker`, `date`, `start_7d`, `start_30d`, `start_90d`, `config`.
+- `registry = ToolRegistry()` -- Module-level singleton.
+
+#### Class: ToolRegistry
+
+##### Methods:
+- `__init__(self) -> None` -- Initializes `_tools: Dict[str, dict]`.
+- `register(self, name: str, fn: Callable, param_builder: Callable[[dict], dict], description: str = "", category: str = "general") -> None` -- Registers a tool with name, callable, param_builder, description, category.
+- `call(self, name: str, ticker: str, date: str, config: Optional[dict] = None) -> str` -- Calls a registered tool. Builds context, runs param_builder, invokes fn with kwargs. Raises `KeyError` if not registered.
+- `call_many(self, names: List[str], ticker: str, date: str, config: Optional[dict] = None) -> Dict[str, str]` -- Calls multiple tools, returns results by name. Failed tools logged and returned as error strings.
+- `list_tools(self) -> List[str]` -- Returns all registered tool names.
+- `list_by_category(self, category: str) -> List[str]` -- Returns tool names filtered by category.
+- `get_info(self, name: str) -> Optional[dict]` -- Returns `{"name", "description", "category"}` or None.
+- `describe_all(self) -> str` -- Returns formatted string describing all tools with category.
+- `__contains__(self, name: str) -> bool` -- Checks if tool is registered.
+- `__len__(self) -> int` -- Returns count of registered tools.
+
+---
+
+### tools/__init__.py
+**Path:** `openclaw/tools/__init__.py`
+**Purpose:** Auto-registers all trading data tools with the global ToolRegistry on import. Plain Python functions, no LangChain.
+
+#### Imports:
+- `build_instrument_context`, `create_msg_delete` from `agent_utils`
+- `get_stock_data` from `core_stock_tools`
+- `get_indicators` from `technical_indicators_tools`
+- `get_fundamentals`, `get_balance_sheet`, `get_cashflow`, `get_income_statement` from `fundamental_data_tools`
+- `get_news`, `get_global_news`, `get_insider_transactions` from `news_data_tools`
+
+#### Registered Tools (14 total):
+
+| Name | fn | param_builder | Category |
+|---|---|---|---|
+| `get_stock_data` | `get_stock_data` | `{symbol, start_date=start_30d, end_date=date}` | stock |
+| `get_indicators` | `get_indicators_batch` | `_pick_indicators(ctx)` -- selects ICT+rsi+atr for jadecap, 8 stock indicators for default | technical |
+| `get_ict_levels` | `get_indicators_batch` | 6 ICT indicators: fvg, order_blocks, market_structure, session_levels, prev_day_levels, equal_highs_lows | technical |
+| `get_fundamentals` | `get_fundamentals` | `{ticker, curr_date=date}` | fundamental |
+| `get_balance_sheet` | `get_balance_sheet` | `{ticker, freq="quarterly", curr_date=date}` | fundamental |
+| `get_cashflow` | `get_cashflow` | `{ticker, freq="quarterly", curr_date=date}` | fundamental |
+| `get_income_statement` | `get_income_statement` | `{ticker, freq="quarterly", curr_date=date}` | fundamental |
+| `get_news` | `get_news` | `{ticker, start_date=start_30d, end_date=date}` | news |
+| `get_global_news` | `get_global_news` | `{curr_date=date}` | news |
+| `get_insider_transactions` | `get_insider_transactions` | `{ticker}` | news |
+| `fetch_live_price` | `fetch_live_price` | `{symbol=ticker}` | realtime |
+| `get_live_price` | `fetch_live_price` | `{symbol=ticker}` (alias) | realtime |
+| `get_killzone_status_tool` | `_killzone_wrapper` | `{date}` | realtime |
+| `get_contract_size` | `_contract_wrapper` | `{stop_points=10}` | realtime |
+| `get_midnight_open_tool` | `_midnight_wrapper` | `{symbol=ticker, date}` | realtime |
+
+#### Helper Functions:
+- `_pick_indicators(ctx) -> dict` -- Selects ICT or stock indicators based on strategy.
+- `_killzone_wrapper(**kwargs) -> str` -- Calls `get_indicator("", "killzone_status", date)`.
+- `_contract_wrapper(**kwargs) -> str` -- Calls `get_contract_calc(stop_points)`.
+- `_midnight_wrapper(**kwargs) -> str` -- Calls `get_indicator(symbol, "midnight_open", date, timeframe="1m")`.
+
+---
+
+### dataflows/config.py
+**Path:** `openclaw/dataflows/config.py`
+**Purpose:** Thread-safe config singleton for dataflows. RunEngine calls `set_config()` to bridge trading-config.json values.
+
+#### Constants:
+- `_DATAFLOW_DEFAULTS: Dict` -- Minimal defaults: data_vendors (all yfinance), tool_vendors (empty), data_cache_dir.
+
+#### Functions:
+- `initialize_config() -> None` -- Initializes global `_config` with defaults if None. Thread-safe.
+- `set_config(config: Dict) -> None` -- Deep-merges config into singleton (thread-safe, mutating).
+- `_deep_update(base: Dict, override: Dict) -> None` -- Recursive in-place merge of override into base.
+- `get_config() -> Dict` -- Returns a copy of current config (thread-safe). Auto-initializes if None.
+
+---
+
+### dataflows/interface.py
+**Path:** `openclaw/dataflows/interface.py`
+**Purpose:** Routes data method calls to vendor-specific implementations with fallback support.
+
+#### Constants:
+- `TOOLS_CATEGORIES: dict` -- Maps category name to description and tool list. Categories: core_stock_apis, technical_indicators, fundamental_data, news_data.
+- `VENDOR_LIST: list` -- `["yfinance", "alpha_vantage", "databento"]`.
+- `VENDOR_METHODS: dict` -- Maps 9 method names to vendor-specific function dicts: get_stock_data, get_indicators, get_fundamentals, get_balance_sheet, get_cashflow, get_income_statement, get_news, get_global_news, get_insider_transactions. Each has databento/alpha_vantage/yfinance implementations.
+
+#### Functions:
+- `get_category_for_method(method: str) -> str` -- Looks up which category contains the method. Raises `ValueError` if not found.
+- `get_vendor(category: str, method: str = None) -> str` -- Gets configured vendor. Priority: tool_vendors[method] > data_vendors[category]. Returns vendor string.
+- `route_to_vendor(method: str, *args, **kwargs) -> Any` -- Routes to vendor implementation. Builds fallback chain: configured vendors first, then remaining available vendors. Catches all exceptions per vendor, tries next. Raises `RuntimeError` if all vendors fail.
+
+---
+
+### dashboard/terminal/monitor.py
+**Path:** `dashboard/terminal/monitor.py`
+**Purpose:** Rich-based signal board showing halt status, watchlist signals, memory stats, and last run info.
+
+#### Functions:
+- `_signal_style(signal: str) -> str` -- Maps signal (buy/sell/hold/etc.) to Rich style string.
+- `_build_halt_status(config: Dict[str, Any]) -> Text` -- Returns "HALTED" (red) or "ACTIVE" (green) Rich Text.
+- `_build_strategy_text(config: Dict[str, Any]) -> Text` -- Returns strategy name as cyan Rich Text.
+- `_build_watchlist_table(config: Dict[str, Any], db_path: str) -> Table` -- Queries latest run and outcome per watchlist ticker. Returns Rich Table with Ticker/Signal/Date/Status/Correct columns.
+- `_build_memory_table(db_path: str) -> Table` -- Queries memory counts per agent. Returns Rich Table.
+- `_build_last_run_info(db_path: str) -> Table` -- Queries most recent run. Returns Rich Table with run details.
+- `render_signal_board(config_path: str = "trading-config.json", db_path: str = "trading.db") -> Panel` -- Loads config, builds all sub-sections, combines into Rich Panel.
+- `show_monitor(config_path: str = "trading-config.json", db_path: str = "trading.db") -> None` -- Prints the signal board to terminal via Rich Console.
+
+---
+
+### dashboard/terminal/analysis_viewer.py
+**Path:** `dashboard/terminal/analysis_viewer.py`
+**Purpose:** Rich-based detailed analysis viewer for individual trading runs.
+
+#### Functions:
+- `_signal_style(signal: str) -> str` -- Maps signal to Rich style string.
+- `_build_header_panel(run_row) -> Panel` -- Builds header panel showing ticker, date, strategy, signal, status, duration, error.
+- `_build_report_panels(reports) -> list[Panel]` -- Creates one Rich Panel per report section.
+- `_build_debate_panels(debates) -> list[Panel]` -- Creates panels showing bull/bear/neutral histories and judge decision with color-coded labels.
+- `show_analysis(run_id: str, db_path: str = "trading.db") -> Optional[Panel]` -- Fetches run, reports, and debates from DB. Builds header + report + debate panels. Prints to console. Returns master Panel or None if run not found.
+
+---
+
+### dashboard/web/run.py
+**Path:** `dashboard/web/run.py`
+**Purpose:** Entry point for the OpenClaw Web Dashboard.
+
+Runs `uvicorn.run(app, host="0.0.0.0", port=8000)` when executed directly.
+
+---
+
+### dashboard/web/backend/app.py
+**Path:** `dashboard/web/backend/app.py`
+**Purpose:** FastAPI application with lifespan, CORS, routers, and SPA catch-all.
+
+#### Lifespan (`async def lifespan(app)`):
+1. Calls `await init_db()` (dashboard DB layer).
+2. Marks stuck "running" rows as "failed" with restart message.
+3. Hydrates 5 BM25 memory instances from SQLite.
+4. Captures event loop for async bridge (`init_event_loop()`).
+5. Starts Databento live price stream if API key present.
+
+#### Routes:
+- `GET /api/health -> {"status": "ok", "version": "0.2.2"}`
+- Includes routers: ws, prices_ws, runs, config, memories, cache, prices.
+- SPA catch-all: serves `frontend/dist/index.html` for non-API routes. Assets cached immutably, index.html never cached.
+
+#### CORS:
+Allows origins: localhost:5173, localhost:8000, 127.0.0.1:8000, 127.0.0.1:5173.
+
+---
+
+### dashboard/web/backend/database.py
+**Path:** `dashboard/web/backend/database.py`
+**Purpose:** Async aiosqlite compatibility layer over the unified OpenClaw SQLite schema.
+
+#### Constants:
+- `DB_PATH: str` -- Resolved from `trading-config.json` -> `paths.database`. Defaults to `trading.db`.
+- `DB_DIR: str` -- Directory of DB_PATH.
+
+#### Additional Table:
+- **settings** -- `key TEXT PK`, `value TEXT` (dashboard-specific key-value store).
+
+#### Functions:
+- `_resolve_db_path() -> str` -- Reads config and returns absolute DB path.
+- `async init_db() -> None` -- Initializes unified DB via `core_init_db()`, then creates `settings` table. Sets WAL mode.
+- `async get_db() -> AsyncGenerator[aiosqlite.Connection, None]` -- Async context manager. Self-initializes schema on each access. Returns connection with Row factory and foreign keys.
+
+---
+
+### dashboard/web/backend/routes/config.py
+**Path:** `dashboard/web/backend/routes/config.py`
+**Purpose:** Config-related API endpoints for the web dashboard.
+
+#### Constants:
+- `PROVIDERS: Dict[str, str]` -- 7 providers with API base URLs (openai, anthropic, google, deepseek, xai, openrouter, ollama).
+- `DEEP_MODELS: Dict[str, list]` -- Deep-think models per provider (GPT-5.4, Claude Opus 4.6, Gemini 3.1 Pro, Grok 4, DeepSeek R1, etc.).
+- `QUICK_MODELS: Dict[str, list]` -- Quick-think models per provider (GPT-5 Mini, Claude Sonnet 4.6, Gemini 3 Flash, etc.).
+- `ANALYST_TYPES: list` -- 4 analyst types: market, social, news, fundamentals.
+- `DATA_PROVIDER_OPTIONS: dict` -- Vendor options per data category.
+- `TOOL_PROVIDER_OPTIONS: dict` -- Tool vendor options (web_search).
+- `_TRACKED_API_KEYS: list` -- 8 API key env var names.
+
+#### Functions:
+- `async _get_ollama_models() -> List[Dict[str, str]]` -- Fetches models from local Ollama API (port 11434). Returns label/value list.
+
+#### Endpoints:
+- `GET /api/config -> dict` -- Returns providers, deep_models, quick_models, analyst_types, data/tool provider options. Dynamically fetches Ollama models.
+- `GET /api/trading-config -> dict` -- Returns unified trading config from `load_config()`.
+- `PUT /api/trading-config -> dict` -- Deep-merges payload with existing config, saves to disk.
+- `GET /api/settings -> Dict[str, Any]` -- Reads all settings from `settings` table, JSON-decodes values.
+- `PUT /api/settings -> dict` -- Upserts key/value pairs into `settings` table (JSON-encodes values).
+- `PUT /api/keys -> dict` -- Writes API keys to `.env` file (creates/updates). Sets in `os.environ` immediately. Never stored in SQLite.
+- `GET /api/keys/status -> Dict[str, bool]` -- Returns which tracked API keys are set in environment.
+
+---
+
+### dashboard/web/backend/routes/runs.py
+**Path:** `dashboard/web/backend/routes/runs.py`
+**Purpose:** Run management API endpoints.
+
+#### Pydantic Models:
+- `RunCreate` -- ticker, trade_date, provider, deep_model, quick_model, effort?, backend_url?, max_debate_rounds=1, max_risk_discuss_rounds=1, data_vendors?, tool_vendors?, selected_analysts=[]
+- `ReflectRequest` -- returns_losses: float
+- `RunImport` -- run: dict, reports: list, debates: list
+
+#### Helper Functions:
+- `async _fetch_run(run_id: str) -> Optional[Dict]` -- Fetches single run row as dict.
+- `async _fetch_full_run(run_id: str) -> Optional[Dict]` -- Fetches run + reports + debates. JSON-decodes stored columns.
+
+#### Endpoints:
+- `POST /api/runs -> JSONResponse(201)` -- Creates new run. Checks `runner_manager.is_running`. Inserts run row. Reads strategy config from settings. Starts background run via `runner_manager.start_run()`.
+- `GET /api/runs -> dict` -- Lists runs with filtering (ticker, signal, status, from_date, to_date), sorting (whitelisted columns), and pagination. Returns `{runs, total, page, per_page}`.
+- `GET /api/runs/{run_id} -> dict` -- Returns full run with reports and debates.
+- `DELETE /api/runs/{run_id} -> dict` -- Deletes run and all child rows (reports, debates, memories).
+- `POST /api/runs/{run_id}/cancel -> dict` -- Sets cancel event on runner, marks run as cancelled.
+- `POST /api/runs/reset -> dict` -- Force-resets stuck runner. Marks all running rows as failed.
+- `POST /api/runs/{run_id}/reflect -> dict` -- Loads reports/debates, builds situation/recommendation for 5 agent memories, inserts into `memories` table, rehydrates BM25 instances. Returns count of memories created.
+- `POST /api/runs/{run_id}/rerun -> JSONResponse` -- Re-runs with same config by constructing `RunCreate` from existing run data.
+- `GET /api/runs/{run_id}/tokens -> dict` -- Stub: returns tokens_in, tokens_out, empty breakdown.
+- `GET /api/runs/{run_id}/timing -> dict` -- Stub: returns duration_seconds, empty breakdown.
+- `GET /api/runs/{run_id}/tools -> dict` -- Stub: returns empty tool_calls list.
+- `GET /api/runs/{run_id}/export -> JSONResponse` -- Exports full run as JSON download.
+- `POST /api/runs/import -> JSONResponse(201)` -- Imports run from JSON. Checks for duplicate ID. Inserts run, reports, debates.
+- `GET /api/runs/{run_id}/compare/{other_id} -> dict` -- Returns both full runs for side-by-side comparison.
+
+---
+
+### dashboard/web/backend/runner.py
+**Path:** `dashboard/web/backend/runner.py`
+**Purpose:** Background runner for the web dashboard. Runs RunEngine in a background thread, streams events to WebSocket clients.
+
+#### Constants:
+- `_FUTURES_MAP: Dict[str, str]` -- Maps short futures names to yfinance tickers (NQ->NQ=F, etc.).
+- `DISPLAY_AGENT_NAMES: Dict[str, str]` -- Maps agent IDs to display names (13 agents + reflection).
+
+#### Class: WebUICallbackHandler(RunCallback)
+- `__init__(self, runner: RunnerManager) -> None` -- Stores reference to runner.
+- `_name(self, agent: str) -> str` -- Resolves display name from `DISPLAY_AGENT_NAMES`.
+- `_check_cancel(self) -> None` -- Raises `RuntimeError("Run cancelled")` if cancel event is set.
+- `on_run_start/on_agent_status/on_report_section/on_debate_turn/on_signal/on_run_complete/on_error` -- Each adds structured event dict to runner's event buffer with type, data, agent names.
+
+#### Class: RunnerManager
+- `__init__(self) -> None` -- Initializes `active_run_id`, `events: list`, `cancel_event: threading.Event`, `ws_connections: set`, `_thread`, `_lock`, `_loop`, `_config_dict`.
+- `is_running` (property) -> `bool` -- Returns True if thread is alive. Auto-clears dead thread reference.
+- `force_reset(self) -> None` -- Clears thread, run_id, events, cancel_event.
+- `add_event(self, event_dict: Dict) -> None` -- Thread-safe append with auto-incrementing id, timestamp, run_id. Triggers WebSocket broadcast.
+- `get_events(self, since_id: int = 0) -> List[Dict]` -- Returns events with id > since_id.
+- `start_run(self, run_id: str, config_dict: Dict) -> None` -- Validates no active run. Clears state. Emits run_started event. Spawns daemon thread running `_execute_run`.
+- `cancel_run(self) -> bool` -- Sets cancel event, emits cancelling event.
+- `_build_engine_config(self) -> Dict` -- Creates RunEngine, merges web config (strategy, models, debate rounds, analysts, vendors) into engine config.
+- `_execute_run(self) -> None` -- Thread target. Creates RunEngine, builds config, maps futures tickers, calls `engine.run()`. Catches cancellation and general exceptions, emits appropriate events.
+- `_schedule_broadcast(self, event_dict: Dict) -> None` -- Broadcasts event to all WebSocket connections via `asyncio.run_coroutine_threadsafe`.
+
+#### Module-level:
+- `runner_manager = RunnerManager()` -- Singleton instance.
+
+---
+
+### Agent .md Files (agents/trading/)
+
+#### market-analyst.md
+**Frontmatter:** name: market-analyst, model: null, tools: [get_stock_data, get_indicators], tools_jadecap: [get_ict_levels, get_live_price, get_midnight_open_tool, get_killzone_status_tool, get_contract_size], memory: null, memory_jadecap: invest_judge_memory, tier: quick, input: [trade_date, company_of_interest, messages], output: market_report
+**Default prompt (first 2 lines):** You are a trading assistant tasked with analyzing financial markets. Your role is to select the most relevant indicators for a given market condition or trading strategy.
+**JadeCap prompt (first 2 lines):** You are a JadeCap ICT Market Analyst for {active} Futures. {instrument['description']} | Point Value: ${point_value} | Max Risk: ${max_loss} | Min R:R: {min_rr}:1
+**Line count:** 261
+
+#### social-analyst.md
+**Frontmatter:** name: social-analyst, model: null, tools: [get_news], strategy_variants: [default], memory: null, tier: quick, input: [trade_date, company_of_interest, messages], output: sentiment_report
+**Default prompt (first 2 lines):** You are a social media and company specific news researcher/analyst tasked with analyzing social media posts, recent company news, and public sentiment for a specific company over the past week. You will be given a company's name...
+**JadeCap prompt:** N/A
+**Line count:** 32
+
+#### news-analyst.md
+**Frontmatter:** name: news-analyst, model: null, tools: [get_news, get_global_news, get_insider_transactions], tools_jadecap: [get_news, get_global_news], memory: null, memory_jadecap: portfolio_manager_memory, tier: quick, input: [trade_date, company_of_interest, messages], output: news_report
+**Default prompt (first 2 lines):** You are a news researcher tasked with analyzing recent news and trends over the past week. Please write a comprehensive report of the current state of the world that is relevant for trading and macroeconomics.
+**JadeCap prompt (first 2 lines):** You are a JadeCap Macro News Analyst for {active} Futures ({instrument['description']}). Trade Date: {current_date} | Active Firm: {active_firm.upper()}
+**Line count:** 178
+
+#### fundamentals-analyst.md
+**Frontmatter:** name: fundamentals-analyst, model: null, tools: [get_fundamentals, get_balance_sheet, get_cashflow, get_income_statement], strategy_variants: [default], memory: null, tier: quick, input: [trade_date, company_of_interest, messages], output: fundamentals_report
+**Default prompt (first 2 lines):** You are a researcher tasked with analyzing fundamental information over the past week about a company. Please write a comprehensive report of the company's fundamental information such as financial documents, company profile, basic company financials...
+**JadeCap prompt:** N/A
+**Line count:** 35
+
+#### bull-researcher.md
+**Frontmatter:** name: bull-researcher, model: null, tools: [], tools_jadecap: [fetch_live_price], memory: bull_memory, tier: quick, input: [investment_debate_state, market_report, sentiment_report, news_report, fundamentals_report, company_of_interest], output: investment_debate_state
+**Default prompt (first 2 lines):** You are a Bull Analyst advocating for investing in the stock. Your task is to build a strong, evidence-based case emphasizing growth potential, competitive advantages, and positive market indicators.
+**JadeCap prompt (first 2 lines):** You are the JadeCap Long Setup Analyst for {active} Futures. Point Value: ${point_value} | Max Risk: ${max_loss} | Min R:R: {min_rr}:1
+**Line count:** 278
+
+#### bear-researcher.md
+**Frontmatter:** name: bear-researcher, model: null, tools: [], tools_jadecap: [fetch_live_price], memory: bear_memory, tier: quick, input: [investment_debate_state, market_report, sentiment_report, news_report, fundamentals_report, company_of_interest], output: investment_debate_state
+**Default prompt (first 2 lines):** You are a Bear Analyst making the case against investing in the stock. Your goal is to present a well-reasoned argument emphasizing risks, challenges, and negative indicators.
+**JadeCap prompt (first 2 lines):** You are the JadeCap Short Setup Analyst for {active} Futures. Point Value: ${point_value} | Max Risk: ${max_loss} | Min R:R: {min_rr}:1
+**Line count:** 280
+
+#### research-manager.md
+**Frontmatter:** name: research-manager, model: null, tools: [], tools_jadecap: [fetch_live_price], memory: invest_judge_memory, tier: deep, input: [investment_debate_state, market_report, sentiment_report, news_report, fundamentals_report, company_of_interest], output: [investment_debate_state, investment_plan]
+**Default prompt (first 2 lines):** As the portfolio manager and debate facilitator, your role is to critically evaluate this round of debate and make a definitive decision: align with the bear analyst, the bull analyst, or choose Hold only if it is strongly justified.
+**JadeCap prompt (first 2 lines):** You are the JadeCap ICT Judge and Portfolio Manager for {active} Futures. Point Value: ${point_value} | Max Risk: ${max_loss} | Min R:R: {min_rr}:1
+**Line count:** 248
+
+#### trader.md
+**Frontmatter:** name: trader, model: null, tools: [], tools_jadecap: [fetch_live_price], memory: trader_memory, tier: quick, input: [company_of_interest, investment_plan, market_report, sentiment_report, news_report, fundamentals_report], output: [trader_investment_plan, sender]
+**Default prompt (first 2 lines):** You are a trading agent analyzing market data to make investment decisions. Based on your analysis, provide a specific recommendation to buy, sell, or hold.
+**JadeCap prompt (first 2 lines):** You are the JadeCap Trader Agent for {active} Futures using the ICT methodology. Your job is to take the Research Manager's investment plan, validate it one final time, size the position, and output a concrete TRADE PLAN or HOLD.
+**Line count:** 220
+
+#### aggressive-risk.md
+**Frontmatter:** name: aggressive-risk, model: null, tools: [], tools_jadecap: [fetch_live_price], memory: null, tier: quick, input: [risk_debate_state, market_report, sentiment_report, news_report, fundamentals_report, trader_investment_plan, company_of_interest], output: risk_debate_state
+**Default prompt (first 2 lines):** As the Aggressive Risk Analyst, your role is to actively champion high-reward, high-risk opportunities, emphasizing bold strategies and competitive advantages. When evaluating the trader's decision or plan, focus intently on the potential upside...
+**JadeCap prompt (first 2 lines):** You are the JadeCap Aggressive Risk Analyst for NQ/ES Futures using ICT methodology. Your role: CHAMPION the trade when ICT confluence is strong.
+**Line count:** 108
+
+#### conservative-risk.md
+**Frontmatter:** name: conservative-risk, model: null, tools: [], tools_jadecap: [fetch_live_price], memory: null, tier: quick, input: [risk_debate_state, market_report, sentiment_report, news_report, fundamentals_report, trader_investment_plan, company_of_interest], output: risk_debate_state
+**Default prompt (first 2 lines):** As the Conservative Risk Analyst, your primary objective is to protect assets, minimize volatility, and ensure steady, reliable growth. You prioritize stability, security, and risk mitigation...
+**JadeCap prompt (first 2 lines):** You are the JadeCap Conservative Risk Analyst for NQ/ES Futures using ICT methodology. Your role: PROTECT the prop firm account. Challenge marginal setups ruthlessly.
+**Line count:** 118
+
+#### neutral-risk.md
+**Frontmatter:** name: neutral-risk, model: null, tools: [], tools_jadecap: [fetch_live_price], memory: null, tier: quick, input: [risk_debate_state, market_report, sentiment_report, news_report, fundamentals_report, trader_investment_plan, company_of_interest], output: risk_debate_state
+**Default prompt (first 2 lines):** As the Neutral Risk Analyst, your role is to provide a balanced perspective, weighing both the potential benefits and risks of the trader's decision or plan. You prioritize a well-rounded approach...
+**JadeCap prompt (first 2 lines):** You are the JadeCap Neutral Risk Analyst for NQ/ES Futures using ICT methodology. Your role: BALANCE both sides objectively. You don't default to "trade" or "no trade."
+**Line count:** 121
+
+#### portfolio-manager.md
+**Frontmatter:** name: portfolio-manager, model: null, tools: [], tools_jadecap: [fetch_live_price], memory: portfolio_manager_memory, tier: deep, input: [risk_debate_state, market_report, sentiment_report, news_report, fundamentals_report, investment_plan, trader_investment_plan, company_of_interest], output: [risk_debate_state, final_trade_decision]
+**Default prompt (first 2 lines):** As the Portfolio Manager, synthesize the risk analysts' debate and deliver the final trading decision. {instrument_context}
+**JadeCap prompt (first 2 lines):** You are the JadeCap Portfolio Manager -- the FINAL decision authority for {active} Futures. Point Value: ${point_value} | Max Risk: ${max_loss} | Min R:R: {min_rr}:1
+**Line count:** 242
+
