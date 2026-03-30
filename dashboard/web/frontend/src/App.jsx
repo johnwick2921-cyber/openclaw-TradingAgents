@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
+import TradingMonitor from './pages/TradingMonitor';
 import LiveRun from './pages/LiveRun';
 import RunDetails from './pages/RunDetails';
 import CompareView from './pages/CompareView';
@@ -12,6 +13,7 @@ export default function App() {
     <Routes>
       <Route element={<Layout />}>
         <Route path="/" element={<Dashboard />} />
+        <Route path="/trading" element={<TradingMonitor />} />
         <Route path="/runs/:id/live" element={<LiveRun />} />
         <Route path="/runs/:id" element={<RunDetails />} />
         <Route path="/runs/:id/compare/:id2" element={<CompareView />} />

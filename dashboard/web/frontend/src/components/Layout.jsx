@@ -4,6 +4,7 @@ import StatusDot from './StatusDot';
 
 const navLinks = [
   { to: '/', label: 'Dashboard' },
+  { to: '/trading', label: 'Trading' },
   { to: '/memories', label: 'Memories' },
   { to: '/settings', label: 'Settings' },
 ];
@@ -64,7 +65,7 @@ export default function Layout() {
                 className="text-lg font-semibold tracking-tight"
                 style={{ color: 'var(--text-primary)' }}
               >
-                TradingAgents
+                OpenClaw
               </h1>
               <StatusDot />
             </div>
