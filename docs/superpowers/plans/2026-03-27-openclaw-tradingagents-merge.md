@@ -4343,6 +4343,8 @@ Allows origins: localhost:5173, localhost:8000, 127.0.0.1:8000, 127.0.0.1:5173.
 
 ## Phase 11: Trading Tab in OpenClaw Control UI (added 2026-03-29)
 
+> **SUPERSEDED** — This version replaced by the gateway-native Phase 11 below.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add a "Trading" tab to the OpenClaw Control UI at `http://127.0.0.1:18789/trading` — the same dashboard that has Chat, Overview, Channels, Sessions, etc. One URL, one UI, trading is a first-class tab.
@@ -5154,6 +5156,14 @@ git push origin main
 - State: `/home/hoang/openclaw/ui/src/ui/app-view-state.ts`
 - Rendering: `/home/hoang/openclaw/ui/src/ui/app-render.ts`
 
+**Prerequisite: Install better-sqlite3**
+
+```bash
+cd /home/hoang/openclaw
+pnpm add better-sqlite3
+pnpm add -D @types/better-sqlite3
+```
+
 **Gateway methods to add:**
 - `trading.status` — read config + query DB -> full status object
 - `trading.setBias` — update `config.bias` -> save
@@ -5302,8 +5312,9 @@ function getDb(): Database.Database {
       );
       CREATE TABLE IF NOT EXISTS memories (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        agent TEXT NOT NULL,
-        content TEXT NOT NULL,
+        agent_name TEXT NOT NULL,
+        situation TEXT,
+        recommendation TEXT,
         ticker TEXT,
         created_at TEXT DEFAULT (datetime('now'))
       );
@@ -5336,216 +5347,241 @@ function getMarketPhase(): string {
 
 // --- Handlers -------------------------------------------------------------
 
-export const tradingHandlers: Record<
-  string,
-  (params: Record<string, unknown>) => unknown
-> = {
-  "trading.status": (_params: Record<string, unknown>) => {
-    const config = readConfig();
+import type { GatewayRequestHandlers } from "./types.js";
 
-    let lastRun: Record<string, unknown> | null = null;
-    let memoryStats: Array<{ agent: string; count: number }> = [];
+function errorShape(code: number, message: string) {
+  return { code, message };
+}
 
-    let db: Database.Database | null = null;
+const ErrorCodes = { UNAVAILABLE: -1, INVALID_PARAMS: -2 } as const;
+
+export const tradingHandlers: GatewayRequestHandlers = {
+  "trading.status": async ({ params, respond, context }) => {
     try {
-      db = getDb();
+      const config = readConfig();
 
-      const runRow = db
-        .prepare(
-          `SELECT id, ticker, trade_date, strategy, signal, status,
-                  duration_seconds, created_at
-           FROM runs ORDER BY created_at DESC LIMIT 1`,
-        )
-        .get() as Record<string, unknown> | undefined;
+      let lastRun: Record<string, unknown> | null = null;
+      let memoryStats: Array<{ agent: string; count: number }> = [];
 
-      if (runRow) {
-        lastRun = {
-          id: runRow.id,
-          ticker: runRow.ticker,
-          trade_date: runRow.trade_date,
-          strategy: runRow.strategy,
-          signal: runRow.signal,
-          status: runRow.status,
-          duration_seconds: runRow.duration_seconds,
-          created_at: runRow.created_at,
-        };
-      }
-
+      let db: Database.Database | null = null;
       try {
-        const memRows = db
+        db = getDb();
+
+        const runRow = db
           .prepare(
-            `SELECT agent, COUNT(*) as count
-             FROM memories GROUP BY agent ORDER BY count DESC`,
+            `SELECT id, ticker, trade_date, strategy, signal, status,
+                    duration_seconds, created_at
+             FROM runs ORDER BY created_at DESC LIMIT 1`,
           )
-          .all() as Array<{ agent: string; count: number }>;
-        memoryStats = memRows;
-      } catch {
-        memoryStats = [];
-      }
-    } catch {
-      // DB may not exist
-    } finally {
-      if (db) db.close();
-    }
+          .get() as Record<string, unknown> | undefined;
 
-    const watchlistTickers = (config.watchlist as string[]) ?? [];
-    let watchlist: Array<Record<string, unknown>> = watchlistTickers.map(
-      (t) => ({
-        ticker: t,
-        signal: null,
-        date: null,
-        status: null,
-        correct: null,
-      }),
-    );
-
-    try {
-      db = getDb();
-      for (let i = 0; i < watchlist.length; i++) {
-        const row = db
-          .prepare(
-            `SELECT signal, trade_date, status FROM runs
-             WHERE ticker = ? ORDER BY created_at DESC LIMIT 1`,
-          )
-          .get(watchlist[i].ticker as string) as
-          | Record<string, unknown>
-          | undefined;
-
-        if (row) {
-          watchlist[i].signal = row.signal ?? null;
-          watchlist[i].date = row.trade_date ?? null;
-          watchlist[i].status = row.status ?? null;
+        if (runRow) {
+          lastRun = {
+            id: runRow.id,
+            ticker: runRow.ticker,
+            trade_date: runRow.trade_date,
+            strategy: runRow.strategy,
+            signal: runRow.signal,
+            status: runRow.status,
+            duration_seconds: runRow.duration_seconds,
+            created_at: runRow.created_at,
+          };
         }
 
         try {
-          const outcome = db
+          const memRows = db
             .prepare(
-              `SELECT correct FROM outcomes
+              `SELECT agent_name as agent, COUNT(*) as count
+               FROM memories GROUP BY agent_name ORDER BY count DESC`,
+            )
+            .all() as Array<{ agent: string; count: number }>;
+          memoryStats = memRows;
+        } catch {
+          memoryStats = [];
+        }
+      } catch {
+        // DB may not exist
+      } finally {
+        if (db) db.close();
+      }
+
+      const watchlistTickers = (config.watchlist as string[]) ?? [];
+      let watchlist: Array<Record<string, unknown>> = watchlistTickers.map(
+        (t) => ({
+          ticker: t,
+          signal: null,
+          date: null,
+          status: null,
+          correct: null,
+        }),
+      );
+
+      try {
+        db = getDb();
+        for (let i = 0; i < watchlist.length; i++) {
+          const row = db
+            .prepare(
+              `SELECT signal, trade_date, status FROM runs
                WHERE ticker = ? ORDER BY created_at DESC LIMIT 1`,
             )
             .get(watchlist[i].ticker as string) as
-            | { correct: number | null }
+            | Record<string, unknown>
             | undefined;
-          if (outcome && outcome.correct !== null) {
-            watchlist[i].correct = outcome.correct === 1;
+
+          if (row) {
+            watchlist[i].signal = row.signal ?? null;
+            watchlist[i].date = row.trade_date ?? null;
+            watchlist[i].status = row.status ?? null;
           }
-        } catch {
-          // outcomes table may not exist
+
+          try {
+            const outcome = db
+              .prepare(
+                `SELECT correct FROM outcomes
+                 WHERE ticker = ? ORDER BY created_at DESC LIMIT 1`,
+              )
+              .get(watchlist[i].ticker as string) as
+              | { correct: number | null }
+              | undefined;
+            if (outcome && outcome.correct !== null) {
+              watchlist[i].correct = outcome.correct === 1;
+            }
+          } catch {
+            // outcomes table may not exist
+          }
+        }
+        db.close();
+      } catch {
+        // DB unavailable
+      }
+
+      respond(true, {
+        state: config.halt ? "halted" : "active",
+        strategy: config.strategy,
+        market_phase: getMarketPhase(),
+        bias: config.bias,
+        watchlist,
+        last_run: lastRun,
+        memory_stats: memoryStats,
+        risk: config.risk,
+        llm: config.llm,
+        analysis: config.analysis,
+        schedule: config.schedule ?? {},
+        jadecap: config.jadecap ?? null,
+      });
+    } catch (err) {
+      respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, String(err)));
+    }
+  },
+
+  "trading.setBias": async ({ params, respond, context }) => {
+    try {
+      const config = readConfig();
+      const bias = (config.bias ?? {}) as Record<string, unknown>;
+
+      if (params.direction !== undefined) {
+        const valid = ["bullish", "neutral", "bearish"];
+        if (valid.includes(params.direction as string)) {
+          bias.direction = params.direction;
         }
       }
-      db.close();
-    } catch {
-      // DB unavailable
-    }
-
-    return {
-      state: config.halt ? "halted" : "active",
-      strategy: config.strategy,
-      market_phase: getMarketPhase(),
-      bias: config.bias,
-      watchlist,
-      last_run: lastRun,
-      memory_stats: memoryStats,
-      risk: config.risk,
-      llm: config.llm,
-      analysis: config.analysis,
-      schedule: config.schedule ?? {},
-      jadecap: config.jadecap ?? null,
-    };
-  },
-
-  "trading.setBias": (params: Record<string, unknown>) => {
-    const config = readConfig();
-    const bias = (config.bias ?? {}) as Record<string, unknown>;
-
-    if (params.direction !== undefined) {
-      const valid = ["bullish", "neutral", "bearish"];
-      if (valid.includes(params.direction as string)) {
-        bias.direction = params.direction;
-      }
-    }
-    if (params.confidence !== undefined) {
-      const valid = ["low", "medium", "high"];
-      if (valid.includes(params.confidence as string)) {
-        bias.confidence = params.confidence;
-      }
-    }
-    if (params.reason !== undefined) {
-      bias.reason = String(params.reason);
-    }
-
-    config.bias = bias;
-    writeConfig(config);
-    return { bias: config.bias };
-  },
-
-  "trading.setHalt": (params: Record<string, unknown>) => {
-    const config = readConfig();
-    const halt = Boolean(params.halt);
-    config.halt = halt;
-    writeConfig(config);
-    return { halt };
-  },
-
-  "trading.updateWatchlist": (params: Record<string, unknown>) => {
-    const config = readConfig();
-    let list = ((config.watchlist ?? []) as string[]).slice();
-    const action = params.action as string;
-
-    if (action === "add" && params.ticker) {
-      const t = (params.ticker as string).toUpperCase().trim();
-      if (t && !list.includes(t)) {
-        list.push(t);
-      }
-    } else if (action === "remove" && params.ticker) {
-      const t = (params.ticker as string).toUpperCase().trim();
-      list = list.filter((x) => x !== t);
-    } else if (action === "set" && Array.isArray(params.tickers)) {
-      list = (params.tickers as string[])
-        .map((t) => t.toUpperCase().trim())
-        .filter(Boolean);
-    }
-
-    config.watchlist = list;
-    writeConfig(config);
-    return { watchlist: list };
-  },
-
-  "trading.setRisk": (params: Record<string, unknown>) => {
-    const config = readConfig();
-    const risk = (config.risk ?? {}) as Record<string, unknown>;
-
-    const numericFields = [
-      "max_loss_per_trade",
-      "daily_loss_limit",
-      "max_drawdown_pct",
-      "max_consecutive_losses",
-      "min_risk_reward",
-    ];
-    for (const field of numericFields) {
-      if (params[field] !== undefined) {
-        const val = Number(params[field]);
-        if (!isNaN(val)) {
-          risk[field] = val;
+      if (params.confidence !== undefined) {
+        const valid = ["low", "medium", "high"];
+        if (valid.includes(params.confidence as string)) {
+          bias.confidence = params.confidence;
         }
       }
-    }
+      if (params.reason !== undefined) {
+        bias.reason = String(params.reason);
+      }
 
-    if (params.jadecap && typeof params.jadecap === "object") {
-      const jc = (config.jadecap ?? {}) as Record<string, unknown>;
-      const jcParams = params.jadecap as Record<string, unknown>;
-      if (jcParams.atr_stop_multiplier !== undefined)
-        jc.atr_stop_multiplier = Number(jcParams.atr_stop_multiplier);
-      if (jcParams.hard_close_time !== undefined)
-        jc.hard_close_time = String(jcParams.hard_close_time);
-      if (jcParams.active_instrument !== undefined)
-        jc.active_instrument = String(jcParams.active_instrument);
-      config.jadecap = jc;
+      config.bias = bias;
+      writeConfig(config);
+      respond(true, { bias: config.bias });
+    } catch (err) {
+      respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, String(err)));
     }
+  },
 
-    config.risk = risk;
-    writeConfig(config);
-    return { risk: config.risk, jadecap: config.jadecap ?? null };
+  "trading.setHalt": async ({ params, respond, context }) => {
+    try {
+      const config = readConfig();
+      const halt = Boolean(params.halt);
+      config.halt = halt;
+      writeConfig(config);
+      respond(true, { halt });
+    } catch (err) {
+      respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, String(err)));
+    }
+  },
+
+  "trading.updateWatchlist": async ({ params, respond, context }) => {
+    try {
+      const config = readConfig();
+      let list = ((config.watchlist ?? []) as string[]).slice();
+      const action = params.action as string;
+
+      if (action === "add" && params.ticker) {
+        const t = (params.ticker as string).toUpperCase().trim();
+        if (t && !list.includes(t)) {
+          list.push(t);
+        }
+      } else if (action === "remove" && params.ticker) {
+        const t = (params.ticker as string).toUpperCase().trim();
+        list = list.filter((x) => x !== t);
+      } else if (action === "set" && Array.isArray(params.tickers)) {
+        list = (params.tickers as string[])
+          .map((t) => t.toUpperCase().trim())
+          .filter(Boolean);
+      }
+
+      config.watchlist = list;
+      writeConfig(config);
+      respond(true, { watchlist: list });
+    } catch (err) {
+      respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, String(err)));
+    }
+  },
+
+  "trading.setRisk": async ({ params, respond, context }) => {
+    try {
+      const config = readConfig();
+      const risk = (config.risk ?? {}) as Record<string, unknown>;
+
+      const numericFields = [
+        "max_loss_per_trade",
+        "daily_loss_limit",
+        "max_drawdown_pct",
+        "max_consecutive_losses",
+        "min_risk_reward",
+      ];
+      for (const field of numericFields) {
+        if (params[field] !== undefined) {
+          const val = Number(params[field]);
+          if (!isNaN(val)) {
+            risk[field] = val;
+          }
+        }
+      }
+
+      if (params.jadecap && typeof params.jadecap === "object") {
+        const jc = (config.jadecap ?? {}) as Record<string, unknown>;
+        const jcParams = params.jadecap as Record<string, unknown>;
+        if (jcParams.atr_stop_multiplier !== undefined)
+          jc.atr_stop_multiplier = Number(jcParams.atr_stop_multiplier);
+        if (jcParams.hard_close_time !== undefined)
+          jc.hard_close_time = String(jcParams.hard_close_time);
+        if (jcParams.active_instrument !== undefined)
+          jc.active_instrument = String(jcParams.active_instrument);
+        config.jadecap = jc;
+      }
+
+      config.risk = risk;
+      writeConfig(config);
+      respond(true, { risk: config.risk, jadecap: config.jadecap ?? null });
+    } catch (err) {
+      respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, String(err)));
+    }
   },
 };
 ```
@@ -5581,7 +5617,7 @@ git commit -m "feat(trading): add gateway server methods for trading tab"
 At the top of `server-methods.ts`, add the import alongside the other server-method imports:
 
 ```typescript
-import { tradingHandlers } from "./server-methods/trading.ts";
+import { tradingHandlers } from "./server-methods/trading.js";
 ```
 
 - [ ] **Step 2: Spread into coreGatewayHandlers**
@@ -5614,28 +5650,23 @@ git commit -m "feat(trading): register tradingHandlers in gateway server-methods
 
 - [ ] **Step 1: Add trading method scopes**
 
-Find the method-to-scope mapping and add entries for each trading method. Trading methods should use the same scope as other control-plane methods (typically `"control"` or `"admin"`):
+Find the method-to-scope mapping. The file uses `READ_SCOPE` and `WRITE_SCOPE` arrays. Add trading methods to the appropriate scope — `trading.status` is read-only, mutations go in `WRITE_SCOPE`:
 
 ```typescript
-// Trading tab methods
-"trading.status": "control",
-"trading.setBias": "control",
-"trading.setHalt": "control",
-"trading.updateWatchlist": "control",
-"trading.setRisk": "control",
+[READ_SCOPE]: [
+  // ... existing entries ...
+  "trading.status",
+],
+[WRITE_SCOPE]: [
+  // ... existing entries ...
+  "trading.setBias",
+  "trading.setHalt",
+  "trading.updateWatchlist",
+  "trading.setRisk",
+],
 ```
 
-If the scopes file uses an array or set instead of a record, match that pattern:
-
-```typescript
-"trading.status",
-"trading.setBias",
-"trading.setHalt",
-"trading.updateWatchlist",
-"trading.setRisk",
-```
-
-**Note to implementer:** Read the existing `method-scopes.ts` file to see the exact pattern (it may be a `Record<string, string>`, a `Set<string>`, or a function). Match whatever convention is already in use.
+**Note to implementer:** Read the existing `method-scopes.ts` file to confirm the exact `READ_SCOPE` / `WRITE_SCOPE` constant names and pattern. Match whatever convention is already in use.
 
 - [ ] **Step 2: Commit**
 
@@ -5867,20 +5898,15 @@ git commit -m "feat(trading): add i18n labels for trading tab"
 
 **Dependencies:** Tasks 11.1-11.3 (gateway methods must be registered). But the controller can be written first — it just calls WS methods by name.
 
-**Key difference from old Phase 11:** This controller calls gateway WebSocket methods (e.g., `callMethod("trading.status", {})`) instead of `fetch("http://...")`. It uses the same `callMethod` / `sendMessage` pattern as all other controllers in the UI.
+**Key difference from old Phase 11:** This controller calls gateway WebSocket methods (e.g., `client.request("trading.status", {})`) instead of `fetch("http://...")`. It uses the same `client.request()` pattern as all other controllers in the UI (see `controllers/cron.ts` for reference).
 
-- [ ] **Step 1: Read an existing controller to find the WS call pattern**
+- [ ] **Step 1: Read an existing controller to confirm the WS call pattern**
 
 ```bash
 head -60 /home/hoang/openclaw/ui/src/ui/controllers/cron.ts
 ```
 
-Look for how controllers call gateway methods. It will be something like:
-- `import { callMethod } from "../connection.ts"` or
-- `import { ws } from "../ws.ts"` or
-- `gateway.call("method.name", params)`
-
-Use whatever pattern is in the existing controllers.
+The ACTUAL pattern: functions receive `client: GatewayBrowserClient` and call `client.request("method.name", params)`.
 
 - [ ] **Step 2: Create the controller**
 
@@ -5890,14 +5916,7 @@ Use whatever pattern is in the existing controllers.
 // Trading tab controller -- calls gateway WebSocket methods.
 // All data flows through port 18789 WS, no companion service.
 
-// NOTE: Replace this import with the actual gateway call import found in Step 1.
-// Common patterns:
-//   import { callMethod } from "../connection.ts";
-//   import { sendMessage } from "../../utils/ws.ts";
-//   import { gateway } from "../gateway.ts";
-// The examples below use callMethod("method.name", params).
-
-import { callMethod } from "../connection.ts";
+import type { GatewayBrowserClient } from "../gateway.ts";
 
 // --- Types ----------------------------------------------------------------
 
@@ -5948,39 +5967,41 @@ export interface TradingStatus {
 
 // --- API Functions --------------------------------------------------------
 
-export async function fetchTradingStatus(): Promise<TradingStatus | null> {
+export async function loadTradingStatus(client: GatewayBrowserClient): Promise<TradingStatus | null> {
   try {
-    const result = await callMethod("trading.status", {});
-    return result as TradingStatus;
+    const res = await client.request<TradingStatus>("trading.status", {});
+    return res ?? null;
   } catch {
     return null;
   }
 }
 
 export async function setBias(
+  client: GatewayBrowserClient,
   bias: Partial<TradingBias>,
 ): Promise<TradingBias | null> {
   try {
-    const result = await callMethod(
+    const result = await client.request<{ bias: TradingBias }>(
       "trading.setBias",
       bias as Record<string, unknown>,
     );
-    return (result as { bias: TradingBias }).bias;
+    return result?.bias ?? null;
   } catch {
     return null;
   }
 }
 
-export async function setHalt(halt: boolean): Promise<boolean> {
+export async function setHalt(client: GatewayBrowserClient, halt: boolean): Promise<boolean> {
   try {
-    const result = await callMethod("trading.setHalt", { halt });
-    return (result as { halt: boolean }).halt;
+    const result = await client.request<{ halt: boolean }>("trading.setHalt", { halt });
+    return result?.halt ?? !halt;
   } catch {
     return !halt;
   }
 }
 
 export async function updateWatchlist(
+  client: GatewayBrowserClient,
   action: "add" | "remove" | "set",
   ticker?: string,
   tickers?: string[],
@@ -5989,26 +6010,27 @@ export async function updateWatchlist(
     const params: Record<string, unknown> = { action };
     if (ticker) params.ticker = ticker;
     if (tickers) params.tickers = tickers;
-    const result = await callMethod("trading.updateWatchlist", params);
-    return (result as { watchlist: string[] }).watchlist;
+    const result = await client.request<{ watchlist: string[] }>("trading.updateWatchlist", params);
+    return result?.watchlist ?? [];
   } catch {
     return [];
   }
 }
 
 export async function setRisk(
+  client: GatewayBrowserClient,
   params: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
   try {
-    const result = await callMethod("trading.setRisk", params);
-    return result as Record<string, unknown>;
+    const result = await client.request<Record<string, unknown>>("trading.setRisk", params);
+    return result ?? {};
   } catch {
     return {};
   }
 }
 ```
 
-**Important note for implementer:** The `import { callMethod } from "../connection.ts"` line is a placeholder. You MUST read an existing controller (e.g., `controllers/cron.ts`, `controllers/sessions.ts`, or `controllers/channels.ts`) to find the exact import path and function name for calling gateway WS methods. Replace the import and all `callMethod(...)` calls accordingly.
+**Important note for implementer:** This uses the `GatewayBrowserClient` + `client.request()` pattern from `controllers/cron.ts`. The `client` is obtained from `state.client` in the view/render layer and passed to each controller function.
 
 - [ ] **Step 3: Commit**
 
@@ -6677,69 +6699,66 @@ Find the chain of `state.tab === "..."` ternary conditionals. After the last exi
 ```typescript
           : state.tab === "trading"
             ? (() => {
-                const mod = lazyTrading.get();
-                if (!mod) {
-                  lazyTrading.load().then(() => state.requestUpdate());
-                  return html`<div style="padding:40px;text-align:center;opacity:0.5">Loading...</div>`;
-                }
                 if (!state.tradingStatus && !state.tradingLoading) {
                   state.loadTrading();
                 }
-                return mod.renderTrading({
-                  loading: state.tradingLoading,
-                  status: state.tradingStatus,
-                  error: state.tradingError,
-                  newTicker: state.tradingNewTicker,
-                  onRefresh: () => state.loadTrading(),
-                  onToggleHalt: async () => {
-                    const { setHalt } = await import("./controllers/trading.ts");
-                    const halted = state.tradingStatus?.state === "halted";
-                    await setHalt(!halted);
-                    state.loadTrading();
-                  },
-                  onSetBias: async (direction: string) => {
-                    const { setBias } = await import("./controllers/trading.ts");
-                    await setBias({ direction } as any);
-                    state.loadTrading();
-                  },
-                  onSetConfidence: async (confidence: string) => {
-                    const { setBias } = await import("./controllers/trading.ts");
-                    await setBias({ confidence } as any);
-                    state.loadTrading();
-                  },
-                  onBiasReasonChange: (reason: string) => {
-                    void reason;
-                  },
-                  onBiasReasonSave: async () => {
-                    const { setBias } = await import("./controllers/trading.ts");
-                    const input =
-                      (document.querySelector(
-                        'input[placeholder="Bias reason..."]',
-                      ) as HTMLInputElement)?.value ?? "";
-                    await setBias({ reason: input });
-                    state.loadTrading();
-                  },
-                  onAddTicker: async () => {
-                    if (!state.tradingNewTicker.trim()) return;
-                    const { updateWatchlist } = await import(
-                      "./controllers/trading.ts"
-                    );
-                    await updateWatchlist("add", state.tradingNewTicker.trim());
-                    state.tradingNewTicker = "";
-                    state.loadTrading();
-                  },
-                  onRemoveTicker: async (ticker: string) => {
-                    const { updateWatchlist } = await import(
-                      "./controllers/trading.ts"
-                    );
-                    await updateWatchlist("remove", ticker);
-                    state.loadTrading();
-                  },
-                  onNewTickerChange: (value: string) => {
-                    state.tradingNewTicker = value;
-                    state.requestUpdate();
-                  },
-                });
+                return lazyRender(lazyTrading, (m) =>
+                  m.renderTrading({
+                    loading: state.tradingLoading,
+                    status: state.tradingStatus,
+                    error: state.tradingError,
+                    newTicker: state.tradingNewTicker,
+                    onRefresh: () => state.loadTrading(),
+                    onToggleHalt: async () => {
+                      const { setHalt } = await import("./controllers/trading.ts");
+                      const halted = state.tradingStatus?.state === "halted";
+                      await setHalt(state.client, !halted);
+                      state.loadTrading();
+                    },
+                    onSetBias: async (direction: string) => {
+                      const { setBias } = await import("./controllers/trading.ts");
+                      await setBias(state.client, { direction } as any);
+                      state.loadTrading();
+                    },
+                    onSetConfidence: async (confidence: string) => {
+                      const { setBias } = await import("./controllers/trading.ts");
+                      await setBias(state.client, { confidence } as any);
+                      state.loadTrading();
+                    },
+                    onBiasReasonChange: (reason: string) => {
+                      void reason;
+                    },
+                    onBiasReasonSave: async () => {
+                      const { setBias } = await import("./controllers/trading.ts");
+                      const input =
+                        (document.querySelector(
+                          'input[placeholder="Bias reason..."]',
+                        ) as HTMLInputElement)?.value ?? "";
+                      await setBias(state.client, { reason: input });
+                      state.loadTrading();
+                    },
+                    onAddTicker: async () => {
+                      if (!state.tradingNewTicker.trim()) return;
+                      const { updateWatchlist } = await import(
+                        "./controllers/trading.ts"
+                      );
+                      await updateWatchlist(state.client, "add", state.tradingNewTicker.trim());
+                      state.tradingNewTicker = "";
+                      state.loadTrading();
+                    },
+                    onRemoveTicker: async (ticker: string) => {
+                      const { updateWatchlist } = await import(
+                        "./controllers/trading.ts"
+                      );
+                      await updateWatchlist(state.client, "remove", ticker);
+                      state.loadTrading();
+                    },
+                    onNewTickerChange: (value: string) => {
+                      state.tradingNewTicker = value;
+                      state.requestUpdate();
+                    },
+                  })
+                );
               })()
 ```
 
