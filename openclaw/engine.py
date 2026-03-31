@@ -47,6 +47,7 @@ class RunEngine:
 
     def __init__(self, config_path: str = "trading-config.json"):
         self.config_path = os.path.abspath(config_path)
+        self.workspace = os.path.dirname(self.config_path)
         self.config = load_config(config_path)
         self._running = False
 
@@ -58,10 +59,16 @@ class RunEngine:
             "portfolio_manager_memory": FinancialSituationMemory("portfolio_manager_memory"),
         }
 
-        db_path = self.config["paths"]["database"]
+        db_path = self._resolve_path(self.config["paths"]["database"])
         if os.path.exists(db_path):
             from openclaw.memory_persistence import hydrate_memories
             hydrate_memories(self.memories, db_path)
+
+    def _resolve_path(self, p: str) -> str:
+        """Resolve a path relative to the workspace root."""
+        if os.path.isabs(p):
+            return p
+        return os.path.join(self.workspace, p)
 
     def run(
         self,
@@ -85,11 +92,11 @@ class RunEngine:
         start_time = datetime.now()
 
         run_id = str(uuid.uuid4())[:8]
-        db_path = self.config["paths"]["database"]
+        db_path = self._resolve_path(self.config["paths"]["database"])
         init_db(db_path)
         now = datetime.now(timezone.utc).isoformat()
         strategy = self.config["strategy"]
-        agents_dir = self.config["paths"]["agents_dir"]
+        agents_dir = self._resolve_path(self.config["paths"]["agents_dir"])
 
         with get_db(db_path) as conn:
             conn.execute(
@@ -150,6 +157,7 @@ class RunEngine:
                 raise
 
             signal = self._extract_signal(final_decision)
+            self._update_bias_from_signal(signal, ticker, date)
             for cb in callbacks:
                 cb.on_signal(signal)
 
@@ -396,6 +404,92 @@ class RunEngine:
                 last_signal = signal
         return last_signal
 
+    def _update_bias_from_signal(self, signal: str, ticker: str, date: str) -> None:
+        """Auto-update agent bias in config based on the final analysis signal."""
+        signal_to_bias = {
+            "BUY": ("bullish", "high"),
+            "OVERWEIGHT": ("bullish", "medium"),
+            "HOLD": ("neutral", "low"),
+            "UNDERWEIGHT": ("bearish", "medium"),
+            "SELL": ("bearish", "high"),
+        }
+        direction, confidence = signal_to_bias.get(signal, ("neutral", "low"))
+        self.config.setdefault("agent_bias", {})
+        self.config["agent_bias"]["direction"] = direction
+        self.config["agent_bias"]["confidence"] = confidence
+        self.config["agent_bias"]["reason"] = f"Auto: {ticker} analysis on {date} → {signal}"
+        self.config["agent_bias"]["signal"] = signal
+        self.config["agent_bias"]["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+        # Compute confluence score
+        self.config["confluence"] = self._compute_confluence(signal)
+
+        try:
+            save_config(self.config, self.config_path)
+        except Exception as exc:
+            logger.warning("Failed to update bias from signal: %s", exc)
+
+    def _compute_confluence(self, agent_signal: str) -> dict:
+        """Compute confluence score between user bias and agent signal.
+
+        Scoring:
+          User bias:  bullish/high=+3, medium=+2, low=+1, neutral=0, bearish flipped
+          Agent signal: BUY=+3, OVERWEIGHT=+2, HOLD=0, UNDERWEIGHT=-2, SELL=-3
+
+        Total: -6 to +6. Positive = bullish confluence, negative = bearish.
+        """
+        user_bias = self.config.get("bias", {})
+        user_dir = user_bias.get("direction", "neutral")
+        user_conf = user_bias.get("confidence", "medium")
+
+        conf_map = {"high": 3, "medium": 2, "low": 1}
+        user_score = conf_map.get(user_conf, 2)
+        if user_dir == "bearish":
+            user_score = -user_score
+        elif user_dir == "neutral":
+            user_score = 0
+
+        signal_map = {"BUY": 3, "OVERWEIGHT": 2, "HOLD": 0, "UNDERWEIGHT": -2, "SELL": -3}
+        agent_score = signal_map.get(agent_signal, 0)
+
+        total = user_score + agent_score
+        aligned = (user_score > 0 and agent_score > 0) or (user_score < 0 and agent_score < 0)
+        conflicting = (user_score > 0 and agent_score < 0) or (user_score < 0 and agent_score > 0)
+
+        if abs(total) >= 5:
+            strength = "strong"
+        elif abs(total) >= 3:
+            strength = "moderate"
+        elif abs(total) >= 1:
+            strength = "weak"
+        else:
+            strength = "neutral"
+
+        direction = "bullish" if total > 0 else "bearish" if total < 0 else "neutral"
+
+        return {
+            "user_score": user_score,
+            "agent_score": agent_score,
+            "total": total,
+            "direction": direction,
+            "strength": strength,
+            "aligned": aligned,
+            "conflicting": conflicting,
+        }
+
+    def _get_user_bias_context(self) -> str:
+        """Format user's pre-session bias as context for agent prompts."""
+        bias = self.config.get("bias", {})
+        direction = bias.get("direction", "neutral")
+        confidence = bias.get("confidence", "medium")
+        reason = bias.get("reason", "")
+        if direction == "neutral" and not reason:
+            return ""
+        parts = [f"\nTrader's Pre-Session Bias: {direction.upper()} (confidence: {confidence})"]
+        if reason:
+            parts.append(f"Reason: {reason}")
+        return "\n".join(parts) + "\n"
+
     def _build_analyst_prompt(self, agents_dir, agent_name, strategy, ticker, date):
         md_path = os.path.join(agents_dir, f"{agent_name}.md")
         prompt_text = self._read_strategy_prompt(md_path, strategy)
@@ -420,8 +514,10 @@ class RunEngine:
             for tool_name, result in tool_data.items():
                 data_sections += f"\n--- {tool_name} ---\n{result}\n"
 
-        return f"""Analyze {ticker} for trade date {date}.
+        user_bias = self._get_user_bias_context()
 
+        return f"""Analyze {ticker} for trade date {date}.
+{user_bias}
 {prompt_text}
 
 Company/Instrument: {ticker}
@@ -476,12 +572,21 @@ Opponent's Last Argument:
             ticker = context.get("ticker") or context.get("company_name") or ""
             current_date = context.get("date") or context.get("current_date") or ""
             base_context.update(self._build_jadecap_context(str(ticker), str(current_date)))
+        # Track which keys were substituted into the prompt template
+        used_keys = set()
+        for key in base_context:
+            if f"{{{key}}}" in prompt_text or f"${{{key}}}" in prompt_text:
+                used_keys.add(key)
         prompt_text = self._substitute_placeholders(prompt_text, base_context)
-        context_str = "\n".join(f"{k}: {v}" for k, v in base_context.items() if v)
-        return f"""{prompt_text}
+        # Only append context keys that were NOT already substituted
+        remaining = {k: v for k, v in base_context.items() if v and k not in used_keys}
+        if remaining:
+            context_str = "\n".join(f"{k}: {v}" for k, v in remaining.items())
+            return f"""{prompt_text}
 
 {context_str}
 """
+        return prompt_text
 
     @staticmethod
     def _substitute_placeholders(template: str, context: dict) -> str:
@@ -735,7 +840,7 @@ Opponent's Last Argument:
         import yfinance as yf
         from datetime import timedelta
         callbacks = callbacks or []
-        db_path = self.config["paths"]["database"]
+        db_path = self._resolve_path(self.config["paths"]["database"])
         stock = yf.Ticker(ticker)
         date_obj = datetime.strptime(date, "%Y-%m-%d")
         end_date = (date_obj + timedelta(days=1)).strftime("%Y-%m-%d")

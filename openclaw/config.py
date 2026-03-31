@@ -9,7 +9,7 @@ from typing import Any, Dict
 
 
 SCHEMA_DEFAULTS: Dict[str, Any] = {
-    "strategy": "default",
+    "strategy": "stocks",
     "watchlist": [],
 
     "bias": {
