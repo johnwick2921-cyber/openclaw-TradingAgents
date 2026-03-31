@@ -4338,3 +4338,793 @@ Allows origins: localhost:5173, localhost:8000, 127.0.0.1:8000, 127.0.0.1:5173.
 | D. Wire + Build | 1 | — | `App.jsx`, `Layout.jsx`, `dist/` |
 | E. Plan + Push | 1 | — | plan .md |
 | **Total** | **10** | **9 new files** | **4 modified** |
+
+---
+
+## Phase 11: Trading Tab in OpenClaw Control UI (added 2026-03-29)
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task.
+
+**Goal:** Add a "Trading" tab to the OpenClaw Control UI at `http://127.0.0.1:18789/trading` — the same dashboard that has Chat, Overview, Channels, Sessions, etc. One URL, one UI, trading is a first-class tab.
+
+**How OpenClaw Control UI works:**
+- Source: `/home/hoang/openclaw/ui/` — Vite + Lit web components
+- Navigation: `ui/src/ui/navigation.ts` defines all tabs, paths, icons
+- Views: `ui/src/ui/views/*.ts` — each tab is a function returning `html` (Lit template)
+- Rendering: `ui/src/ui/app-render.ts` — maps `state.tab === "tabname"` to view render call
+- State: `ui/src/ui/app-view-state.ts` — reactive state for each tab
+- i18n: `ui/src/i18n/locales/en.ts` — tab labels + subtitles
+- Lazy loading: views are lazy-imported to keep initial bundle small
+- Build: `cd /home/hoang/openclaw && pnpm ui:build` → output to `dist/control-ui/`
+- Gateway: serves built UI at `http://127.0.0.1:18789/`
+
+**Data source for Trading tab:**
+The Control UI communicates via WebSocket to the gateway. For trading data, we use the gateway's `agent` method to invoke the trading-monitor agent, OR we add a custom REST endpoint. Simplest: the Trading view reads `trading-config.json` and `trading.db` via a new gateway server method `trading.status`.
+
+**But simpler first approach:** The trading view can call our existing FastAPI backend at `http://127.0.0.1:8200/api/trading/status` directly (CORS enabled). This avoids modifying gateway source. Phase 12 can migrate to native gateway methods later.
+
+---
+
+### File Structure
+
+```
+/home/hoang/openclaw/ui/src/
+├── i18n/locales/en.ts                    ← MODIFY: add tabs.trading + subtitles.trading
+├── ui/
+│   ├── navigation.ts                     ← MODIFY: add "trading" tab + path + icon
+│   ├── app-render.ts                     ← MODIFY: add state.tab === "trading" case
+│   ├── app-view-state.ts                 ← MODIFY: add trading state fields
+│   ├── controllers/
+│   │   └── trading.ts                    ← CREATE: trading data controller
+│   └── views/
+│       └── trading.ts                    ← CREATE: trading tab Lit view
+
+/home/hoang/.openclaw/workspace/
+├── dashboard/web/backend/
+│   ├── app.py                            ← MODIFY: add CORS for Control UI origin
+│   └── routes/trading.py                 ← EXISTS (from Phase 10)
+└── dashboard/web/run.py                  ← MODIFY: change port to 8200 (companion)
+```
+
+---
+
+### Task 11.1: Add "trading" to navigation.ts
+
+**Files:**
+- Modify: `/home/hoang/openclaw/ui/src/ui/navigation.ts`
+
+- [ ] **Step 1: Add "trading" to TAB_GROUPS**
+
+In the `control` group, add `"trading"` after `"cron"`:
+
+```typescript
+{ label: "control", tabs: ["overview", "channels", "instances", "sessions", "usage", "cron", "trading"] },
+```
+
+- [ ] **Step 2: Add "trading" to Tab type**
+
+```typescript
+export type Tab =
+  | "agents"
+  | "overview"
+  | "channels"
+  | "instances"
+  | "sessions"
+  | "usage"
+  | "cron"
+  | "skills"
+  | "nodes"
+  | "chat"
+  | "config"
+  | "communications"
+  | "appearance"
+  | "automation"
+  | "infrastructure"
+  | "aiAgents"
+  | "debug"
+  | "logs"
+  | "trading";
+```
+
+- [ ] **Step 3: Add path mapping**
+
+```typescript
+const TAB_PATHS: Record<Tab, string> = {
+  // ... existing entries ...
+  trading: "/trading",
+};
+```
+
+- [ ] **Step 4: Add icon mapping**
+
+In `iconForTab()`:
+
+```typescript
+case "trading":
+  return "barChart";  // reuse the barChart icon (same as overview/usage)
+```
+
+- [ ] **Step 5: Commit**
+
+```bash
+cd /home/hoang/openclaw
+git add ui/src/ui/navigation.ts
+git commit -m "feat: add trading tab to navigation"
+```
+
+---
+
+### Task 11.2: Add i18n labels
+
+**Files:**
+- Modify: `/home/hoang/openclaw/ui/src/i18n/locales/en.ts`
+
+- [ ] **Step 1: Add tab label**
+
+In the `tabs` section:
+
+```typescript
+tabs: {
+  // ... existing entries ...
+  trading: "Trading",
+},
+```
+
+- [ ] **Step 2: Add subtitle**
+
+In the `subtitles` section:
+
+```typescript
+subtitles: {
+  // ... existing entries ...
+  trading: "Market bias, watchlist, pipeline, risk.",
+},
+```
+
+- [ ] **Step 3: Commit**
+
+```bash
+cd /home/hoang/openclaw
+git add ui/src/i18n/locales/en.ts
+git commit -m "feat: add trading tab i18n labels"
+```
+
+---
+
+### Task 11.3: Create trading controller
+
+**Files:**
+- Create: `/home/hoang/openclaw/ui/src/ui/controllers/trading.ts`
+
+This controller fetches data from our FastAPI trading backend.
+
+- [ ] **Step 1: Create the controller**
+
+```typescript
+// ui/src/ui/controllers/trading.ts
+// Fetches trading status from the companion FastAPI backend.
+
+export interface TradingBias {
+  direction: "bullish" | "neutral" | "bearish";
+  reason: string;
+  confidence: "low" | "medium" | "high";
+}
+
+export interface WatchlistItem {
+  ticker: string;
+  signal: string | null;
+  date: string | null;
+  status: string | null;
+  correct: boolean | null;
+}
+
+export interface LastRun {
+  id: string;
+  ticker: string;
+  trade_date: string;
+  strategy: string;
+  signal: string;
+  status: string;
+  duration_seconds: number;
+  created_at: string;
+}
+
+export interface MemoryStat {
+  agent: string;
+  count: number;
+}
+
+export interface TradingStatus {
+  state: "active" | "halted";
+  strategy: string;
+  market_phase: string;
+  bias: TradingBias;
+  watchlist: WatchlistItem[];
+  last_run: LastRun | null;
+  memory_stats: MemoryStat[];
+  risk: Record<string, number>;
+  llm: Record<string, string>;
+  analysis: Record<string, unknown>;
+  schedule: Record<string, unknown>;
+  jadecap: Record<string, unknown> | null;
+}
+
+const TRADING_API = "http://127.0.0.1:8200/api/trading";
+
+export async function fetchTradingStatus(): Promise<TradingStatus | null> {
+  try {
+    const res = await fetch(`${TRADING_API}/status`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function setBias(bias: Partial<TradingBias>): Promise<TradingBias | null> {
+  try {
+    const res = await fetch(`${TRADING_API}/bias`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bias),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.bias;
+  } catch {
+    return null;
+  }
+}
+
+export async function setHalt(halt: boolean): Promise<boolean> {
+  try {
+    const res = await fetch(`${TRADING_API}/halt`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ halt }),
+    });
+    if (!res.ok) return !halt;
+    const data = await res.json();
+    return data.halt;
+  } catch {
+    return !halt;
+  }
+}
+
+export async function updateWatchlist(action: string, ticker: string): Promise<string[]> {
+  try {
+    const res = await fetch(`${TRADING_API}/watchlist`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, ticker }),
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.watchlist;
+  } catch {
+    return [];
+  }
+}
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+cd /home/hoang/openclaw
+git add ui/src/ui/controllers/trading.ts
+git commit -m "feat: add trading controller for API calls"
+```
+
+---
+
+### Task 11.4: Create trading view
+
+**Files:**
+- Create: `/home/hoang/openclaw/ui/src/ui/views/trading.ts`
+
+- [ ] **Step 1: Create the view**
+
+```typescript
+// ui/src/ui/views/trading.ts
+// Trading Monitor tab — market bias, watchlist, pipeline, risk, memory stats.
+
+import { html, nothing } from "lit";
+import type { TradingStatus, WatchlistItem } from "../controllers/trading.ts";
+
+export type TradingProps = {
+  loading: boolean;
+  status: TradingStatus | null;
+  error: string | null;
+  newTicker: string;
+  onRefresh: () => void;
+  onToggleHalt: () => void;
+  onSetBias: (direction: string) => void;
+  onSetConfidence: (confidence: string) => void;
+  onBiasReasonChange: (reason: string) => void;
+  onBiasReasonSave: () => void;
+  onAddTicker: () => void;
+  onRemoveTicker: (ticker: string) => void;
+  onNewTickerChange: (value: string) => void;
+};
+
+const PHASE_LABELS: Record<string, string> = {
+  pre: "Pre-Session", open: "Market Open", midday: "Midday",
+  close: "Near Close", post: "Post-Session", closed: "Market Closed",
+};
+
+const SIGNAL_COLORS: Record<string, string> = {
+  BUY: "#22c55e", OVERWEIGHT: "#86efac", HOLD: "#9ca3af",
+  UNDERWEIGHT: "#fb923c", SELL: "#ef4444",
+};
+
+function signalBadge(signal: string | null) {
+  if (!signal) return html`<span style="opacity:0.5">—</span>`;
+  const color = SIGNAL_COLORS[signal.toUpperCase()] ?? "#9ca3af";
+  return html`<span style="background:color-mix(in srgb,${color} 15%,transparent);color:${color};border:1px solid color-mix(in srgb,${color} 30%,transparent);padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:600">${signal}</span>`;
+}
+
+function card(title: string, content: unknown) {
+  return html`
+    <div style="background:var(--claw-surface-1);border:1px solid var(--claw-border);border-radius:12px;padding:16px;margin-bottom:12px">
+      <div style="font-weight:600;font-size:14px;margin-bottom:10px;color:var(--claw-text)">${title}</div>
+      ${content}
+    </div>`;
+}
+
+export function renderTrading(props: TradingProps) {
+  const { loading, status: s, error } = props;
+
+  if (loading) return html`<div style="padding:40px;text-align:center;opacity:0.5">Loading trading status…</div>`;
+  if (!s) return html`<div style="padding:40px;text-align:center">
+    <div style="opacity:0.5;margin-bottom:8px">Trading backend not available</div>
+    <div style="font-size:12px;opacity:0.4">Start: <code>cd ~/.openclaw/workspace && python dashboard/web/run.py</code></div>
+    <button @click=${props.onRefresh} style="margin-top:12px;padding:6px 16px;border-radius:8px;border:1px solid var(--claw-border);background:var(--claw-surface-1);color:var(--claw-text);cursor:pointer">Retry</button>
+  </div>`;
+
+  const phase = PHASE_LABELS[s.market_phase] ?? s.market_phase ?? "Unknown";
+  const halted = s.state === "halted";
+  const dir = s.bias?.direction ?? "neutral";
+
+  return html`
+    <div style="max-width:960px;margin:0 auto">
+      <!-- Header -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div>
+          <div style="font-size:20px;font-weight:700;color:var(--claw-text)">Trading Monitor</div>
+          <div style="font-size:12px;opacity:0.6">${s.strategy?.toUpperCase()} · ${phase}</div>
+        </div>
+        <button @click=${props.onToggleHalt}
+          style="padding:8px 16px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;border:1px solid ${halted ? "var(--claw-red)" : "var(--claw-green)"};background:color-mix(in srgb,${halted ? "var(--claw-red)" : "var(--claw-green)"} 12%,transparent);color:${halted ? "var(--claw-red)" : "var(--claw-green)"}">
+          ${halted ? "⏸ HALTED — Resume" : "● ACTIVE — Halt"}
+        </button>
+      </div>
+
+      ${error ? html`<div style="padding:10px 14px;background:color-mix(in srgb,var(--claw-red) 10%,transparent);border:1px solid var(--claw-red);border-radius:8px;margin-bottom:12px;font-size:13px;color:var(--claw-red)">${error}</div>` : nothing}
+
+      <!-- Bias + Last Run row -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        ${card("Market Bias", html`
+          <div style="display:flex;gap:6px;margin-bottom:8px">
+            ${["bullish", "neutral", "bearish"].map((d) => {
+              const active = dir === d;
+              const color = d === "bullish" ? "var(--claw-green)" : d === "bearish" ? "var(--claw-red)" : "var(--claw-text-secondary)";
+              return html`<button @click=${() => props.onSetBias(d)}
+                style="flex:1;padding:6px;border-radius:8px;font-size:12px;font-weight:600;text-transform:capitalize;cursor:pointer;border:1.5px solid ${active ? color : "var(--claw-border)"};background:${active ? `color-mix(in srgb,${color} 12%,transparent)` : "transparent"};color:${active ? color : "var(--claw-text-secondary)"}">${d}</button>`;
+            })}
+          </div>
+          <div style="display:flex;gap:4px;align-items:center;margin-bottom:8px">
+            <span style="font-size:11px;opacity:0.6">Confidence:</span>
+            ${["low", "medium", "high"].map((c) => html`
+              <button @click=${() => props.onSetConfidence(c)}
+                style="padding:2px 8px;border-radius:4px;font-size:11px;cursor:pointer;text-transform:capitalize;border:1px solid ${s.bias?.confidence === c ? "var(--claw-accent)" : "var(--claw-border)"};background:${s.bias?.confidence === c ? "color-mix(in srgb,var(--claw-accent) 10%,transparent)" : "transparent"};color:${s.bias?.confidence === c ? "var(--claw-accent)" : "var(--claw-text-secondary)"}">${c}</button>
+            `)}
+          </div>
+          <input .value=${s.bias?.reason ?? ""} @input=${(e: Event) => props.onBiasReasonChange((e.target as HTMLInputElement).value)} @blur=${props.onBiasReasonSave} @keydown=${(e: KeyboardEvent) => e.key === "Enter" && props.onBiasReasonSave()}
+            placeholder="Bias reason…" style="width:100%;padding:6px 10px;border-radius:8px;border:1px solid var(--claw-border);background:var(--claw-surface-2);color:var(--claw-text);font-size:12px;outline:none">
+        `)}
+
+        ${card("Last Run", s.last_run ? html`
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <span style="font-weight:600;color:var(--claw-text)">${s.last_run.ticker}</span>
+            ${signalBadge(s.last_run.signal)}
+          </div>
+          <div style="font-size:11px;opacity:0.6">
+            ${s.last_run.trade_date} · ${s.last_run.strategy} · ${s.last_run.duration_seconds?.toFixed(1)}s · ${s.last_run.status}
+          </div>
+        ` : html`<div style="opacity:0.5;font-size:13px">No runs yet</div>`)}
+      </div>
+
+      <!-- Watchlist -->
+      ${card("Watchlist", html`
+        <div style="display:flex;gap:6px;margin-bottom:10px">
+          <input .value=${props.newTicker} @input=${(e: Event) => props.onNewTickerChange((e.target as HTMLInputElement).value.toUpperCase())} @keydown=${(e: KeyboardEvent) => e.key === "Enter" && props.onAddTicker()}
+            placeholder="Add ticker" style="flex:1;padding:6px 10px;border-radius:8px;border:1px solid var(--claw-border);background:var(--claw-surface-2);color:var(--claw-text);font-size:12px;outline:none">
+          <button @click=${props.onAddTicker} style="padding:6px 14px;border-radius:8px;background:var(--claw-accent);color:white;font-size:12px;font-weight:600;border:none;cursor:pointer">Add</button>
+        </div>
+        ${s.watchlist.length === 0 ? html`<div style="opacity:0.5;font-size:12px">No tickers — add one above</div>` : html`
+          <table style="width:100%;font-size:12px;border-collapse:collapse">
+            <thead><tr style="opacity:0.6">
+              <th style="text-align:left;padding:4px 0">Ticker</th><th style="text-align:left">Signal</th>
+              <th style="text-align:left">Date</th><th style="text-align:left">Status</th>
+              <th style="text-align:center">OK?</th><th></th>
+            </tr></thead>
+            <tbody>${s.watchlist.map((w: WatchlistItem) => html`
+              <tr style="border-top:1px solid var(--claw-border)">
+                <td style="padding:6px 0;font-weight:600;color:var(--claw-text)">${w.ticker}</td>
+                <td>${signalBadge(w.signal)}</td>
+                <td style="opacity:0.6">${w.date ?? "—"}</td>
+                <td style="opacity:0.6">${w.status ?? "—"}</td>
+                <td style="text-align:center">${w.correct === true ? "✓" : w.correct === false ? "✗" : "—"}</td>
+                <td style="text-align:right"><button @click=${() => props.onRemoveTicker(w.ticker)} style="color:var(--claw-red);background:none;border:none;cursor:pointer;font-size:11px">Remove</button></td>
+              </tr>
+            `)}</tbody>
+          </table>
+        `}
+      `)}
+
+      <!-- Pipeline + Risk row -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        ${card("Pipeline", html`
+          ${[
+            { label: "Tier 1: Analysts", detail: (s.analysis as Record<string,unknown>)?.analysts ? ((s.analysis as Record<string,string[]>).analysts).join(", ") : "market, social, news, fundamentals", color: "var(--claw-accent)" },
+            { label: "Tier 2: Bull/Bear Debate", detail: `${(s.analysis as Record<string,number>)?.max_debate_rounds ?? 1} round`, color: "var(--claw-green)" },
+            { label: "Tier 3: Judge + Trader + Risk", detail: `${(s.analysis as Record<string,number>)?.max_risk_discuss_rounds ?? 1} round`, color: "var(--claw-yellow,#f59e0b)" },
+            { label: "Tier 4: Portfolio Manager", detail: "BUY/OVERWEIGHT/HOLD/UNDERWEIGHT/SELL", color: "var(--claw-red)" },
+          ].map((tier) => html`
+            <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--claw-surface-2);border-radius:8px;margin-bottom:4px">
+              <span style="width:8px;height:8px;border-radius:50%;background:${tier.color};flex-shrink:0"></span>
+              <div>
+                <div style="font-size:12px;font-weight:500;color:var(--claw-text)">${tier.label}</div>
+                <div style="font-size:11px;opacity:0.5">${tier.detail}</div>
+              </div>
+            </div>
+          `)}
+          <div style="font-size:11px;opacity:0.5;margin-top:4px">Strategy: <strong>${s.strategy}</strong> · Timeout: ${(s.analysis as Record<string,number>)?.agent_timeout_seconds ?? 300}s/agent</div>
+        `)}
+
+        ${card("Risk", html`
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+            ${[
+              ["Max Loss/Trade", `$${s.risk?.max_loss_per_trade ?? 500}`],
+              ["Daily Limit", `$${s.risk?.daily_loss_limit ?? 1000}`],
+              ["Max Drawdown", `${s.risk?.max_drawdown_pct ?? 5}%`],
+              ["Max Losses", `${s.risk?.max_consecutive_losses ?? 3}`],
+              ["Min R:R", `${s.risk?.min_risk_reward ?? 3}:1`],
+              ...(s.jadecap ? [
+                ["ATR Stop", `${s.jadecap.atr_stop_multiplier ?? 1.5}x`],
+                ["Hard Close", `${s.jadecap.hard_close_time ?? "15:45"} ET`],
+                ["Instrument", `${s.jadecap.active_instrument ?? "NQ"}`],
+              ] : []),
+            ].map(([label, value]) => html`
+              <div style="padding:6px 10px;background:var(--claw-surface-2);border-radius:6px">
+                <div style="font-size:10px;opacity:0.5">${label}</div>
+                <div style="font-size:13px;font-weight:600;color:var(--claw-text)">${value}</div>
+              </div>
+            `)}
+          </div>
+        `)}
+      </div>
+
+      <!-- Memory + LLM row -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        ${s.memory_stats?.length ? card("Memory", html`
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            ${s.memory_stats.map((m: {agent:string;count:number}) => html`
+              <span style="padding:4px 10px;background:var(--claw-surface-2);border-radius:6px;font-size:11px;color:var(--claw-text)">
+                <strong>${m.agent}</strong> <span style="opacity:0.5">(${m.count})</span>
+              </span>
+            `)}
+          </div>
+        `) : nothing}
+
+        ${card("LLM Config", html`
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+            ${[
+              ["Default", s.llm?.default ?? "gpt-4o"],
+              ["Deep", s.llm?.deep_think ?? "claude-opus-4-6"],
+              ["Quick", s.llm?.quick_think ?? "gpt-4o-mini"],
+            ].map(([label, value]) => html`
+              <div style="padding:6px 10px;background:var(--claw-surface-2);border-radius:6px">
+                <div style="font-size:10px;opacity:0.5">${label}</div>
+                <div style="font-size:11px;font-weight:500;color:var(--claw-text)">${value}</div>
+              </div>
+            `)}
+          </div>
+        `)}
+      </div>
+
+      <div style="text-align:center;margin-top:8px">
+        <button @click=${props.onRefresh} style="padding:4px 12px;border-radius:6px;font-size:11px;border:1px solid var(--claw-border);background:transparent;color:var(--claw-text-secondary);cursor:pointer">Refresh</button>
+      </div>
+    </div>
+  `;
+}
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+cd /home/hoang/openclaw
+git add ui/src/ui/views/trading.ts
+git commit -m "feat: add trading view with bias, watchlist, pipeline, risk panels"
+```
+
+---
+
+### Task 11.5: Add trading state to app-view-state.ts
+
+**Files:**
+- Modify: `/home/hoang/openclaw/ui/src/ui/app-view-state.ts`
+
+- [ ] **Step 1: Add trading state fields**
+
+Add these fields to the `AppViewState` type (near other tab states):
+
+```typescript
+// Trading tab state
+tradingLoading: boolean;
+tradingStatus: import("./controllers/trading.ts").TradingStatus | null;
+tradingError: string | null;
+tradingNewTicker: string;
+```
+
+And initialize them in the constructor/defaults:
+
+```typescript
+tradingLoading: false,
+tradingStatus: null,
+tradingError: null,
+tradingNewTicker: "",
+```
+
+Add a method:
+
+```typescript
+async loadTrading() {
+  this.tradingLoading = true;
+  this.tradingError = null;
+  try {
+    const { fetchTradingStatus } = await import("./controllers/trading.ts");
+    this.tradingStatus = await fetchTradingStatus();
+    if (!this.tradingStatus) this.tradingError = "Backend not available";
+  } catch (e) {
+    this.tradingError = String(e);
+  } finally {
+    this.tradingLoading = false;
+  }
+}
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+cd /home/hoang/openclaw
+git add ui/src/ui/app-view-state.ts
+git commit -m "feat: add trading state fields to AppViewState"
+```
+
+---
+
+### Task 11.6: Wire trading view in app-render.ts
+
+**Files:**
+- Modify: `/home/hoang/openclaw/ui/src/ui/app-render.ts`
+
+- [ ] **Step 1: Add lazy import**
+
+Near the other lazy imports (around line 124-132):
+
+```typescript
+const lazyTrading = createLazy(() => import("./views/trading.ts"));
+```
+
+- [ ] **Step 2: Add render case**
+
+Find the chain of `state.tab === "..."` conditionals (around line 1954). After the last one (e.g., `state.tab === "logs"`), add:
+
+```typescript
+          : state.tab === "trading"
+            ? (() => {
+                const mod = lazyTrading.get();
+                if (!mod) { lazyTrading.load().then(() => state.requestUpdate()); return html`<div style="padding:40px;text-align:center;opacity:0.5">Loading…</div>`; }
+                if (!state.tradingStatus && !state.tradingLoading) state.loadTrading();
+                return mod.renderTrading({
+                  loading: state.tradingLoading,
+                  status: state.tradingStatus,
+                  error: state.tradingError,
+                  newTicker: state.tradingNewTicker,
+                  onRefresh: () => state.loadTrading(),
+                  onToggleHalt: async () => {
+                    const { setHalt } = await import("./controllers/trading.ts");
+                    const halted = state.tradingStatus?.state === "halted";
+                    await setHalt(!halted);
+                    state.loadTrading();
+                  },
+                  onSetBias: async (direction: string) => {
+                    const { setBias } = await import("./controllers/trading.ts");
+                    await setBias({ direction } as any);
+                    state.loadTrading();
+                  },
+                  onSetConfidence: async (confidence: string) => {
+                    const { setBias } = await import("./controllers/trading.ts");
+                    await setBias({ confidence } as any);
+                    state.loadTrading();
+                  },
+                  onBiasReasonChange: (reason: string) => { state.tradingNewTicker; /* trigger re-render */ },
+                  onBiasReasonSave: async () => {
+                    const { setBias } = await import("./controllers/trading.ts");
+                    const input = (document.querySelector('input[placeholder="Bias reason…"]') as HTMLInputElement)?.value ?? "";
+                    await setBias({ reason: input } as any);
+                    state.loadTrading();
+                  },
+                  onAddTicker: async () => {
+                    if (!state.tradingNewTicker.trim()) return;
+                    const { updateWatchlist } = await import("./controllers/trading.ts");
+                    await updateWatchlist("add", state.tradingNewTicker.trim());
+                    state.tradingNewTicker = "";
+                    state.loadTrading();
+                  },
+                  onRemoveTicker: async (ticker: string) => {
+                    const { updateWatchlist } = await import("./controllers/trading.ts");
+                    await updateWatchlist("remove", ticker);
+                    state.loadTrading();
+                  },
+                  onNewTickerChange: (value: string) => { state.tradingNewTicker = value; },
+                });
+              })()
+```
+
+- [ ] **Step 3: Commit**
+
+```bash
+cd /home/hoang/openclaw
+git add ui/src/ui/app-render.ts
+git commit -m "feat: wire trading view into app-render with lazy loading"
+```
+
+---
+
+### Task 11.7: Update FastAPI CORS + port
+
+**Files:**
+- Modify: `/home/hoang/.openclaw/workspace/dashboard/web/backend/app.py`
+- Modify: `/home/hoang/.openclaw/workspace/dashboard/web/run.py`
+
+- [ ] **Step 1: Add Control UI origin to CORS**
+
+In `app.py`, find the `CORSMiddleware` and add `"http://127.0.0.1:18789"` to `allow_origins`:
+
+```python
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://localhost:8000", "http://localhost:8200", "http://127.0.0.1:18789"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+```
+
+- [ ] **Step 2: Change run.py port to 8200**
+
+```python
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8200)
+```
+
+- [ ] **Step 3: Commit**
+
+```bash
+cd /home/hoang/.openclaw/workspace
+git add dashboard/web/backend/app.py dashboard/web/run.py
+git commit -m "feat: add Control UI CORS origin, change companion port to 8200"
+```
+
+---
+
+### Task 11.8: Build and verify
+
+- [ ] **Step 1: Build the Control UI**
+
+```bash
+cd /home/hoang/openclaw
+pnpm ui:build
+```
+Expected: Build succeeds, output in `dist/control-ui/`
+
+- [ ] **Step 2: Start the trading backend**
+
+```bash
+cd /home/hoang/.openclaw/workspace
+python dashboard/web/run.py &
+```
+Expected: FastAPI running on port 8200
+
+- [ ] **Step 3: Start the gateway**
+
+```bash
+openclaw gateway
+```
+Expected: Gateway running on port 18789
+
+- [ ] **Step 4: Open the dashboard**
+
+Open `http://127.0.0.1:18789/trading` in a browser.
+
+Expected: Trading tab visible in the sidebar under "Control". Shows:
+- Halt switch (green ACTIVE or red HALTED)
+- Market bias (bullish/neutral/bearish buttons + confidence + reason)
+- Last run info
+- Watchlist table with add/remove
+- Pipeline visualization (4 tiers)
+- Risk parameters grid
+- Memory stats
+- LLM config
+
+- [ ] **Step 5: Verify all other tabs still work**
+
+Click through: Chat, Overview, Channels, Instances, Sessions, Cron, Agents, Skills, Config, Logs — all should work as before.
+
+- [ ] **Step 6: Commit the build**
+
+```bash
+cd /home/hoang/openclaw
+git add dist/control-ui/
+git commit -m "build: rebuild Control UI with trading tab"
+```
+
+---
+
+### Task 11.9: Run all workspace tests
+
+- [ ] **Step 1: Run Python tests**
+
+```bash
+cd /home/hoang/.openclaw/workspace
+.venv/bin/python -m pytest tests/ -v
+```
+Expected: 63+ tests pass
+
+- [ ] **Step 2: Commit and push workspace**
+
+```bash
+cd /home/hoang/.openclaw/workspace
+git add -A
+git commit -m "feat: Phase 11 — Trading tab in OpenClaw Control UI"
+git push origin main
+```
+
+---
+
+### Summary
+
+| Task | File | Action |
+|------|------|--------|
+| 11.1 | `navigation.ts` | Add trading tab + path + icon |
+| 11.2 | `en.ts` | Add i18n labels |
+| 11.3 | `controllers/trading.ts` | Create API controller (fetchTradingStatus, setBias, setHalt, updateWatchlist) |
+| 11.4 | `views/trading.ts` | Create Lit view (renderTrading with 7 card panels) |
+| 11.5 | `app-view-state.ts` | Add trading state fields + loadTrading() |
+| 11.6 | `app-render.ts` | Wire lazy-loaded trading view into tab switch |
+| 11.7 | `app.py` + `run.py` | CORS for 18789, change companion port to 8200 |
+| 11.8 | Build + verify | `pnpm ui:build`, test in browser |
+| 11.9 | Tests + push | Run Python tests, commit, push |
+
+**Architecture:**
+- OpenClaw gateway serves Control UI at `http://127.0.0.1:18789/trading`
+- Trading view calls FastAPI companion backend at `http://127.0.0.1:8200/api/trading/*`
+- All data comes from `trading-config.json` + `trading.db` via the existing backend endpoints
+- No gateway source code modified — only the UI layer (Lit components)
+
+---
+
+## Phase 11: Trading Tab in OpenClaw Control UI (added 2026-03-29)
+
+**Goal:** Add a "Trading" tab to OpenClaw Control UI at http://127.0.0.1:18789/trading
+
+**9 tasks:** navigation.ts → en.ts → controllers/trading.ts → views/trading.ts → app-view-state.ts → app-render.ts → CORS+port → build → test
+
+**Source:** /home/hoang/openclaw/ui/src/ (Vite + Lit web components)
+
+**Data:** FastAPI companion on port 8200 → trading-config.json + trading.db
+
+See full task details in previous conversation context (Phase 11 Tasks 11.1-11.9).
