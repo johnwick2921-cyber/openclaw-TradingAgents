@@ -251,23 +251,11 @@ def _fetch_ohlcv_df(symbol: str, timeframe: str, trade_date: str):
 def fetch_live_price(symbol: str) -> str:
     """Fetch current live price for any instrument.
 
-    Tries: WebUI endpoint → Databento → yfinance fallback.
+    Tries: Databento → yfinance fallback.
     """
-    import requests
-
     clean = symbol.upper().replace("=F", "").strip()
 
-    # Method 1: WebUI live price endpoint
-    try:
-        resp = requests.get(f"http://127.0.0.1:8000/api/prices/{clean}", timeout=3)
-        if resp.status_code == 200:
-            data = resp.json()
-            if data.get("price"):
-                return f"CURRENT PRICE: {clean} = {data['price']:.2f} (source: {data.get('source', 'unknown')})"
-    except Exception:
-        pass
-
-    # Method 2: Databento
+    # Method 1: Databento
     api_key = os.environ.get("DATABENTO_API_KEY", "")
     if api_key:
         try:
