@@ -28,10 +28,7 @@ ict = [
     "databento>=0.30",
 ]
 web = [
-    "fastapi>=0.100",
-    "uvicorn>=0.23",
     "websockets>=11.0",
-    "aiosqlite>=0.19",
 ]
 dev = [
     "pytest>=7.0",
