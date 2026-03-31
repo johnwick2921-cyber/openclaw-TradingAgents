@@ -5117,14 +5117,1991 @@ git push origin main
 
 ---
 
-## Phase 11: Trading Tab in OpenClaw Control UI (added 2026-03-29)
+## Phase 11: Trading Tab in OpenClaw Control UI — Gateway-Native (added 2026-03-29, rewritten 2026-03-28)
 
-**Goal:** Add a "Trading" tab to OpenClaw Control UI at http://127.0.0.1:18789/trading
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task.
 
-**9 tasks:** navigation.ts → en.ts → controllers/trading.ts → views/trading.ts → app-view-state.ts → app-render.ts → CORS+port → build → test
+**Goal:** Add a first-class "Trading" tab to OpenClaw Control UI at `http://127.0.0.1:18789/trading`. All data flows through the existing gateway WebSocket on port 18789. Zero companion services. No FastAPI. No separate port.
 
-**Source:** /home/hoang/openclaw/ui/src/ (Vite + Lit web components)
+**Architecture decision:** Gateway server methods (NOT FastAPI). The trading data methods run as TypeScript gateway server methods. They read `trading-config.json` and `trading.db` directly using Node.js `fs` + `better-sqlite3`. This keeps everything on port 18789 with zero companion services.
 
-**Data:** FastAPI companion on port 8200 → trading-config.json + trading.db
+**What the Trading tab must show (9 panels):**
+1. Halt switch — ACTIVE/HALTED toggle (reads/writes `config.halt`)
+2. Market bias — direction (bullish/neutral/bearish) + confidence (low/medium/high) + reason text
+3. Watchlist — table of tickers with latest signal, date, status, correct; add/remove
+4. Last run — ticker, signal badge, date, strategy, duration, status
+5. Pipeline — 4-tier visualization (analysts, debate, risk, PM) with config values
+6. Risk parameters — max loss, daily limit, drawdown, consecutive losses, R:R + JadeCap extras
+7. Memory stats — per-agent memory counts
+8. LLM config — default/deep/quick models
+9. Strategy — current strategy name + market phase
 
-See full task details in previous conversation context (Phase 11 Tasks 11.1-11.9).
+**Data sources (Python, in workspace):**
+- Config: `/home/hoang/.openclaw/workspace/trading-config.json` (JSON, loaded by `openclaw/config.py`)
+- Database: `/home/hoang/.openclaw/workspace/trading.db` (SQLite — runs, reports, debates, memories, outcomes)
+- Market phase: `openclaw/heartbeat.py` `get_market_phase()`
+- Schema defaults: `openclaw/config.py` `SCHEMA_DEFAULTS`
+
+**Source locations:**
+- UI: `/home/hoang/openclaw/ui/src/` (Vite + Lit web components)
+- Gateway server methods: `/home/hoang/openclaw/src/gateway/server-methods/`
+- Method registration: `/home/hoang/openclaw/src/gateway/server-methods.ts`
+- Method scopes: `/home/hoang/openclaw/src/gateway/method-scopes.ts` (or equivalent)
+- Navigation: `/home/hoang/openclaw/ui/src/ui/navigation.ts`
+- i18n: `/home/hoang/openclaw/ui/src/i18n/locales/en.ts`
+- Views: `/home/hoang/openclaw/ui/src/ui/views/`
+- Controllers: `/home/hoang/openclaw/ui/src/ui/controllers/`
+- State: `/home/hoang/openclaw/ui/src/ui/app-view-state.ts`
+- Rendering: `/home/hoang/openclaw/ui/src/ui/app-render.ts`
+
+**Gateway methods to add:**
+- `trading.status` — read config + query DB -> full status object
+- `trading.setBias` — update `config.bias` -> save
+- `trading.setHalt` — update `config.halt` -> save
+- `trading.updateWatchlist` — add/remove/set tickers -> save
+- `trading.setRisk` — deep merge risk params -> save
+
+---
+
+### File Structure
+
+```
+/home/hoang/openclaw/src/gateway/
+  server-methods/
+    trading.ts                           <- CREATE: 5 handler functions
+  server-methods.ts                        <- MODIFY: register tradingHandlers
+  method-scopes.ts                         <- MODIFY: add trading.* scopes
+
+/home/hoang/openclaw/ui/src/
+  i18n/locales/en.ts                       <- MODIFY: add tabs.trading + subtitles.trading
+  ui/
+    navigation.ts                        <- MODIFY: add "trading" tab + path + icon
+    app-render.ts                        <- MODIFY: add state.tab === "trading" case
+    app-view-state.ts                    <- MODIFY: add trading state fields
+    controllers/
+      trading.ts                       <- CREATE: WS method calls via gateway
+    views/
+      trading.ts                       <- CREATE: renderTrading with all 9 panels
+```
+
+**Total: 18 tasks** (4 backend, 6 frontend, 2 config, 3 build/test, 3 cleanup)
+
+---
+
+### Task 11.1: Create server-methods/trading.ts with 5 handler functions
+
+**Files:**
+- Create: `/home/hoang/openclaw/src/gateway/server-methods/trading.ts`
+
+**Dependencies:** None (first task).
+
+- [ ] **Step 1: Create the trading server methods file**
+
+This file exports `tradingHandlers` — an object whose keys are method names (`trading.status`, `trading.setBias`, etc.) and whose values are handler functions. Each handler reads/writes `trading-config.json` and queries `trading.db` using `better-sqlite3`.
+
+```typescript
+// /home/hoang/openclaw/src/gateway/server-methods/trading.ts
+//
+// Gateway server methods for the Trading tab.
+// Reads trading-config.json + trading.db directly — no companion service.
+
+import fs from "node:fs";
+import path from "node:path";
+import { homedir } from "node:os";
+import Database from "better-sqlite3";
+
+// --- Paths ----------------------------------------------------------------
+const WORKSPACE = path.join(homedir(), ".openclaw", "workspace");
+const CONFIG_PATH = path.join(WORKSPACE, "trading-config.json");
+const DB_PATH = path.join(WORKSPACE, "trading.db");
+
+// --- Schema defaults (mirrors openclaw/config.py SCHEMA_DEFAULTS) ---------
+const SCHEMA_DEFAULTS: Record<string, unknown> = {
+  halt: false,
+  strategy: "default",
+  bias: { direction: "neutral", confidence: "medium", reason: "" },
+  watchlist: ["NVDA", "AAPL", "MSFT"],
+  analysis: {
+    analysts: ["market", "social", "news", "fundamentals"],
+    max_debate_rounds: 1,
+    max_risk_discuss_rounds: 1,
+    agent_timeout_seconds: 300,
+  },
+  risk: {
+    max_loss_per_trade: 500,
+    daily_loss_limit: 1000,
+    max_drawdown_pct: 5,
+    max_consecutive_losses: 3,
+    min_risk_reward: 3,
+  },
+  llm: {
+    default: "gpt-4o",
+    deep_think: "claude-opus-4-6",
+    quick_think: "gpt-4o-mini",
+    per_agent: {},
+  },
+  market_hours: { use: "auto" },
+  jadecap: null,
+};
+
+// --- Helpers --------------------------------------------------------------
+
+function readConfig(): Record<string, unknown> {
+  try {
+    const raw = fs.readFileSync(CONFIG_PATH, "utf-8");
+    const user = JSON.parse(raw);
+    return deepMerge(structuredClone(SCHEMA_DEFAULTS), user);
+  } catch {
+    return structuredClone(SCHEMA_DEFAULTS) as Record<string, unknown>;
+  }
+}
+
+function writeConfig(config: Record<string, unknown>): void {
+  fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + "\n", "utf-8");
+}
+
+function deepMerge(
+  target: Record<string, unknown>,
+  source: Record<string, unknown>,
+): Record<string, unknown> {
+  for (const key of Object.keys(source)) {
+    if (
+      source[key] &&
+      typeof source[key] === "object" &&
+      !Array.isArray(source[key]) &&
+      target[key] &&
+      typeof target[key] === "object" &&
+      !Array.isArray(target[key])
+    ) {
+      target[key] = deepMerge(
+        target[key] as Record<string, unknown>,
+        source[key] as Record<string, unknown>,
+      );
+    } else {
+      target[key] = source[key];
+    }
+  }
+  return target;
+}
+
+function getDb(): Database.Database {
+  if (!fs.existsSync(DB_PATH)) {
+    const db = new Database(DB_PATH);
+    db.pragma("journal_mode = WAL");
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS runs (
+        id TEXT PRIMARY KEY,
+        ticker TEXT NOT NULL,
+        trade_date TEXT,
+        strategy TEXT DEFAULT 'default',
+        signal TEXT,
+        status TEXT DEFAULT 'running',
+        duration_seconds REAL,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS memories (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        agent TEXT NOT NULL,
+        content TEXT NOT NULL,
+        ticker TEXT,
+        created_at TEXT DEFAULT (datetime('now'))
+      );
+    `);
+    return db;
+  }
+  const db = new Database(DB_PATH, { readonly: false });
+  db.pragma("journal_mode = WAL");
+  return db;
+}
+
+function getMarketPhase(): string {
+  const now = new Date();
+  const et = new Date(
+    now.toLocaleString("en-US", { timeZone: "America/New_York" }),
+  );
+  const h = et.getHours();
+  const m = et.getMinutes();
+  const day = et.getDay();
+  const minutes = h * 60 + m;
+
+  if (day === 0 || day === 6) return "closed";
+  if (minutes < 9 * 60 + 30) return "pre";
+  if (minutes < 10 * 60) return "open";
+  if (minutes < 14 * 60) return "midday";
+  if (minutes < 16 * 60) return "close";
+  if (minutes < 18 * 60) return "post";
+  return "closed";
+}
+
+// --- Handlers -------------------------------------------------------------
+
+export const tradingHandlers: Record<
+  string,
+  (params: Record<string, unknown>) => unknown
+> = {
+  "trading.status": (_params: Record<string, unknown>) => {
+    const config = readConfig();
+
+    let lastRun: Record<string, unknown> | null = null;
+    let memoryStats: Array<{ agent: string; count: number }> = [];
+
+    let db: Database.Database | null = null;
+    try {
+      db = getDb();
+
+      const runRow = db
+        .prepare(
+          `SELECT id, ticker, trade_date, strategy, signal, status,
+                  duration_seconds, created_at
+           FROM runs ORDER BY created_at DESC LIMIT 1`,
+        )
+        .get() as Record<string, unknown> | undefined;
+
+      if (runRow) {
+        lastRun = {
+          id: runRow.id,
+          ticker: runRow.ticker,
+          trade_date: runRow.trade_date,
+          strategy: runRow.strategy,
+          signal: runRow.signal,
+          status: runRow.status,
+          duration_seconds: runRow.duration_seconds,
+          created_at: runRow.created_at,
+        };
+      }
+
+      try {
+        const memRows = db
+          .prepare(
+            `SELECT agent, COUNT(*) as count
+             FROM memories GROUP BY agent ORDER BY count DESC`,
+          )
+          .all() as Array<{ agent: string; count: number }>;
+        memoryStats = memRows;
+      } catch {
+        memoryStats = [];
+      }
+    } catch {
+      // DB may not exist
+    } finally {
+      if (db) db.close();
+    }
+
+    const watchlistTickers = (config.watchlist as string[]) ?? [];
+    let watchlist: Array<Record<string, unknown>> = watchlistTickers.map(
+      (t) => ({
+        ticker: t,
+        signal: null,
+        date: null,
+        status: null,
+        correct: null,
+      }),
+    );
+
+    try {
+      db = getDb();
+      for (let i = 0; i < watchlist.length; i++) {
+        const row = db
+          .prepare(
+            `SELECT signal, trade_date, status FROM runs
+             WHERE ticker = ? ORDER BY created_at DESC LIMIT 1`,
+          )
+          .get(watchlist[i].ticker as string) as
+          | Record<string, unknown>
+          | undefined;
+
+        if (row) {
+          watchlist[i].signal = row.signal ?? null;
+          watchlist[i].date = row.trade_date ?? null;
+          watchlist[i].status = row.status ?? null;
+        }
+
+        try {
+          const outcome = db
+            .prepare(
+              `SELECT correct FROM outcomes
+               WHERE ticker = ? ORDER BY created_at DESC LIMIT 1`,
+            )
+            .get(watchlist[i].ticker as string) as
+            | { correct: number | null }
+            | undefined;
+          if (outcome && outcome.correct !== null) {
+            watchlist[i].correct = outcome.correct === 1;
+          }
+        } catch {
+          // outcomes table may not exist
+        }
+      }
+      db.close();
+    } catch {
+      // DB unavailable
+    }
+
+    return {
+      state: config.halt ? "halted" : "active",
+      strategy: config.strategy,
+      market_phase: getMarketPhase(),
+      bias: config.bias,
+      watchlist,
+      last_run: lastRun,
+      memory_stats: memoryStats,
+      risk: config.risk,
+      llm: config.llm,
+      analysis: config.analysis,
+      schedule: config.schedule ?? {},
+      jadecap: config.jadecap ?? null,
+    };
+  },
+
+  "trading.setBias": (params: Record<string, unknown>) => {
+    const config = readConfig();
+    const bias = (config.bias ?? {}) as Record<string, unknown>;
+
+    if (params.direction !== undefined) {
+      const valid = ["bullish", "neutral", "bearish"];
+      if (valid.includes(params.direction as string)) {
+        bias.direction = params.direction;
+      }
+    }
+    if (params.confidence !== undefined) {
+      const valid = ["low", "medium", "high"];
+      if (valid.includes(params.confidence as string)) {
+        bias.confidence = params.confidence;
+      }
+    }
+    if (params.reason !== undefined) {
+      bias.reason = String(params.reason);
+    }
+
+    config.bias = bias;
+    writeConfig(config);
+    return { bias: config.bias };
+  },
+
+  "trading.setHalt": (params: Record<string, unknown>) => {
+    const config = readConfig();
+    const halt = Boolean(params.halt);
+    config.halt = halt;
+    writeConfig(config);
+    return { halt };
+  },
+
+  "trading.updateWatchlist": (params: Record<string, unknown>) => {
+    const config = readConfig();
+    let list = ((config.watchlist ?? []) as string[]).slice();
+    const action = params.action as string;
+
+    if (action === "add" && params.ticker) {
+      const t = (params.ticker as string).toUpperCase().trim();
+      if (t && !list.includes(t)) {
+        list.push(t);
+      }
+    } else if (action === "remove" && params.ticker) {
+      const t = (params.ticker as string).toUpperCase().trim();
+      list = list.filter((x) => x !== t);
+    } else if (action === "set" && Array.isArray(params.tickers)) {
+      list = (params.tickers as string[])
+        .map((t) => t.toUpperCase().trim())
+        .filter(Boolean);
+    }
+
+    config.watchlist = list;
+    writeConfig(config);
+    return { watchlist: list };
+  },
+
+  "trading.setRisk": (params: Record<string, unknown>) => {
+    const config = readConfig();
+    const risk = (config.risk ?? {}) as Record<string, unknown>;
+
+    const numericFields = [
+      "max_loss_per_trade",
+      "daily_loss_limit",
+      "max_drawdown_pct",
+      "max_consecutive_losses",
+      "min_risk_reward",
+    ];
+    for (const field of numericFields) {
+      if (params[field] !== undefined) {
+        const val = Number(params[field]);
+        if (!isNaN(val)) {
+          risk[field] = val;
+        }
+      }
+    }
+
+    if (params.jadecap && typeof params.jadecap === "object") {
+      const jc = (config.jadecap ?? {}) as Record<string, unknown>;
+      const jcParams = params.jadecap as Record<string, unknown>;
+      if (jcParams.atr_stop_multiplier !== undefined)
+        jc.atr_stop_multiplier = Number(jcParams.atr_stop_multiplier);
+      if (jcParams.hard_close_time !== undefined)
+        jc.hard_close_time = String(jcParams.hard_close_time);
+      if (jcParams.active_instrument !== undefined)
+        jc.active_instrument = String(jcParams.active_instrument);
+      config.jadecap = jc;
+    }
+
+    config.risk = risk;
+    writeConfig(config);
+    return { risk: config.risk, jadecap: config.jadecap ?? null };
+  },
+};
+```
+
+- [ ] **Step 2: Verify the file compiles**
+
+```bash
+cd /home/hoang/openclaw
+npx tsc --noEmit src/gateway/server-methods/trading.ts 2>&1 | head -20
+```
+
+Expected: No errors, or only errors related to imports that will resolve after `pnpm build`.
+
+- [ ] **Step 3: Commit**
+
+```bash
+cd /home/hoang/openclaw
+git add src/gateway/server-methods/trading.ts
+git commit -m "feat(trading): add gateway server methods for trading tab"
+```
+
+---
+
+### Task 11.2: Register tradingHandlers in server-methods.ts
+
+**Files:**
+- Modify: `/home/hoang/openclaw/src/gateway/server-methods.ts`
+
+**Dependencies:** Task 11.1 (trading.ts must exist).
+
+- [ ] **Step 1: Add import**
+
+At the top of `server-methods.ts`, add the import alongside the other server-method imports:
+
+```typescript
+import { tradingHandlers } from "./server-methods/trading.ts";
+```
+
+- [ ] **Step 2: Spread into coreGatewayHandlers**
+
+Find the `coreGatewayHandlers` object (the spread of all handler objects) and add `...tradingHandlers`:
+
+```typescript
+export const coreGatewayHandlers = {
+  // ... existing handler spreads ...
+  ...tradingHandlers,
+};
+```
+
+- [ ] **Step 3: Commit**
+
+```bash
+cd /home/hoang/openclaw
+git add src/gateway/server-methods.ts
+git commit -m "feat(trading): register tradingHandlers in gateway server-methods"
+```
+
+---
+
+### Task 11.3: Add method scopes in method-scopes.ts
+
+**Files:**
+- Modify: `/home/hoang/openclaw/src/gateway/method-scopes.ts` (or the equivalent file that defines which methods require which auth scopes)
+
+**Dependencies:** Task 11.1.
+
+- [ ] **Step 1: Add trading method scopes**
+
+Find the method-to-scope mapping and add entries for each trading method. Trading methods should use the same scope as other control-plane methods (typically `"control"` or `"admin"`):
+
+```typescript
+// Trading tab methods
+"trading.status": "control",
+"trading.setBias": "control",
+"trading.setHalt": "control",
+"trading.updateWatchlist": "control",
+"trading.setRisk": "control",
+```
+
+If the scopes file uses an array or set instead of a record, match that pattern:
+
+```typescript
+"trading.status",
+"trading.setBias",
+"trading.setHalt",
+"trading.updateWatchlist",
+"trading.setRisk",
+```
+
+**Note to implementer:** Read the existing `method-scopes.ts` file to see the exact pattern (it may be a `Record<string, string>`, a `Set<string>`, or a function). Match whatever convention is already in use.
+
+- [ ] **Step 2: Commit**
+
+```bash
+cd /home/hoang/openclaw
+git add src/gateway/method-scopes.ts
+git commit -m "feat(trading): add trading.* method scopes"
+```
+
+---
+
+### Task 11.4: Add protocol schema types (optional, good practice)
+
+**Files:**
+- Create or modify: `/home/hoang/openclaw/src/gateway/protocol/schema/trading.ts` (if a schema directory exists)
+
+**Dependencies:** None (purely type definitions).
+
+This task is optional. If the gateway has a `protocol/schema/` directory with Zod or TypeScript types for method params/results, add trading types there. If no such directory exists, skip this task — the types in the controller (Task 11.7) are sufficient.
+
+- [ ] **Step 1: Check if protocol/schema directory exists**
+
+```bash
+ls -la /home/hoang/openclaw/src/gateway/protocol/schema/ 2>/dev/null || echo "No schema directory -- skip this task"
+```
+
+- [ ] **Step 2: If it exists, create trading schema types**
+
+```typescript
+// /home/hoang/openclaw/src/gateway/protocol/schema/trading.ts
+
+export interface TradingBias {
+  direction: "bullish" | "neutral" | "bearish";
+  confidence: "low" | "medium" | "high";
+  reason: string;
+}
+
+export interface WatchlistItem {
+  ticker: string;
+  signal: string | null;
+  date: string | null;
+  status: string | null;
+  correct: boolean | null;
+}
+
+export interface LastRun {
+  id: string;
+  ticker: string;
+  trade_date: string;
+  strategy: string;
+  signal: string;
+  status: string;
+  duration_seconds: number;
+  created_at: string;
+}
+
+export interface MemoryStat {
+  agent: string;
+  count: number;
+}
+
+export interface TradingStatusResult {
+  state: "active" | "halted";
+  strategy: string;
+  market_phase: string;
+  bias: TradingBias;
+  watchlist: WatchlistItem[];
+  last_run: LastRun | null;
+  memory_stats: MemoryStat[];
+  risk: Record<string, number>;
+  llm: Record<string, string>;
+  analysis: Record<string, unknown>;
+  schedule: Record<string, unknown>;
+  jadecap: Record<string, unknown> | null;
+}
+
+export interface SetBiasParams {
+  direction?: "bullish" | "neutral" | "bearish";
+  confidence?: "low" | "medium" | "high";
+  reason?: string;
+}
+
+export interface SetHaltParams {
+  halt: boolean;
+}
+
+export interface UpdateWatchlistParams {
+  action: "add" | "remove" | "set";
+  ticker?: string;
+  tickers?: string[];
+}
+
+export interface SetRiskParams {
+  max_loss_per_trade?: number;
+  daily_loss_limit?: number;
+  max_drawdown_pct?: number;
+  max_consecutive_losses?: number;
+  min_risk_reward?: number;
+  jadecap?: {
+    atr_stop_multiplier?: number;
+    hard_close_time?: string;
+    active_instrument?: string;
+  };
+}
+```
+
+- [ ] **Step 3: Commit (if created)**
+
+```bash
+cd /home/hoang/openclaw
+git add src/gateway/protocol/schema/trading.ts 2>/dev/null && \
+  git commit -m "feat(trading): add protocol schema types for trading methods" || \
+  echo "Skipped -- no schema directory"
+```
+
+---
+
+### Task 11.5: Add "trading" to navigation.ts
+
+**Files:**
+- Modify: `/home/hoang/openclaw/ui/src/ui/navigation.ts`
+
+**Dependencies:** None (frontend-only).
+
+- [ ] **Step 1: Add "trading" to the Tab type union**
+
+Find the `Tab` type and add `"trading"` as the last union member:
+
+```typescript
+export type Tab =
+  | "agents"
+  | "overview"
+  | "channels"
+  | "instances"
+  | "sessions"
+  | "usage"
+  | "cron"
+  | "skills"
+  | "nodes"
+  | "chat"
+  | "config"
+  | "communications"
+  | "appearance"
+  | "automation"
+  | "infrastructure"
+  | "aiAgents"
+  | "debug"
+  | "logs"
+  | "trading";
+```
+
+- [ ] **Step 2: Add "trading" to the TAB_GROUPS array**
+
+In the `control` group, add `"trading"` after `"cron"`:
+
+```typescript
+{ label: "control", tabs: ["overview", "channels", "instances", "sessions", "usage", "cron", "trading"] },
+```
+
+- [ ] **Step 3: Add path mapping in TAB_PATHS**
+
+```typescript
+const TAB_PATHS: Record<Tab, string> = {
+  // ... existing entries ...
+  trading: "/trading",
+};
+```
+
+- [ ] **Step 4: Add icon mapping in iconForTab()**
+
+```typescript
+case "trading":
+  return "barChart";
+```
+
+- [ ] **Step 5: Commit**
+
+```bash
+cd /home/hoang/openclaw
+git add ui/src/ui/navigation.ts
+git commit -m "feat(trading): add trading tab to navigation"
+```
+
+---
+
+### Task 11.6: Add i18n labels in en.ts
+
+**Files:**
+- Modify: `/home/hoang/openclaw/ui/src/i18n/locales/en.ts`
+
+**Dependencies:** None.
+
+- [ ] **Step 1: Add tab label**
+
+In the `tabs` object:
+
+```typescript
+tabs: {
+  // ... existing entries ...
+  trading: "Trading",
+},
+```
+
+- [ ] **Step 2: Add subtitle**
+
+In the `subtitles` object:
+
+```typescript
+subtitles: {
+  // ... existing entries ...
+  trading: "Market bias, watchlist, pipeline, risk.",
+},
+```
+
+- [ ] **Step 3: Commit**
+
+```bash
+cd /home/hoang/openclaw
+git add ui/src/i18n/locales/en.ts
+git commit -m "feat(trading): add i18n labels for trading tab"
+```
+
+---
+
+### Task 11.7: Create controllers/trading.ts (gateway WS method calls)
+
+**Files:**
+- Create: `/home/hoang/openclaw/ui/src/ui/controllers/trading.ts`
+
+**Dependencies:** Tasks 11.1-11.3 (gateway methods must be registered). But the controller can be written first — it just calls WS methods by name.
+
+**Key difference from old Phase 11:** This controller calls gateway WebSocket methods (e.g., `callMethod("trading.status", {})`) instead of `fetch("http://...")`. It uses the same `callMethod` / `sendMessage` pattern as all other controllers in the UI.
+
+- [ ] **Step 1: Read an existing controller to find the WS call pattern**
+
+```bash
+head -60 /home/hoang/openclaw/ui/src/ui/controllers/cron.ts
+```
+
+Look for how controllers call gateway methods. It will be something like:
+- `import { callMethod } from "../connection.ts"` or
+- `import { ws } from "../ws.ts"` or
+- `gateway.call("method.name", params)`
+
+Use whatever pattern is in the existing controllers.
+
+- [ ] **Step 2: Create the controller**
+
+```typescript
+// /home/hoang/openclaw/ui/src/ui/controllers/trading.ts
+//
+// Trading tab controller -- calls gateway WebSocket methods.
+// All data flows through port 18789 WS, no companion service.
+
+// NOTE: Replace this import with the actual gateway call import found in Step 1.
+// Common patterns:
+//   import { callMethod } from "../connection.ts";
+//   import { sendMessage } from "../../utils/ws.ts";
+//   import { gateway } from "../gateway.ts";
+// The examples below use callMethod("method.name", params).
+
+import { callMethod } from "../connection.ts";
+
+// --- Types ----------------------------------------------------------------
+
+export interface TradingBias {
+  direction: "bullish" | "neutral" | "bearish";
+  reason: string;
+  confidence: "low" | "medium" | "high";
+}
+
+export interface WatchlistItem {
+  ticker: string;
+  signal: string | null;
+  date: string | null;
+  status: string | null;
+  correct: boolean | null;
+}
+
+export interface LastRun {
+  id: string;
+  ticker: string;
+  trade_date: string;
+  strategy: string;
+  signal: string;
+  status: string;
+  duration_seconds: number;
+  created_at: string;
+}
+
+export interface MemoryStat {
+  agent: string;
+  count: number;
+}
+
+export interface TradingStatus {
+  state: "active" | "halted";
+  strategy: string;
+  market_phase: string;
+  bias: TradingBias;
+  watchlist: WatchlistItem[];
+  last_run: LastRun | null;
+  memory_stats: MemoryStat[];
+  risk: Record<string, number>;
+  llm: Record<string, string>;
+  analysis: Record<string, unknown>;
+  schedule: Record<string, unknown>;
+  jadecap: Record<string, unknown> | null;
+}
+
+// --- API Functions --------------------------------------------------------
+
+export async function fetchTradingStatus(): Promise<TradingStatus | null> {
+  try {
+    const result = await callMethod("trading.status", {});
+    return result as TradingStatus;
+  } catch {
+    return null;
+  }
+}
+
+export async function setBias(
+  bias: Partial<TradingBias>,
+): Promise<TradingBias | null> {
+  try {
+    const result = await callMethod(
+      "trading.setBias",
+      bias as Record<string, unknown>,
+    );
+    return (result as { bias: TradingBias }).bias;
+  } catch {
+    return null;
+  }
+}
+
+export async function setHalt(halt: boolean): Promise<boolean> {
+  try {
+    const result = await callMethod("trading.setHalt", { halt });
+    return (result as { halt: boolean }).halt;
+  } catch {
+    return !halt;
+  }
+}
+
+export async function updateWatchlist(
+  action: "add" | "remove" | "set",
+  ticker?: string,
+  tickers?: string[],
+): Promise<string[]> {
+  try {
+    const params: Record<string, unknown> = { action };
+    if (ticker) params.ticker = ticker;
+    if (tickers) params.tickers = tickers;
+    const result = await callMethod("trading.updateWatchlist", params);
+    return (result as { watchlist: string[] }).watchlist;
+  } catch {
+    return [];
+  }
+}
+
+export async function setRisk(
+  params: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  try {
+    const result = await callMethod("trading.setRisk", params);
+    return result as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+```
+
+**Important note for implementer:** The `import { callMethod } from "../connection.ts"` line is a placeholder. You MUST read an existing controller (e.g., `controllers/cron.ts`, `controllers/sessions.ts`, or `controllers/channels.ts`) to find the exact import path and function name for calling gateway WS methods. Replace the import and all `callMethod(...)` calls accordingly.
+
+- [ ] **Step 3: Commit**
+
+```bash
+cd /home/hoang/openclaw
+git add ui/src/ui/controllers/trading.ts
+git commit -m "feat(trading): add trading controller with gateway WS method calls"
+```
+
+---
+
+### Task 11.8: Create views/trading.ts (renderTrading with all 9 panels)
+
+**Files:**
+- Create: `/home/hoang/openclaw/ui/src/ui/views/trading.ts`
+
+**Dependencies:** Task 11.7 (controller types imported by view).
+
+- [ ] **Step 1: Create the view**
+
+```typescript
+// /home/hoang/openclaw/ui/src/ui/views/trading.ts
+//
+// Trading Monitor tab -- 9 panels:
+// 1. Halt switch, 2. Market bias, 3. Watchlist, 4. Last run,
+// 5. Pipeline, 6. Risk parameters, 7. Memory stats, 8. LLM config, 9. Strategy
+
+import { html, nothing } from "lit";
+import type { TradingStatus, WatchlistItem } from "../controllers/trading.ts";
+
+// --- Props ----------------------------------------------------------------
+
+export type TradingProps = {
+  loading: boolean;
+  status: TradingStatus | null;
+  error: string | null;
+  newTicker: string;
+  onRefresh: () => void;
+  onToggleHalt: () => void;
+  onSetBias: (direction: string) => void;
+  onSetConfidence: (confidence: string) => void;
+  onBiasReasonChange: (reason: string) => void;
+  onBiasReasonSave: () => void;
+  onAddTicker: () => void;
+  onRemoveTicker: (ticker: string) => void;
+  onNewTickerChange: (value: string) => void;
+};
+
+// --- Constants ------------------------------------------------------------
+
+const PHASE_LABELS: Record<string, string> = {
+  pre: "Pre-Session",
+  open: "Market Open",
+  midday: "Midday",
+  close: "Near Close",
+  post: "Post-Session",
+  closed: "Market Closed",
+};
+
+const SIGNAL_COLORS: Record<string, string> = {
+  BUY: "#22c55e",
+  OVERWEIGHT: "#86efac",
+  HOLD: "#9ca3af",
+  UNDERWEIGHT: "#fb923c",
+  SELL: "#ef4444",
+};
+
+// --- Helpers --------------------------------------------------------------
+
+function signalBadge(signal: string | null) {
+  if (!signal) return html`<span style="opacity:0.5">--</span>`;
+  const color = SIGNAL_COLORS[signal.toUpperCase()] ?? "#9ca3af";
+  return html`<span style="
+    background: color-mix(in srgb, ${color} 15%, transparent);
+    color: ${color};
+    border: 1px solid color-mix(in srgb, ${color} 30%, transparent);
+    padding: 2px 8px;
+    border-radius: 9999px;
+    font-size: 11px;
+    font-weight: 600;
+  ">${signal}</span>`;
+}
+
+function card(title: string, content: unknown) {
+  return html`
+    <div style="
+      background: var(--claw-surface-1);
+      border: 1px solid var(--claw-border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+    ">
+      <div style="
+        font-weight: 600;
+        font-size: 14px;
+        margin-bottom: 10px;
+        color: var(--claw-text);
+      ">${title}</div>
+      ${content}
+    </div>
+  `;
+}
+
+function statBox(label: string, value: string) {
+  return html`
+    <div style="
+      padding: 6px 10px;
+      background: var(--claw-surface-2);
+      border-radius: 6px;
+    ">
+      <div style="font-size: 10px; opacity: 0.5">${label}</div>
+      <div style="font-size: 13px; font-weight: 600; color: var(--claw-text)">${value}</div>
+    </div>
+  `;
+}
+
+// --- Panel Renderers ------------------------------------------------------
+
+function renderHaltAndStrategy(s: TradingStatus, props: TradingProps) {
+  const phase = PHASE_LABELS[s.market_phase] ?? s.market_phase ?? "Unknown";
+  const halted = s.state === "halted";
+
+  return html`
+    <div style="
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    ">
+      <div>
+        <div style="font-size: 20px; font-weight: 700; color: var(--claw-text)">
+          Trading Monitor
+        </div>
+        <div style="font-size: 12px; opacity: 0.6">
+          ${s.strategy?.toUpperCase() ?? "DEFAULT"} // ${phase}
+        </div>
+      </div>
+      <button @click=${props.onToggleHalt} style="
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 13px;
+        cursor: pointer;
+        border: 1px solid ${halted ? "var(--claw-red)" : "var(--claw-green)"};
+        background: color-mix(in srgb, ${halted ? "var(--claw-red)" : "var(--claw-green)"} 12%, transparent);
+        color: ${halted ? "var(--claw-red)" : "var(--claw-green)"};
+      ">
+        ${halted ? "HALTED -- Resume" : "ACTIVE -- Halt"}
+      </button>
+    </div>
+  `;
+}
+
+function renderBias(s: TradingStatus, props: TradingProps) {
+  const dir = s.bias?.direction ?? "neutral";
+  return card("Market Bias", html`
+    <div style="display: flex; gap: 6px; margin-bottom: 8px">
+      ${["bullish", "neutral", "bearish"].map((d) => {
+        const active = dir === d;
+        const color =
+          d === "bullish"
+            ? "var(--claw-green)"
+            : d === "bearish"
+              ? "var(--claw-red)"
+              : "var(--claw-text-secondary)";
+        return html`
+          <button @click=${() => props.onSetBias(d)} style="
+            flex: 1;
+            padding: 6px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: capitalize;
+            cursor: pointer;
+            border: 1.5px solid ${active ? color : "var(--claw-border)"};
+            background: ${active
+              ? `color-mix(in srgb, ${color} 12%, transparent)`
+              : "transparent"};
+            color: ${active ? color : "var(--claw-text-secondary)"};
+          ">${d}</button>
+        `;
+      })}
+    </div>
+    <div style="display: flex; gap: 4px; align-items: center; margin-bottom: 8px">
+      <span style="font-size: 11px; opacity: 0.6">Confidence:</span>
+      ${["low", "medium", "high"].map((c) => html`
+        <button @click=${() => props.onSetConfidence(c)} style="
+          padding: 2px 8px;
+          border-radius: 4px;
+          font-size: 11px;
+          cursor: pointer;
+          text-transform: capitalize;
+          border: 1px solid ${s.bias?.confidence === c
+            ? "var(--claw-accent)"
+            : "var(--claw-border)"};
+          background: ${s.bias?.confidence === c
+            ? "color-mix(in srgb, var(--claw-accent) 10%, transparent)"
+            : "transparent"};
+          color: ${s.bias?.confidence === c
+            ? "var(--claw-accent)"
+            : "var(--claw-text-secondary)"};
+        ">${c}</button>
+      `)}
+    </div>
+    <input
+      .value=${s.bias?.reason ?? ""}
+      @input=${(e: Event) =>
+        props.onBiasReasonChange((e.target as HTMLInputElement).value)}
+      @blur=${props.onBiasReasonSave}
+      @keydown=${(e: KeyboardEvent) =>
+        e.key === "Enter" && props.onBiasReasonSave()}
+      placeholder="Bias reason..."
+      style="
+        width: 100%;
+        padding: 6px 10px;
+        border-radius: 8px;
+        border: 1px solid var(--claw-border);
+        background: var(--claw-surface-2);
+        color: var(--claw-text);
+        font-size: 12px;
+        outline: none;
+        box-sizing: border-box;
+      "
+    >
+  `);
+}
+
+function renderLastRun(s: TradingStatus) {
+  return card(
+    "Last Run",
+    s.last_run
+      ? html`
+          <div style="
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+          ">
+            <span style="font-weight: 600; color: var(--claw-text)">
+              ${s.last_run.ticker}
+            </span>
+            ${signalBadge(s.last_run.signal)}
+          </div>
+          <div style="font-size: 11px; opacity: 0.6">
+            ${s.last_run.trade_date} // ${s.last_run.strategy} //
+            ${s.last_run.duration_seconds?.toFixed(1)}s // ${s.last_run.status}
+          </div>
+        `
+      : html`<div style="opacity: 0.5; font-size: 13px">No runs yet</div>`,
+  );
+}
+
+function renderWatchlist(s: TradingStatus, props: TradingProps) {
+  return card("Watchlist", html`
+    <div style="display: flex; gap: 6px; margin-bottom: 10px">
+      <input
+        .value=${props.newTicker}
+        @input=${(e: Event) =>
+          props.onNewTickerChange(
+            (e.target as HTMLInputElement).value.toUpperCase(),
+          )}
+        @keydown=${(e: KeyboardEvent) =>
+          e.key === "Enter" && props.onAddTicker()}
+        placeholder="Add ticker"
+        style="
+          flex: 1;
+          padding: 6px 10px;
+          border-radius: 8px;
+          border: 1px solid var(--claw-border);
+          background: var(--claw-surface-2);
+          color: var(--claw-text);
+          font-size: 12px;
+          outline: none;
+        "
+      >
+      <button @click=${props.onAddTicker} style="
+        padding: 6px 14px;
+        border-radius: 8px;
+        background: var(--claw-accent);
+        color: white;
+        font-size: 12px;
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+      ">Add</button>
+    </div>
+    ${s.watchlist.length === 0
+      ? html`<div style="opacity: 0.5; font-size: 12px">
+          No tickers -- add one above
+        </div>`
+      : html`
+          <table style="width: 100%; font-size: 12px; border-collapse: collapse">
+            <thead>
+              <tr style="opacity: 0.6">
+                <th style="text-align: left; padding: 4px 0">Ticker</th>
+                <th style="text-align: left">Signal</th>
+                <th style="text-align: left">Date</th>
+                <th style="text-align: left">Status</th>
+                <th style="text-align: center">OK?</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${s.watchlist.map(
+                (w: WatchlistItem) => html`
+                  <tr style="border-top: 1px solid var(--claw-border)">
+                    <td style="
+                      padding: 6px 0;
+                      font-weight: 600;
+                      color: var(--claw-text);
+                    ">${w.ticker}</td>
+                    <td>${signalBadge(w.signal)}</td>
+                    <td style="opacity: 0.6">${w.date ?? "--"}</td>
+                    <td style="opacity: 0.6">${w.status ?? "--"}</td>
+                    <td style="text-align: center">
+                      ${w.correct === true
+                        ? "Y"
+                        : w.correct === false
+                          ? "N"
+                          : "--"}
+                    </td>
+                    <td style="text-align: right">
+                      <button
+                        @click=${() => props.onRemoveTicker(w.ticker)}
+                        style="
+                          color: var(--claw-red);
+                          background: none;
+                          border: none;
+                          cursor: pointer;
+                          font-size: 11px;
+                        "
+                      >Remove</button>
+                    </td>
+                  </tr>
+                `,
+              )}
+            </tbody>
+          </table>
+        `}
+  `);
+}
+
+function renderPipeline(s: TradingStatus) {
+  const analysis = (s.analysis ?? {}) as Record<string, unknown>;
+  const tiers = [
+    {
+      label: "Tier 1: Analysts",
+      detail: Array.isArray(analysis.analysts)
+        ? (analysis.analysts as string[]).join(", ")
+        : "market, social, news, fundamentals",
+      color: "var(--claw-accent)",
+    },
+    {
+      label: "Tier 2: Bull/Bear Debate",
+      detail: `${(analysis.max_debate_rounds as number) ?? 1} round${
+        ((analysis.max_debate_rounds as number) ?? 1) > 1 ? "s" : ""
+      }`,
+      color: "var(--claw-green)",
+    },
+    {
+      label: "Tier 3: Judge + Trader + Risk",
+      detail: `${(analysis.max_risk_discuss_rounds as number) ?? 1} round${
+        ((analysis.max_risk_discuss_rounds as number) ?? 1) > 1 ? "s" : ""
+      }`,
+      color: "var(--claw-yellow, #f59e0b)",
+    },
+    {
+      label: "Tier 4: Portfolio Manager",
+      detail: "BUY / OVERWEIGHT / HOLD / UNDERWEIGHT / SELL",
+      color: "var(--claw-red)",
+    },
+  ];
+
+  return card("Pipeline", html`
+    ${tiers.map(
+      (tier) => html`
+        <div style="
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 6px 10px;
+          background: var(--claw-surface-2);
+          border-radius: 8px;
+          margin-bottom: 4px;
+        ">
+          <span style="
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: ${tier.color};
+            flex-shrink: 0;
+          "></span>
+          <div>
+            <div style="font-size: 12px; font-weight: 500; color: var(--claw-text)">
+              ${tier.label}
+            </div>
+            <div style="font-size: 11px; opacity: 0.5">${tier.detail}</div>
+          </div>
+        </div>
+      `,
+    )}
+    <div style="font-size: 11px; opacity: 0.5; margin-top: 4px">
+      Strategy: <strong>${s.strategy}</strong> //
+      Timeout: ${(analysis.agent_timeout_seconds as number) ?? 300}s/agent
+    </div>
+  `);
+}
+
+function renderRisk(s: TradingStatus) {
+  const risk = (s.risk ?? {}) as Record<string, number>;
+  const jc = s.jadecap as Record<string, unknown> | null;
+
+  const items: Array<[string, string]> = [
+    ["Max Loss/Trade", `$${risk.max_loss_per_trade ?? 500}`],
+    ["Daily Limit", `$${risk.daily_loss_limit ?? 1000}`],
+    ["Max Drawdown", `${risk.max_drawdown_pct ?? 5}%`],
+    ["Max Losses", `${risk.max_consecutive_losses ?? 3}`],
+    ["Min R:R", `${risk.min_risk_reward ?? 3}:1`],
+  ];
+
+  if (jc) {
+    items.push(
+      ["ATR Stop", `${jc.atr_stop_multiplier ?? 1.5}x`],
+      ["Hard Close", `${jc.hard_close_time ?? "15:45"} ET`],
+      ["Instrument", `${jc.active_instrument ?? "NQ"}`],
+    );
+  }
+
+  return card("Risk Parameters", html`
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px">
+      ${items.map(([label, value]) => statBox(label, value))}
+    </div>
+  `);
+}
+
+function renderMemoryStats(s: TradingStatus) {
+  if (!s.memory_stats?.length) return nothing;
+  return card("Memory", html`
+    <div style="display: flex; flex-wrap: wrap; gap: 6px">
+      ${s.memory_stats.map(
+        (m: { agent: string; count: number }) => html`
+          <span style="
+            padding: 4px 10px;
+            background: var(--claw-surface-2);
+            border-radius: 6px;
+            font-size: 11px;
+            color: var(--claw-text);
+          ">
+            <strong>${m.agent}</strong>
+            <span style="opacity: 0.5">(${m.count})</span>
+          </span>
+        `,
+      )}
+    </div>
+  `);
+}
+
+function renderLlmConfig(s: TradingStatus) {
+  const llm = (s.llm ?? {}) as Record<string, string>;
+  return card("LLM Config", html`
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px">
+      ${[
+        ["Default", llm.default ?? "gpt-4o"],
+        ["Deep", llm.deep_think ?? "claude-opus-4-6"],
+        ["Quick", llm.quick_think ?? "gpt-4o-mini"],
+      ].map(
+        ([label, value]) => html`
+          <div style="
+            padding: 6px 10px;
+            background: var(--claw-surface-2);
+            border-radius: 6px;
+          ">
+            <div style="font-size: 10px; opacity: 0.5">${label}</div>
+            <div style="
+              font-size: 11px;
+              font-weight: 500;
+              color: var(--claw-text);
+            ">${value}</div>
+          </div>
+        `,
+      )}
+    </div>
+  `);
+}
+
+// --- Main Render Function -------------------------------------------------
+
+export function renderTrading(props: TradingProps) {
+  const { loading, status: s, error } = props;
+
+  if (loading) {
+    return html`<div style="padding: 40px; text-align: center; opacity: 0.5">
+      Loading trading status...
+    </div>`;
+  }
+
+  if (!s) {
+    return html`
+      <div style="padding: 40px; text-align: center">
+        <div style="opacity: 0.5; margin-bottom: 8px">
+          Trading data not available
+        </div>
+        <div style="font-size: 12px; opacity: 0.4">
+          Ensure <code>trading-config.json</code> exists in
+          <code>~/.openclaw/workspace/</code>
+        </div>
+        <button @click=${props.onRefresh} style="
+          margin-top: 12px;
+          padding: 6px 16px;
+          border-radius: 8px;
+          border: 1px solid var(--claw-border);
+          background: var(--claw-surface-1);
+          color: var(--claw-text);
+          cursor: pointer;
+        ">Retry</button>
+      </div>
+    `;
+  }
+
+  return html`
+    <div style="max-width: 960px; margin: 0 auto">
+      ${renderHaltAndStrategy(s, props)}
+
+      ${error
+        ? html`
+            <div style="
+              padding: 10px 14px;
+              background: color-mix(in srgb, var(--claw-red) 10%, transparent);
+              border: 1px solid var(--claw-red);
+              border-radius: 8px;
+              margin-bottom: 12px;
+              font-size: 13px;
+              color: var(--claw-red);
+            ">${error}</div>
+          `
+        : nothing}
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px">
+        ${renderBias(s, props)}
+        ${renderLastRun(s)}
+      </div>
+
+      ${renderWatchlist(s, props)}
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px">
+        ${renderPipeline(s)}
+        ${renderRisk(s)}
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px">
+        ${renderMemoryStats(s)}
+        ${renderLlmConfig(s)}
+      </div>
+
+      <div style="text-align: center; margin-top: 8px">
+        <button @click=${props.onRefresh} style="
+          padding: 4px 12px;
+          border-radius: 6px;
+          font-size: 11px;
+          border: 1px solid var(--claw-border);
+          background: transparent;
+          color: var(--claw-text-secondary);
+          cursor: pointer;
+        ">Refresh</button>
+      </div>
+    </div>
+  `;
+}
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+cd /home/hoang/openclaw
+git add ui/src/ui/views/trading.ts
+git commit -m "feat(trading): add trading view with all 9 panels"
+```
+
+---
+
+### Task 11.9: Add trading state to app-view-state.ts
+
+**Files:**
+- Modify: `/home/hoang/openclaw/ui/src/ui/app-view-state.ts`
+
+**Dependencies:** Task 11.7 (controller types).
+
+- [ ] **Step 1: Add state fields to AppViewState type**
+
+Find the `AppViewState` type/interface and add these fields alongside other tab-specific state:
+
+```typescript
+// Trading tab state
+tradingLoading: boolean;
+tradingStatus: import("./controllers/trading.ts").TradingStatus | null;
+tradingError: string | null;
+tradingNewTicker: string;
+```
+
+- [ ] **Step 2: Add initial values**
+
+In the constructor or default values object:
+
+```typescript
+tradingLoading: false,
+tradingStatus: null,
+tradingError: null,
+tradingNewTicker: "",
+```
+
+- [ ] **Step 3: Add loadTrading() method**
+
+Add this method to the class (or state object, depending on pattern):
+
+```typescript
+async loadTrading() {
+  this.tradingLoading = true;
+  this.tradingError = null;
+  this.requestUpdate();
+  try {
+    const { fetchTradingStatus } = await import("./controllers/trading.ts");
+    this.tradingStatus = await fetchTradingStatus();
+    if (!this.tradingStatus) {
+      this.tradingError = "Gateway returned no trading data";
+    }
+  } catch (e) {
+    this.tradingError = String(e);
+  } finally {
+    this.tradingLoading = false;
+    this.requestUpdate();
+  }
+}
+```
+
+**Note:** If the state uses a reactive framework (e.g., Lit reactive properties, or a custom reactive store), ensure `tradingLoading`, `tradingStatus`, `tradingError`, and `tradingNewTicker` are declared as reactive. Match how other tab states (e.g., `cronLoading`, `sessionsLoading`) are declared.
+
+- [ ] **Step 4: Commit**
+
+```bash
+cd /home/hoang/openclaw
+git add ui/src/ui/app-view-state.ts
+git commit -m "feat(trading): add trading state fields and loadTrading() to AppViewState"
+```
+
+---
+
+### Task 11.10: Wire view in app-render.ts (lazy import + tab case)
+
+**Files:**
+- Modify: `/home/hoang/openclaw/ui/src/ui/app-render.ts`
+
+**Dependencies:** Tasks 11.7, 11.8, 11.9 (controller, view, and state must exist).
+
+- [ ] **Step 1: Add lazy import**
+
+Near the other `createLazy(() => import("./views/..."))` calls:
+
+```typescript
+const lazyTrading = createLazy(() => import("./views/trading.ts"));
+```
+
+- [ ] **Step 2: Add render case**
+
+Find the chain of `state.tab === "..."` ternary conditionals. After the last existing case (e.g., `state.tab === "logs"`), add:
+
+```typescript
+          : state.tab === "trading"
+            ? (() => {
+                const mod = lazyTrading.get();
+                if (!mod) {
+                  lazyTrading.load().then(() => state.requestUpdate());
+                  return html`<div style="padding:40px;text-align:center;opacity:0.5">Loading...</div>`;
+                }
+                if (!state.tradingStatus && !state.tradingLoading) {
+                  state.loadTrading();
+                }
+                return mod.renderTrading({
+                  loading: state.tradingLoading,
+                  status: state.tradingStatus,
+                  error: state.tradingError,
+                  newTicker: state.tradingNewTicker,
+                  onRefresh: () => state.loadTrading(),
+                  onToggleHalt: async () => {
+                    const { setHalt } = await import("./controllers/trading.ts");
+                    const halted = state.tradingStatus?.state === "halted";
+                    await setHalt(!halted);
+                    state.loadTrading();
+                  },
+                  onSetBias: async (direction: string) => {
+                    const { setBias } = await import("./controllers/trading.ts");
+                    await setBias({ direction } as any);
+                    state.loadTrading();
+                  },
+                  onSetConfidence: async (confidence: string) => {
+                    const { setBias } = await import("./controllers/trading.ts");
+                    await setBias({ confidence } as any);
+                    state.loadTrading();
+                  },
+                  onBiasReasonChange: (reason: string) => {
+                    void reason;
+                  },
+                  onBiasReasonSave: async () => {
+                    const { setBias } = await import("./controllers/trading.ts");
+                    const input =
+                      (document.querySelector(
+                        'input[placeholder="Bias reason..."]',
+                      ) as HTMLInputElement)?.value ?? "";
+                    await setBias({ reason: input });
+                    state.loadTrading();
+                  },
+                  onAddTicker: async () => {
+                    if (!state.tradingNewTicker.trim()) return;
+                    const { updateWatchlist } = await import(
+                      "./controllers/trading.ts"
+                    );
+                    await updateWatchlist("add", state.tradingNewTicker.trim());
+                    state.tradingNewTicker = "";
+                    state.loadTrading();
+                  },
+                  onRemoveTicker: async (ticker: string) => {
+                    const { updateWatchlist } = await import(
+                      "./controllers/trading.ts"
+                    );
+                    await updateWatchlist("remove", ticker);
+                    state.loadTrading();
+                  },
+                  onNewTickerChange: (value: string) => {
+                    state.tradingNewTicker = value;
+                    state.requestUpdate();
+                  },
+                });
+              })()
+```
+
+- [ ] **Step 3: Commit**
+
+```bash
+cd /home/hoang/openclaw
+git add ui/src/ui/app-render.ts
+git commit -m "feat(trading): wire trading view into app-render with lazy loading"
+```
+
+---
+
+### Task 11.11: Add trading config section to views/config.ts (optional)
+
+**Files:**
+- Modify: `/home/hoang/openclaw/ui/src/ui/views/config.ts` (if it exists and has editable config sections)
+
+**Dependencies:** Task 11.7 (controller for `setRisk`).
+
+This task is optional. If the config view already has sections for other features, add a "Trading" section. Otherwise, risk editing can be done directly from the Trading tab's Risk card in a future iteration.
+
+- [ ] **Step 1: Check if config.ts has editable sections**
+
+```bash
+head -50 /home/hoang/openclaw/ui/src/ui/views/config.ts
+```
+
+- [ ] **Step 2: If applicable, add a "Trading Risk" section**
+
+```typescript
+// Add to the config view's render function, in a new section:
+${card("Trading Risk Parameters", html`
+  <div style="font-size: 12px; opacity: 0.6; margin-bottom: 8px">
+    Edit risk parameters in <code>~/.openclaw/workspace/trading-config.json</code>
+    or use the Trading tab.
+  </div>
+`)}
+```
+
+- [ ] **Step 3: Commit (if changes made)**
+
+```bash
+cd /home/hoang/openclaw
+git add ui/src/ui/views/config.ts 2>/dev/null && \
+  git commit -m "feat(trading): add trading config reference to config view" || \
+  echo "Skipped"
+```
+
+---
+
+### Task 11.12: Ensure trading-config.json bias field in SCHEMA_DEFAULTS
+
+**Files:**
+- Verify: `/home/hoang/.openclaw/workspace/openclaw/config.py`
+- Verify: `/home/hoang/.openclaw/workspace/trading-config.json`
+
+**Dependencies:** None.
+
+- [ ] **Step 1: Verify SCHEMA_DEFAULTS includes bias**
+
+```bash
+grep -A 5 '"bias"' /home/hoang/.openclaw/workspace/openclaw/config.py
+```
+
+Expected output should include:
+```python
+"bias": {"direction": "neutral", "confidence": "medium", "reason": ""},
+```
+
+If missing, add it to SCHEMA_DEFAULTS.
+
+- [ ] **Step 2: Verify trading-config.json is valid JSON**
+
+```bash
+python3 -c "import json; json.load(open('/home/hoang/.openclaw/workspace/trading-config.json'))" && echo "Valid JSON"
+```
+
+Expected: `Valid JSON`
+
+- [ ] **Step 3: Verify bias field exists in config**
+
+```bash
+python3 -c "
+import json
+c = json.load(open('/home/hoang/.openclaw/workspace/trading-config.json'))
+print('bias:', c.get('bias', 'MISSING'))
+print('halt:', c.get('halt', 'MISSING'))
+print('watchlist:', c.get('watchlist', 'MISSING'))
+print('risk:', c.get('risk', 'MISSING'))
+"
+```
+
+If any field shows `MISSING`, add it to the config file or confirm that `SCHEMA_DEFAULTS` in `config.py` provides the default (the gateway handler in Task 11.1 also has fallback defaults).
+
+---
+
+### Task 11.13: Build gateway
+
+**Dependencies:** Tasks 11.1-11.3 (all backend changes).
+
+- [ ] **Step 1: Install better-sqlite3 if not already present**
+
+```bash
+cd /home/hoang/openclaw && pnpm ls better-sqlite3 2>/dev/null || pnpm add better-sqlite3 && pnpm add -D @types/better-sqlite3
+```
+
+- [ ] **Step 2: Build gateway**
+
+```bash
+cd /home/hoang/openclaw && pnpm build
+```
+
+Expected: Build succeeds with no TypeScript errors.
+
+- [ ] **Step 3: Verify trading handlers are in the build output**
+
+```bash
+grep -r "trading.status" /home/hoang/openclaw/dist/ | head -5
+```
+
+Expected: At least one match showing the handler was compiled.
+
+---
+
+### Task 11.14: Build UI
+
+**Dependencies:** Tasks 11.5-11.10 (all frontend changes).
+
+- [ ] **Step 1: Build the Control UI**
+
+```bash
+cd /home/hoang/openclaw && pnpm ui:build
+```
+
+Expected: Build succeeds, output in `dist/control-ui/`
+
+- [ ] **Step 2: Verify trading assets exist**
+
+```bash
+grep -r "trading" /home/hoang/openclaw/dist/control-ui/assets/ | head -5
+```
+
+Expected: Trading module code appears in the bundled JS.
+
+---
+
+### Task 11.15: Verify end-to-end
+
+**Dependencies:** Tasks 11.13, 11.14 (both builds must pass).
+
+- [ ] **Step 1: Start the gateway**
+
+```bash
+cd /home/hoang/openclaw && openclaw gateway &
+```
+
+Expected: Gateway running on port 18789.
+
+- [ ] **Step 2: Open the dashboard**
+
+Open `http://127.0.0.1:18789/` in a browser. Navigate to the Trading tab (should appear in the "Control" section of the sidebar).
+
+- [ ] **Step 3: Verify all 9 panels render**
+
+Expected:
+1. Halt switch -- green "ACTIVE - Halt" button (or red "HALTED - Resume")
+2. Market bias -- bullish/neutral/bearish buttons, confidence low/medium/high, reason input
+3. Watchlist -- table with ticker, signal badge, date, status, correct column, add/remove
+4. Last run -- ticker + signal badge + date + strategy + duration + status (or "No runs yet")
+5. Pipeline -- 4 tiers with colored dots, analyst names, debate rounds, timeout
+6. Risk parameters -- grid of max loss, daily limit, drawdown, consecutive losses, R:R (+ JadeCap if configured)
+7. Memory stats -- per-agent badges with counts (or hidden if no memories)
+8. LLM config -- default/deep/quick model names
+9. Strategy -- shown in header next to market phase
+
+- [ ] **Step 4: Test interactions**
+
+1. Click "Halt" button -> should toggle to "HALTED"
+2. Click a bias direction -> should update immediately
+3. Change confidence -> should update
+4. Type a bias reason and press Enter -> should save
+5. Add a ticker (type "TSLA" + Enter) -> should appear in watchlist
+6. Remove a ticker -> should disappear
+7. Click "Refresh" -> should reload all data
+
+- [ ] **Step 5: Verify other tabs still work**
+
+Click through: Chat, Overview, Channels, Instances, Sessions, Cron, Agents, Skills, Config, Logs -- all should work as before.
+
+- [ ] **Step 6: Kill the gateway**
+
+```bash
+kill %1
+```
+
+---
+
+### Task 11.16: Remove dashboard/web/ FastAPI backend (no longer needed)
+
+**Files:**
+- Delete: `/home/hoang/.openclaw/workspace/dashboard/web/backend/`
+- Delete: `/home/hoang/.openclaw/workspace/dashboard/web/run.py`
+
+**Dependencies:** Task 11.15 (verify gateway-native approach works first).
+
+- [ ] **Step 1: Confirm no other code depends on the FastAPI backend**
+
+```bash
+grep -r "8200\|dashboard/web/backend\|dashboard/web/run" /home/hoang/.openclaw/workspace/ --include="*.py" --include="*.ts" --include="*.md" | grep -v "plans/" | grep -v ".git/"
+```
+
+Expected: No critical imports or references outside the plan docs.
+
+- [ ] **Step 2: Move to trash (not delete)**
+
+```bash
+cd /home/hoang/.openclaw/workspace
+mkdir -p .trash/dashboard-web-backend-$(date +%Y%m%d)
+mv dashboard/web/backend/ .trash/dashboard-web-backend-$(date +%Y%m%d)/backend/
+mv dashboard/web/run.py .trash/dashboard-web-backend-$(date +%Y%m%d)/run.py 2>/dev/null || true
+```
+
+- [ ] **Step 3: Commit**
+
+```bash
+cd /home/hoang/.openclaw/workspace
+git add -A dashboard/web/
+git commit -m "chore: remove FastAPI backend (replaced by gateway-native trading methods)"
+```
+
+---
+
+### Task 11.17: Remove dashboard/web/frontend/ React app (replaced by Lit)
+
+**Files:**
+- Delete: `/home/hoang/.openclaw/workspace/dashboard/web/frontend/`
+
+**Dependencies:** Task 11.15.
+
+- [ ] **Step 1: Move to trash**
+
+```bash
+cd /home/hoang/.openclaw/workspace
+mkdir -p .trash/dashboard-web-frontend-$(date +%Y%m%d)
+mv dashboard/web/frontend/ .trash/dashboard-web-frontend-$(date +%Y%m%d)/frontend/ 2>/dev/null || true
+```
+
+- [ ] **Step 2: Remove empty dashboard/web/ directory if empty**
+
+```bash
+rmdir /home/hoang/.openclaw/workspace/dashboard/web/ 2>/dev/null || echo "Directory not empty, leaving"
+```
+
+- [ ] **Step 3: Commit**
+
+```bash
+cd /home/hoang/.openclaw/workspace
+git add -A dashboard/
+git commit -m "chore: remove React frontend (replaced by Lit trading tab in OpenClaw Control UI)"
+```
+
+---
+
+### Task 11.18: Update CLAUDE.md and plan doc
+
+**Files:**
+- Modify: `/home/hoang/.openclaw/workspace/CLAUDE.md`
+- Modify: `/home/hoang/.openclaw/workspace/docs/superpowers/plans/2026-03-27-openclaw-tradingagents-merge.md`
+
+**Dependencies:** Tasks 11.15-11.17.
+
+- [ ] **Step 1: Update CLAUDE.md architecture section**
+
+Replace the old `dashboard/web/` references:
+
+Old:
+```
+dashboard/web/         <- React + FastAPI web dashboard
+```
+
+New:
+```
+# dashboard/web/ is REMOVED -- trading UI is now a native tab in OpenClaw Control UI
+# Access at http://127.0.0.1:18789/trading (served by gateway on port 18789)
+```
+
+Update the Key Dependencies section -- remove:
+```
+Optional (webui): `fastapi`, `uvicorn`, `websockets`, `smartmoneyconcepts`, `databento`
+```
+
+Replace with:
+```
+Optional: `smartmoneyconcepts`, `databento`
+# FastAPI/uvicorn no longer needed -- trading UI is gateway-native
+```
+
+- [ ] **Step 2: Update plan doc -- mark old Phase 11 as superseded**
+
+At the top of the old Phase 11 section (around line 4344), add a deprecation notice:
+
+```markdown
+> **SUPERSEDED:** This version of Phase 11 used a FastAPI companion backend on port 8200.
+> It has been replaced by the gateway-native version below (Phase 11, rewritten 2026-03-28).
+> The gateway-native approach requires no companion service -- all data flows through the
+> existing WebSocket on port 18789.
+```
+
+- [ ] **Step 3: Run workspace tests**
+
+```bash
+cd /home/hoang/.openclaw/workspace
+.venv/bin/python -m pytest tests/ -v
+```
+
+Expected: All tests pass (63+).
+
+- [ ] **Step 4: Commit everything**
+
+```bash
+cd /home/hoang/.openclaw/workspace
+git add CLAUDE.md docs/
+git commit -m "docs: update CLAUDE.md and plan for gateway-native trading tab (Phase 11 rewrite)"
+```
+
+```bash
+cd /home/hoang/openclaw
+git add -A
+git commit -m "feat: Phase 11 complete -- Trading tab in OpenClaw Control UI (gateway-native)"
+```
+
+---
+
+### Summary
+
+| Task | File(s) | Action |
+|------|---------|--------|
+| 11.1 | `src/gateway/server-methods/trading.ts` | Create 5 handler functions (status, setBias, setHalt, updateWatchlist, setRisk) |
+| 11.2 | `src/gateway/server-methods.ts` | Register `...tradingHandlers` in `coreGatewayHandlers` |
+| 11.3 | `src/gateway/method-scopes.ts` | Add `trading.*` method scopes |
+| 11.4 | `src/gateway/protocol/schema/trading.ts` | Optional: protocol types |
+| 11.5 | `ui/src/ui/navigation.ts` | Add `"trading"` to Tab type, TAB_GROUPS, TAB_PATHS, iconForTab |
+| 11.6 | `ui/src/i18n/locales/en.ts` | Add `tabs.trading` + `subtitles.trading` |
+| 11.7 | `ui/src/ui/controllers/trading.ts` | Create controller with WS method calls |
+| 11.8 | `ui/src/ui/views/trading.ts` | Create view with all 9 panels |
+| 11.9 | `ui/src/ui/app-view-state.ts` | Add trading state fields + `loadTrading()` |
+| 11.10 | `ui/src/ui/app-render.ts` | Wire lazy-loaded trading view into tab switch |
+| 11.11 | `ui/src/ui/views/config.ts` | Optional: trading config reference |
+| 11.12 | `openclaw/config.py` + `trading-config.json` | Verify bias/halt/watchlist/risk in SCHEMA_DEFAULTS |
+| 11.13 | Build gateway | `pnpm build` -- verify trading handlers compiled |
+| 11.14 | Build UI | `pnpm ui:build` -- verify trading assets bundled |
+| 11.15 | Verify | Start gateway, open `/trading`, test all 9 panels + interactions |
+| 11.16 | `dashboard/web/backend/` | Remove FastAPI backend (move to `.trash/`) |
+| 11.17 | `dashboard/web/frontend/` | Remove React app (move to `.trash/`) |
+| 11.18 | `CLAUDE.md` + plan doc | Update architecture docs, mark old Phase 11 superseded |
+
+**Architecture (final):**
+- OpenClaw gateway serves Control UI at `http://127.0.0.1:18789/`
+- Trading tab at `http://127.0.0.1:18789/trading`
+- All data flows via WebSocket methods (`trading.status`, `trading.setBias`, `trading.setHalt`, `trading.updateWatchlist`, `trading.setRisk`)
+- Gateway reads `~/.openclaw/workspace/trading-config.json` + `~/.openclaw/workspace/trading.db` directly
+- Zero companion services. One port. One UI. Trading is a first-class tab.
+- `better-sqlite3` added as gateway dependency for direct SQLite access
+- FastAPI backend and React frontend are removed after verification
