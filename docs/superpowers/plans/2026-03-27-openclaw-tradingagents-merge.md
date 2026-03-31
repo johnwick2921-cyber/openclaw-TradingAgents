@@ -7124,3 +7124,65 @@ git commit -m "feat: Phase 11 complete -- Trading tab in OpenClaw Control UI (ga
 - Zero companion services. One port. One UI. Trading is a first-class tab.
 - `better-sqlite3` added as gateway dependency for direct SQLite access
 - FastAPI backend and React frontend are removed after verification
+
+---
+
+### Task 11.19: Additional cleanup items (from audit)
+
+**These items were identified by code review and must be done during Phase 11 execution:**
+
+- [ ] **Step 1: Remove stale test file**
+
+```bash
+cd /home/hoang/.openclaw/workspace
+rm tests/test_trading_api.py
+git add tests/test_trading_api.py
+```
+
+The FastAPI trading API tests are no longer needed — the endpoints moved to gateway server methods.
+
+- [ ] **Step 2: Remove fastapi/uvicorn from pyproject.toml**
+
+In `/home/hoang/.openclaw/workspace/pyproject.toml`, remove from `[project.optional-dependencies] web`:
+
+```
+"fastapi>=0.100",
+"uvicorn>=0.23",
+```
+
+Keep `aiosqlite` and `websockets` if still used.
+
+- [ ] **Step 3: Update TRADING.md — remove "start dashboard/web/run.py" instruction**
+
+In `/home/hoang/.openclaw/workspace/TRADING.md`, the "How to Use" section says to start the dashboard. Remove any reference to running a separate server. The trading UI is now built into OpenClaw Control at `http://127.0.0.1:18789/trading`.
+
+- [ ] **Step 4: Update fetch_live_price — remove localhost:8000 fallback**
+
+In `/home/hoang/.openclaw/workspace/openclaw/indicators.py`, the `fetch_live_price()` function tries `http://127.0.0.1:8000/api/prices/{symbol}` first. Remove this fallback since the FastAPI server no longer runs. Keep Databento and yfinance fallbacks.
+
+- [ ] **Step 5: Fix getMarketPhase in trading.ts — add futures hours**
+
+In the gateway `getMarketPhase()` function (Task 11.1), add futures market hours:
+
+```typescript
+const strategy = config.strategy ?? "default";
+const isFutures = strategy === "jadecap" || marketHours?.use === "futures";
+
+if (isFutures) {
+  // Futures: 18:00 - 17:00 ET (nearly 24h, overnight)
+  const futuresOpen = 18 * 60;  // 18:00
+  const futuresClose = 17 * 60; // 17:00
+  // Overnight session: open >= 18:00 OR time < 17:00
+  if (mins >= futuresOpen || mins < futuresClose - 60) return "open";
+  if (mins >= futuresClose - 60 && mins < futuresClose) return "close";
+  if (mins >= futuresClose && mins < futuresOpen) return "closed";
+  return "open";
+}
+```
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add -A
+git commit -m "fix: Phase 11 cleanup — remove stale tests, deps, ports, add futures hours"
+```
