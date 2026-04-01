@@ -255,16 +255,56 @@ def fetch_live_price(symbol: str) -> str:
     """
     clean = symbol.upper().replace("=F", "").strip()
 
-    # Method 1: Databento
-    api_key = os.environ.get("DATABENTO_API_KEY", "")
+    # Method 1: Databento — check config first, then env
+    api_key = ""
+    try:
+        from openclaw.dataflows.config import get_config
+        api_key = get_config().get("api_keys", {}).get("databento", "")
+    except Exception:
+        pass
+    if not api_key:
+        api_key = os.environ.get("DATABENTO_API_KEY", "")
     if api_key:
+        # Live API — real-time bid/ask
+        try:
+            import databento as dbn
+            client = dbn.Live(key=api_key)
+            client.subscribe(
+                dataset="GLBX.MDP3",
+                schema="mbp-1",
+                stype_in="continuous",
+                symbols=f"{clean}.c.0",
+            )
+            attempts = 0
+            for rec in client:
+                attempts += 1
+                if attempts > 20:
+                    break
+                # Skip system messages — wait for actual market data
+                if type(rec).__name__ == "SystemMsg":
+                    continue
+                if hasattr(rec, "bid_px"):
+                    bid = rec.bid_px[0] * 1e-9
+                    ask = rec.ask_px[0] * 1e-9
+                    mid = (bid + ask) / 2
+                    client.stop()
+                    return f"CURRENT PRICE: {clean} = {mid:.2f} (Live, bid={bid:.2f} ask={ask:.2f})"
+                elif hasattr(rec, "price"):
+                    price = rec.price * 1e-9
+                    client.stop()
+                    return f"CURRENT PRICE: {clean} = {price:.2f} (Live)"
+            client.stop()
+        except Exception:
+            pass
+
+        # Historical fallback
         try:
             import databento as dbn
             from datetime import timezone
-            client = dbn.Historical(key=api_key)
-            end = datetime.now(timezone.utc) - timedelta(minutes=15)
-            start = end - timedelta(minutes=10)
-            records = list(client.timeseries.get_range(
+            client2 = dbn.Historical(key=api_key)
+            end = datetime.now(timezone.utc) - timedelta(minutes=16)
+            start = end - timedelta(minutes=5)
+            records = list(client2.timeseries.get_range(
                 dataset="GLBX.MDP3", schema="ohlcv-1m",
                 symbols=[f"{clean}.c.0"], stype_in="continuous",
                 start=start.strftime("%Y-%m-%dT%H:%M"),
@@ -272,7 +312,7 @@ def fetch_live_price(symbol: str) -> str:
             ))
             if records:
                 price = records[-1].close / 1e9
-                return f"CURRENT PRICE: {clean} = {price:.2f} (Databento, 15min delayed)"
+                return f"CURRENT PRICE: {clean} = {price:.2f} (Databento, ~15min delayed)"
         except Exception:
             pass
 

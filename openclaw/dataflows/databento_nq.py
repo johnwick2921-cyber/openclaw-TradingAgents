@@ -23,11 +23,20 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 def _get_api_key() -> str:
+    # Check trading-config.json first
+    try:
+        from openclaw.dataflows.config import get_config
+        key = get_config().get("api_keys", {}).get("databento", "")
+        if key:
+            return key
+    except Exception:
+        pass
+    # Fallback to env var
     key = os.environ.get("DATABENTO_API_KEY", "")
     if not key:
         raise ValueError(
-            "DATABENTO_API_KEY environment variable is not set. "
-            "Get your key at https://databento.com"
+            "Databento API key not set. Add it in Trading → Data Providers → API Keys, "
+            "or set DATABENTO_API_KEY environment variable."
         )
     return key
 

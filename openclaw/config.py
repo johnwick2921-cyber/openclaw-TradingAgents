@@ -37,6 +37,12 @@ SCHEMA_DEFAULTS: Dict[str, Any] = {
         "web_search": "auto",
     },
 
+    "api_keys": {
+        "databento": "",
+        "alpha_vantage": "",
+        "brave": "",
+    },
+
     "analysis": {
         "max_debate_rounds": 1,
         "max_risk_discuss_rounds": 1,

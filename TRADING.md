@@ -1,40 +1,35 @@
 # Trading Control Panel
 
-> This file is the OpenClaw-native interface for trading configuration.
-> The agent reads this on startup and can update it via the trading-integrator.
-> Changes here sync to `trading-config.json` automatically.
+> OpenClaw-native trading interface. Agent reads on startup.
+> Changes sync to `trading-config.json` automatically.
 
 ## Status
 
 - **State:** ACTIVE
 - **Strategy:** jadecap
 - **Halt:** false
+- **Last Run:** NQ on 2026-03-31 → HOLD (13m 40s, 12 agents, full pipeline)
 
 ## Market Bias
 
-> Set your directional bias before each session. The agent uses this to weight analysis.
-
-- **Daily Bias:** NEUTRAL
-- **Bias Reason:** (none set)
-- **Bias Confidence:** MEDIUM
+- **Your Bias:** (set in UI or here)
+- **Agent Bias:** HOLD (from last NQ analysis)
+- **Confluence:** (computed after each run)
 
 Options: BULLISH | BEARISH | NEUTRAL
+Confidence: LOW | MEDIUM | HIGH
 
 ## Watchlist
 
-| Ticker | Strategy | Last Signal | Date | Correct? |
-|--------|----------|-------------|------|----------|
-| _(empty — add tickers below)_ |
-
-### Add/Remove Tickers
-To add: tell OpenClaw "add NVDA to watchlist"
-To remove: tell OpenClaw "remove NVDA from watchlist"
+| Ticker | Strategy | Last Signal | Date |
+|--------|----------|-------------|------|
+| NQ | jadecap | HOLD | 2026-03-31 |
 
 ## Active Strategy: JadeCap ICT
 
-- **Instrument:** NQ (Nasdaq 100 E-mini Futures)
+- **Instruments:** NQ (primary), ES
 - **Prop Firm:** Apex
-- **Point Value:** $20/point
+- **Point Value:** $20/pt (NQ), $50/pt (ES)
 - **Kill Zones:** NY AM (9:30-11:30), NY PM (1:00-4:00), Silver Bullet (10:00-11:00, 2:00-3:00)
 - **Hard Close:** 15:45 ET
 - **Midday Avoidance:** 11:30-13:00 ET
@@ -44,70 +39,43 @@ To remove: tell OpenClaw "remove NVDA from watchlist"
 | Parameter | Value |
 |-----------|-------|
 | Max Loss Per Trade | $500 |
-| Daily Loss Limit | $1,000 |
+| Daily Loss Limit | $1,200 |
 | Max Drawdown | 5% |
 | Max Consecutive Losses | 3 |
 | Min Risk/Reward | 3:1 |
 | ATR Stop Multiplier | 1.5x |
 | T1 Close | 50% |
 
-## LLM Configuration
+## LLM Configuration (via 9router)
 
 | Role | Model |
 |------|-------|
-| Default | gpt-4o |
-| Deep Think | claude-opus-4-6 |
-| Quick Think | gpt-4o-mini |
+| Default | cc/claude-opus-4-6 |
+| Deep Think | cc/claude-opus-4-5-20251101 |
+| Quick Think | cc/claude-sonnet-4-6 |
 
-### Per-Agent Overrides
-_(none set — add via "set bull-researcher model to claude-sonnet-4-6")_
-
-## Data Providers
-
-| Category | Provider |
-|----------|----------|
-| Stock Data | yfinance |
-| Indicators | yfinance |
-| Fundamentals | yfinance |
-| News | yfinance |
-| Live Price | auto |
-
-## Schedule
-
-| Phase | Enabled | Time (ET) |
-|-------|---------|-----------|
-| Pre-Session Analysis | No | Before market open |
-| During Session Monitor | — | Every 30 min |
-| Post-Session Reflect | No | After market close |
-
-### Market Hours
-- **Stock:** 9:30 AM - 4:00 PM ET
-- **Futures:** 6:00 PM - 5:00 PM ET (nearly 24h)
-- **Mode:** auto (picks based on strategy)
+All models route: OpenClaw (18789) → 9router (20128) → AI provider
 
 ## Pipeline
 
 ```
-Tier 1: Analysts (parallel)     → market, news
+Tier 1: Analysts (parallel)     → market, social
 Tier 2: Bull/Bear Debate        → 1 round
-Tier 3: Judge → Trader → Risk   → 1 round (aggressive → conservative → neutral)
+Tier 3: Judge → Trader → Risk   → 2 risk rounds
 Tier 4: Portfolio Manager        → FINAL SIGNAL
 ```
 
-## How to Use
+## Dispatch Flow
 
-Tell OpenClaw any of these:
-- "Set bias to BULLISH — NQ showing strong displacement above midnight open"
-- "Add NVDA to watchlist"
-- "Switch strategy to default"
-- "Change deep think model to claude-sonnet-4-6"
-- "Halt trading" / "Resume trading"
+```
+UI "Analyze" → Gateway → Python subprocess → OpenClaw /v1/chat/completions
+  → 9router → Claude → response → signal → auto-bias → confluence → DB
+```
+
+## Commands
+
+- "Set bias to BULLISH — reason"
+- "Add NQ to watchlist"
 - "Run analysis for NQ"
-- "Show me the last analysis"
-- "What's the current market phase?"
-
-The trading-integrator agent handles all of these by reading/writing `trading-config.json` and dispatching the RunEngine.
-
----
-
-_Last updated: auto-managed by OpenClaw trading-integrator agent_
+- "Halt trading" / "Resume trading"
+- "Show last analysis"

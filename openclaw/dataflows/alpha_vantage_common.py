@@ -12,10 +12,22 @@ logger = logging.getLogger(__name__)
 API_BASE_URL = "https://www.alphavantage.co/query"
 
 def get_api_key() -> str:
-    """Retrieve the API key for Alpha Vantage from environment variables."""
+    """Retrieve the API key for Alpha Vantage from config or environment."""
+    # Check trading-config.json first
+    try:
+        from openclaw.dataflows.config import get_config
+        key = get_config().get("api_keys", {}).get("alpha_vantage", "")
+        if key:
+            return key
+    except Exception:
+        pass
+    # Fallback to env var
     api_key = os.getenv("ALPHA_VANTAGE_API_KEY")
     if not api_key:
-        raise ValueError("ALPHA_VANTAGE_API_KEY environment variable is not set.")
+        raise ValueError(
+            "Alpha Vantage API key not set. Add it in Trading → Data Providers → API Keys, "
+            "or set ALPHA_VANTAGE_API_KEY environment variable."
+        )
     return api_key
 
 def format_datetime_for_api(date_input) -> str:
