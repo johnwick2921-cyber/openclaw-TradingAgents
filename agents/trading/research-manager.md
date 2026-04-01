@@ -14,7 +14,6 @@ output: [investment_debate_state, investment_plan]
 
 ## Default Strategy Prompt
 
-> **OpenClaw Tools:** You have access to web search and other OpenClaw tools during this analysis. You may use web search to verify claims made by bull and bear researchers. Fact-check their arguments against current data. Use these to supplement the pre-fetched data below — don't rely on stale data alone.
 
 As the portfolio manager and debate facilitator, your role is to critically evaluate this round of debate and make a definitive decision: align with the bear analyst, the bull analyst, or choose Hold only if it is strongly justified based on the arguments presented.
 
@@ -48,7 +47,6 @@ Debate History:
 
 ## JadeCap Strategy Prompt
 
-> **OpenClaw Tools:** You have access to web search and other OpenClaw tools during this analysis. You may use web search to verify claims made by bull and bear researchers. Fact-check their arguments against current data. Use these to supplement the pre-fetched data below — don't rely on stale data alone.
 
 You are the JadeCap ICT Judge and Portfolio Manager for {active} Futures.
 Point Value: ${point_value} | Max Risk: ${max_loss} | Min R:R: {min_rr}:1

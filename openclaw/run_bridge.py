@@ -40,21 +40,61 @@ def _get_gateway_auth() -> tuple[int, str]:
     return port, token
 
 
-def openclaw_dispatch(agent_name: str, prompt: str, model: str) -> str:
-    """Dispatch an agent prompt through OpenClaw's gateway.
+# Agents that need web search tools — dispatch through OpenClaw gateway (full agent session)
+SEARCH_AGENTS = {"news-analyst", "social-analyst"}
 
-    Flow: RunEngine → OpenClaw gateway (18789) → 9router (20128) → AI provider
-    OpenClaw is the brain — handles auth, model routing, session tracking.
+
+def _get_9router_auth() -> tuple[int, str]:
+    """Get 9router port and API key for direct dispatch."""
+    port = int(os.environ.get("NINE_ROUTER_PORT", "20128"))
+    api_key = ""
+    env_path = os.path.join(
+        os.environ.get("OPENCLAW_WORKSPACE", "/home/hoang/.openclaw/workspace"),
+        ".env",
+    )
+    if os.path.exists(env_path):
+        with open(env_path) as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("NINE_ROUTER_API_KEY="):
+                    api_key = line.split("=", 1)[1].strip().strip('"').strip("'")
+                    break
+    return port, api_key
+
+
+def openclaw_dispatch(agent_name: str, prompt: str, model: str) -> str:
+    """Dispatch an agent prompt — smart routing based on agent needs.
+
+    news-analyst, social-analyst → OpenClaw gateway (18789) — full agent session with web search
+    all other agents → 9router directly (20128) — fast, no session overhead
     """
-    port, token = _get_gateway_auth()
-    url = GATEWAY_URL.format(port=port)
+    if agent_name in SEARCH_AGENTS:
+        # Full OpenClaw dispatch — agent gets web search tools
+        port, token = _get_gateway_auth()
+        url = GATEWAY_URL.format(port=port)
+        headers = {"Content-Type": "application/json"}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        full_model = f"9router/{model}" if not model.startswith("9router/") else model
+    else:
+        # Direct 9router — fast, no agent session overhead
+        port, api_key = _get_9router_auth()
+        url = f"http://127.0.0.1:{port}/v1/chat/completions"
+        headers = {"Content-Type": "application/json"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        full_model = model.removeprefix("9router/")
 
     headers = {"Content-Type": "application/json"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
 
-    # Add 9router/ prefix so OpenClaw routes through the 9router provider
-    full_model = f"9router/{model}" if not model.startswith("9router/") else model
+    # When OPENCLAW_DIRECT_9ROUTER is set, skip the 9router/ prefix
+    # (prefix is only needed when routing through the OpenClaw gateway)
+    if os.environ.get("OPENCLAW_DIRECT_9ROUTER"):
+        full_model = model.removeprefix("9router/")
+    else:
+        full_model = f"9router/{model}" if not model.startswith("9router/") else model
 
     payload = {
         "model": full_model,
@@ -65,20 +105,34 @@ def openclaw_dispatch(agent_name: str, prompt: str, model: str) -> str:
         "stream": False,
     }
 
-    try:
-        resp = requests.post(url, json=payload, headers=headers, timeout=300)
-        resp.raise_for_status()
-        data = resp.json()
-        return data["choices"][0]["message"]["content"]
-    except requests.exceptions.ConnectionError:
-        raise RuntimeError(
-            f"Cannot connect to OpenClaw gateway at {url}. "
-            "Is the gateway running? (systemctl --user status openclaw-gateway)"
-        )
-    except requests.exceptions.Timeout:
-        raise TimeoutError(f"Agent '{agent_name}' timed out after 300s")
-    except Exception as exc:
-        raise RuntimeError(f"Dispatch failed for {agent_name}: {exc}")
+    import time as _time
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            resp = requests.post(url, json=payload, headers=headers, timeout=600)
+            resp.raise_for_status()
+            data = resp.json()
+            return data["choices"][0]["message"]["content"]
+        except requests.exceptions.ConnectionError:
+            if attempt < max_retries - 1:
+                _time.sleep(5 * (attempt + 1))
+                continue
+            raise RuntimeError(
+                f"Cannot connect to OpenClaw gateway at {url}. "
+                "Is the gateway running? (systemctl --user status openclaw-gateway)"
+            )
+        except requests.exceptions.Timeout:
+            if attempt < max_retries - 1:
+                _time.sleep(5 * (attempt + 1))
+                continue
+            raise TimeoutError(f"Agent '{agent_name}' timed out after 600s")
+        except requests.exceptions.HTTPError as exc:
+            if resp.status_code in (502, 503, 429) and attempt < max_retries - 1:
+                _time.sleep(10 * (attempt + 1))
+                continue
+            raise RuntimeError(f"Dispatch failed for {agent_name}: {exc}")
+        except Exception as exc:
+            raise RuntimeError(f"Dispatch failed for {agent_name}: {exc}")
 
 
 def openclaw_dispatch_parallel(tasks: list) -> list:

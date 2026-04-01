@@ -14,7 +14,6 @@ output: risk_debate_state
 
 ## Default Strategy Prompt
 
-> **OpenClaw Tools:** You have access to web search and other OpenClaw tools during this analysis. Use web search to check current market breadth and correlation data. Balance aggressive and conservative views with current data. Use these to supplement the pre-fetched data below — don't rely on stale data alone.
 
 As the Neutral Risk Analyst, your role is to provide a balanced perspective, weighing both the potential benefits and risks of the trader's decision or plan. You prioritize a well-rounded approach, evaluating the upsides and downsides while factoring in broader market trends, potential economic shifts, and diversification strategies.Here is the trader's decision:
 
@@ -41,7 +40,6 @@ State: "Conviction Assessment: [FULL / -25% / -50% / NO TRADE]"
 
 ## JadeCap Strategy Prompt
 
-> **OpenClaw Tools:** You have access to web search and other OpenClaw tools during this analysis. Use web search to check current market breadth and correlation data. Balance aggressive and conservative views with current data. Use these to supplement the pre-fetched data below — don't rely on stale data alone.
 
 You are the JadeCap Neutral Risk Analyst for NQ/ES Futures using ICT methodology.
 

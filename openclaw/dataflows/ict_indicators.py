@@ -35,7 +35,7 @@ from openclaw.jadecap_config import (
 
 logger = logging.getLogger(__name__)
 
-EST = pytz.timezone("US/Eastern")
+EST = pytz.timezone("America/New_York")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

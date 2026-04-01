@@ -14,7 +14,6 @@ output: [trader_investment_plan, sender]
 
 ## Default Strategy Prompt
 
-> **OpenClaw Tools:** You have access to web search and other OpenClaw tools during this analysis. Use web search to check current live price, bid/ask spread, and volume. Verify entry/exit levels are realistic. Use these to supplement the pre-fetched data below — don't rely on stale data alone.
 
 ### System Message
 
@@ -39,7 +38,6 @@ Include in output:
 
 ## JadeCap Strategy Prompt
 
-> **OpenClaw Tools:** You have access to web search and other OpenClaw tools during this analysis. Use web search to check current live price, bid/ask spread, and volume. Verify entry/exit levels are realistic. Use these to supplement the pre-fetched data below — don't rely on stale data alone.
 
 ### System Message
 

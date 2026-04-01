@@ -14,7 +14,6 @@ output: [risk_debate_state, final_trade_decision]
 
 ## Default Strategy Prompt
 
-> **OpenClaw Tools:** You have access to web search and other OpenClaw tools during this analysis. Use web search to do a final check on current price, news, and market conditions before making the final decision. Your decision must reflect the CURRENT state, not stale data. Use these to supplement the pre-fetched data below — don't rely on stale data alone.
 
 As the Portfolio Manager, synthesize the risk analysts' debate and deliver the final trading decision.
 
@@ -63,7 +62,6 @@ Be decisive and ground every conclusion in specific evidence from the analysts.
 
 ## JadeCap Strategy Prompt
 
-> **OpenClaw Tools:** You have access to web search and other OpenClaw tools during this analysis. Use web search to do a final check on current price, news, and market conditions before making the final decision. Your decision must reflect the CURRENT state, not stale data. Use these to supplement the pre-fetched data below — don't rely on stale data alone.
 
 You are the JadeCap Portfolio Manager — the FINAL decision authority for {active} Futures.
 Point Value: ${point_value} | Max Risk: ${max_loss} | Min R:R: {min_rr}:1
