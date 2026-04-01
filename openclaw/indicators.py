@@ -255,7 +255,7 @@ def fetch_live_price(symbol: str) -> str:
     """
     clean = symbol.upper().replace("=F", "").strip()
 
-    # Method 1: Databento — check config first, then env
+    # Get Databento API key: runtime config → JSON file → env var
     api_key = ""
     try:
         from openclaw.dataflows.config import get_config
@@ -263,11 +263,23 @@ def fetch_live_price(symbol: str) -> str:
     except Exception:
         pass
     if not api_key:
+        try:
+            import json as _json
+            cfg_path = os.path.join(
+                os.environ.get("OPENCLAW_WORKSPACE", "/home/hoang/.openclaw/workspace"),
+                "trading-config.json",
+            )
+            with open(cfg_path) as _f:
+                api_key = _json.load(_f).get("api_keys", {}).get("databento", "")
+        except Exception:
+            pass
+    if not api_key:
         api_key = os.environ.get("DATABENTO_API_KEY", "")
     if api_key:
-        # Live API — real-time bid/ask
+        # Live API — real-time price
         try:
             import databento as dbn
+            logger.info("Databento Live: connecting for %s", clean)
             client = dbn.Live(key=api_key)
             client.subscribe(
                 dataset="GLBX.MDP3",
@@ -275,35 +287,38 @@ def fetch_live_price(symbol: str) -> str:
                 stype_in="continuous",
                 symbols=f"{clean}.c.0",
             )
-            attempts = 0
             for rec in client:
-                attempts += 1
-                if attempts > 20:
-                    break
-                # Skip system messages — wait for actual market data
-                if type(rec).__name__ == "SystemMsg":
+                rtype = type(rec).__name__
+                # Skip non-price messages
+                if rtype in ("SystemMsg", "SymbolMappingMsg", "ErrorMsg", "InstrumentDefMsg"):
                     continue
-                if hasattr(rec, "bid_px"):
-                    bid = rec.bid_px[0] * 1e-9
-                    ask = rec.ask_px[0] * 1e-9
-                    mid = (bid + ask) / 2
-                    client.stop()
-                    return f"CURRENT PRICE: {clean} = {mid:.2f} (Live, bid={bid:.2f} ask={ask:.2f})"
-                elif hasattr(rec, "price"):
+                # MBP1Msg has price field
+                if hasattr(rec, "price") and rec.price > 0:
                     price = rec.price * 1e-9
                     client.stop()
-                    return f"CURRENT PRICE: {clean} = {price:.2f} (Live)"
+                    return f"CURRENT PRICE: {clean} = {price:.2f} (Databento Live)"
+                # Some schemas have bid_px array
+                if hasattr(rec, "bid_px"):
+                    try:
+                        bid = rec.bid_px[0] * 1e-9
+                        ask = rec.ask_px[0] * 1e-9
+                        mid = (bid + ask) / 2
+                        client.stop()
+                        return f"CURRENT PRICE: {clean} = {mid:.2f} (Databento Live, bid={bid:.2f} ask={ask:.2f})"
+                    except (IndexError, TypeError):
+                        pass
+                break  # Unknown record type — fall through
             client.stop()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Databento Live failed for %s: %s", clean, exc)
 
         # Historical fallback
         try:
             import databento as dbn
             from datetime import timezone
             client2 = dbn.Historical(key=api_key)
-            end = datetime.now(timezone.utc) - timedelta(minutes=16)
-            start = end - timedelta(minutes=5)
+            end = datetime.now(timezone.utc) - timedelta(minutes=20)
+            start = end - timedelta(minutes=10)
             records = list(client2.timeseries.get_range(
                 dataset="GLBX.MDP3", schema="ohlcv-1m",
                 symbols=[f"{clean}.c.0"], stype_in="continuous",
