@@ -85,114 +85,56 @@ def _extract_section(text: str, heading: str) -> str:
 
 
 def _build_system_prompt(agent_name: str) -> str:
-    """Build rich system prompt from ALL 7 OpenClaw core files.
+    """Build system prompt from the agent's own 7 core files.
 
-    Each agent gets: identity + trading principles + risk rules +
-    user profile + trading agent role + tools context + day-cycle +
-    red lines + analysis-only constraint + role-specific description.
+    Each agent has its own directory at agents/trading/{name}/ with:
+    IDENTITY.md, SOUL.md, USER.md, AGENTS.md, TOOLS.md, HEARTBEAT.md, TRADING.md
+
+    These are tailored per agent — not shared workspace files.
     """
     if agent_name in _system_prompt_cache:
         return _system_prompt_cache[agent_name]
 
     workspace = os.environ.get("OPENCLAW_WORKSPACE", "/home/hoang/.openclaw/workspace")
+    agent_dir = os.path.join(workspace, "agents", "trading", agent_name)
 
-    # Read all 7 core files
-    soul = _read_file(workspace, "SOUL.md")
-    identity = _read_file(workspace, "IDENTITY.md")
-    user = _read_file(workspace, "USER.md")
-    agents = _read_file(workspace, "AGENTS.md")
-    tools = _read_file(workspace, "TOOLS.md")
-    heartbeat = _read_file(workspace, "HEARTBEAT.md")
-    trading = _read_file(workspace, "TRADING.md")
+    # Read this agent's 7 core files
+    identity = _read_file(agent_dir, "IDENTITY.md")
+    soul = _read_file(agent_dir, "SOUL.md")
+    user = _read_file(agent_dir, "USER.md")
+    agents_md = _read_file(agent_dir, "AGENTS.md")
+    tools = _read_file(agent_dir, "TOOLS.md")
+    heartbeat = _read_file(agent_dir, "HEARTBEAT.md")
+    trading = _read_file(agent_dir, "TRADING.md")
 
-    role_desc = AGENT_ROLES.get(agent_name, f"Specialized trading analysis agent: {agent_name}")
+    # Fallback to workspace root if agent dir files don't exist yet
+    if not identity:
+        identity = f"You are {agent_name}, part of OpenClaw."
+        role_desc = AGENT_ROLES.get(agent_name, "")
+        if role_desc:
+            identity += f"\n{role_desc}"
 
     parts = []
-
-    # 1. IDENTITY.md — who we are
-    parts.append(f"You are {agent_name}, part of OpenClaw — a self-evolving AI trading system.")
-    parts.append("Built by John Doan at LV Intelligent Corporate, Houston TX.")
-    parts.append("Vibe: Professional and sharp. No fluff. Earns trust through results.")
-    parts.append("")
-
-    # 2. SOUL.md — trading principles
-    principles = _extract_section(soul, "Trading Principles")
-    if principles:
-        parts.append("TRADING PRINCIPLES (from SOUL.md):")
-        parts.append(principles)
+    if identity:
+        parts.append(identity)
         parts.append("")
-
-    core_truths = _extract_section(soul, "Core Truths")
-    if core_truths:
-        parts.append("CORE BEHAVIOR:")
-        parts.append(core_truths)
+    if soul:
+        parts.append(soul)
         parts.append("")
-
-    # 3. USER.md — trader profile
-    profile = _extract_section(user, "Trading Profile")
-    if profile:
-        parts.append("TRADER PROFILE (from USER.md):")
-        parts.append(profile)
+    if user:
+        parts.append(user)
         parts.append("")
-
-    style = _extract_section(user, "Work Style")
-    if style:
-        parts.append("COMMUNICATION STYLE:")
-        parts.append(style)
+    if agents_md:
+        parts.append(agents_md)
         parts.append("")
-
-    # 4. AGENTS.md — trading agent role + red lines
-    trading_role = _extract_section(agents, "Trading Agent")
-    if trading_role:
-        parts.append("TRADING AGENT PROTOCOL (from AGENTS.md):")
-        parts.append(trading_role)
+    if tools:
+        parts.append(tools)
         parts.append("")
-
-    red_lines = _extract_section(agents, "Red Lines")
-    if red_lines:
-        parts.append("RED LINES:")
-        parts.append(red_lines)
+    if heartbeat:
+        parts.append(heartbeat)
         parts.append("")
-
-    # 5. TRADING.md — risk parameters + strategy
-    risk = _extract_section(trading, "Risk Parameters")
-    if risk:
-        parts.append("RISK RULES (non-negotiable, from TRADING.md):")
-        parts.append(risk)
-        parts.append("")
-
-    strategy = _extract_section(trading, "Active Strategy")
-    if strategy:
-        parts.append("ACTIVE STRATEGY:")
-        parts.append(strategy)
-        parts.append("")
-
-    bias_section = _extract_section(trading, "Market Bias")
-    if bias_section:
-        parts.append("CURRENT MARKET BIAS:")
-        parts.append(bias_section)
-        parts.append("")
-
-    # 6. TOOLS.md — available tools (condensed)
-    trading_module = _extract_section(tools, "Trading Module")
-    if trading_module:
-        parts.append("AVAILABLE TOOLS (from TOOLS.md):")
-        parts.append(trading_module)
-        parts.append("")
-
-    # 7. HEARTBEAT.md — day-cycle awareness
-    day_cycle = _extract_section(heartbeat, "Trading Day-Cycle")
-    if day_cycle:
-        parts.append("TRADING DAY-CYCLE (from HEARTBEAT.md):")
-        parts.append(day_cycle)
-        parts.append("")
-
-    # Analysis-only constraint
-    parts.append("HARD CONSTRAINT: Analysis only — no order execution, no positions, no broker connection.")
-    parts.append("")
-
-    # Agent-specific role
-    parts.append(f"YOUR ROLE IN THE PIPELINE: {role_desc}")
+    if trading:
+        parts.append(trading)
 
     result = "\n".join(parts)
     _system_prompt_cache[agent_name] = result
