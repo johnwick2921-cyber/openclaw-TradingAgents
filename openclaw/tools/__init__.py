@@ -197,7 +197,7 @@ def _killzone_wrapper(**kwargs):
     return get_indicator("", "killzone_status", kwargs.get("date", "2026-01-01"))
 
 def _contract_wrapper(**kwargs):
-    from openclaw.dataflows.ict_indicators import get_contract_calc
+    from openclaw.indicators import get_contract_calc
     return get_contract_calc(kwargs.get("stop_points", 10))
 
 def _midnight_wrapper(**kwargs):

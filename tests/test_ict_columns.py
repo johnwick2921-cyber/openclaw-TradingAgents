@@ -6,7 +6,7 @@ import pytest
 
 def test_displacement_candle_lowercase_columns():
     """calc_displacement_candle should work with lowercase column names."""
-    from openclaw.dataflows.ict_indicators import calc_displacement_candle
+    from openclaw.indicators import calc_displacement_candle
 
     df = pd.DataFrame({
         "open": [100.0, 101.0, 105.0, 103.0, 108.0],
@@ -22,7 +22,7 @@ def test_displacement_candle_lowercase_columns():
 
 def test_liquidity_sweep_lowercase_columns():
     """calc_liquidity_sweep should work with lowercase column names."""
-    from openclaw.dataflows.ict_indicators import calc_liquidity_sweep
+    from openclaw.indicators import calc_liquidity_sweep
 
     df = pd.DataFrame({
         "open": [100.0, 101.0, 99.0, 102.0, 103.0],
@@ -38,7 +38,7 @@ def test_liquidity_sweep_lowercase_columns():
 
 def test_breaker_block_lowercase_columns():
     """calc_breaker_block should work with lowercase column names."""
-    from openclaw.dataflows.ict_indicators import calc_breaker_block
+    from openclaw.indicators import calc_breaker_block
 
     df = pd.DataFrame({
         "open": [100.0, 103.0, 101.0, 104.0, 102.0, 105.0],
