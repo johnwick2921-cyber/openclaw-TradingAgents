@@ -35,17 +35,28 @@ from openclaw.jadecap_config import (
 
 logger = logging.getLogger(__name__)
 
-EST = pytz.timezone("America/New_York")
+try:
+    from zoneinfo import ZoneInfo
+    EST = ZoneInfo("America/New_York")
+except ImportError:
+    EST = pytz.timezone("America/New_York")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Helpers
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def _localize_est(dt: datetime) -> datetime:
+    """Attach EST timezone to a naive datetime (works with both pytz and zoneinfo)."""
+    if hasattr(EST, "localize"):
+        return _localize_est(dt)  # pytz
+    return dt.replace(tzinfo=EST)  # zoneinfo
+
+
 def _to_est(dt: datetime) -> datetime:
     """Convert a datetime to US/Eastern, or localise a naive datetime."""
     if dt.tzinfo is None:
-        return EST.localize(dt)
+        return _localize_est(dt)
     return dt.astimezone(EST)
 
 
@@ -455,14 +466,14 @@ def get_midnight_open(df_1m: pd.DataFrame, trade_date: str) -> str:
     try:
         # Try to find the bar closest to midnight EST
         target_date = pd.Timestamp(trade_date)
-        midnight_est = EST.localize(
+        midnight_est = _localize_est(
             datetime.combine(target_date.date(), time(0, 0))
         )
 
         if df.index.tz is None:
-            idx = df.index.tz_localize("UTC").tz_convert(EST)
+            idx = df.index.tz_localize("UTC").tz_convert("America/New_York")
         else:
-            idx = df.index.tz_convert(EST)
+            idx = df.index.tz_convert("America/New_York")
 
         # Find bars within the first 5 minutes of midnight
         mask = (idx >= midnight_est) & (idx < midnight_est + timedelta(minutes=5))
@@ -726,27 +737,27 @@ def calc_ndog(df: pd.DataFrame, trade_date: str) -> dict:
         target_date = pd.Timestamp(trade_date).date()
 
         if df.index.tz is None:
-            idx_est = df.index.tz_localize("UTC").tz_convert(EST)
+            idx_est = df.index.tz_localize("UTC").tz_convert("America/New_York")
         else:
-            idx_est = df.index.tz_convert(EST)
+            idx_est = df.index.tz_convert("America/New_York")
 
         df_est = df.copy()
         df_est.index = idx_est
 
         # 5PM close: look on the prior calendar day (or same day for overnight)
-        close_5pm_target = EST.localize(
+        close_5pm_target = _localize_est(
             datetime.combine(target_date - timedelta(days=1), time(17, 0))
         )
         # Also try same-day 5PM for cases where trade_date IS the prior session end
-        close_5pm_same = EST.localize(
+        close_5pm_same = _localize_est(
             datetime.combine(target_date, time(17, 0))
         )
 
         # 6PM open on trade_date (or prior day if session starts evening before)
-        open_6pm_target = EST.localize(
+        open_6pm_target = _localize_est(
             datetime.combine(target_date - timedelta(days=1), time(18, 0))
         )
-        open_6pm_same = EST.localize(
+        open_6pm_same = _localize_est(
             datetime.combine(target_date, time(18, 0))
         )
 
@@ -828,9 +839,9 @@ def calc_nwog(df: pd.DataFrame, trade_date: str) -> dict:
         target_date = pd.Timestamp(trade_date).date()
 
         if df.index.tz is None:
-            idx_est = df.index.tz_localize("UTC").tz_convert(EST)
+            idx_est = df.index.tz_localize("UTC").tz_convert("America/New_York")
         else:
-            idx_est = df.index.tz_convert(EST)
+            idx_est = df.index.tz_convert("America/New_York")
 
         df_est = df.copy()
         df_est.index = idx_est
@@ -845,9 +856,9 @@ def calc_nwog(df: pd.DataFrame, trade_date: str) -> dict:
         sunday_date = friday_date + timedelta(days=2)
 
         # Friday 5PM EST
-        friday_5pm = EST.localize(datetime.combine(friday_date, time(17, 0)))
+        friday_5pm = _localize_est(datetime.combine(friday_date, time(17, 0)))
         # Sunday 6PM EST
-        sunday_6pm = EST.localize(datetime.combine(sunday_date, time(18, 0)))
+        sunday_6pm = _localize_est(datetime.combine(sunday_date, time(18, 0)))
 
         # Find candle closest to Friday 5PM (within 30 min)
         diffs_fri = abs(df_est.index - friday_5pm)
