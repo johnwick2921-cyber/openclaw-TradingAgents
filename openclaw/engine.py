@@ -442,8 +442,10 @@ class RunEngine:
         user_dir = user_bias.get("direction", "neutral")
         user_conf = user_bias.get("confidence", "medium")
 
-        conf_map = {"high": 3, "medium": 2, "low": 1}
-        user_score = conf_map.get(user_conf, 2)
+        # User bias is pre-session gut feel — cap at 2 (moderate)
+        # Only confirmed ICT analysis should reach 3 (strong)
+        conf_map = {"high": 2, "medium": 1, "low": 1}
+        user_score = conf_map.get(user_conf, 1)
         if user_dir == "bearish":
             user_score = -user_score
         elif user_dir == "neutral":
