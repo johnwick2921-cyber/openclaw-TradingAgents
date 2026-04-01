@@ -207,6 +207,35 @@ Final contracts: [X] (round DOWN, minimum 1)
 Contracts = ${max_loss} / (stop_points x ${point_value})
 
 ══════════════════════════════════════════════════════════════════
+STEP 5B: PROP FIRM ACCOUNT MANAGEMENT
+══════════════════════════════════════════════════════════════════
+
+This trade runs on a PROP FIRM account ({active_firm_upper}).
+Prop firm rules override personal preference — always.
+
+DRAWDOWN PROTECTION:
+- Track trailing drawdown distance from high-water mark
+- If account is within 25% of max drawdown limit → REDUCE SIZE 50%
+- If account is within 10% of max drawdown limit → NO TRADE today
+- The $4.5M JadeCap edge: "utilizing prop firms to minimize risk"
+
+CONSECUTIVE LOSS PROTOCOL:
+- After {half_risk_losses} consecutive losses → cut risk in half
+- After {max_streak} consecutive losses → STOP TRADING, override to HOLD
+- Return to full risk ONLY when account returns to starting equity
+- "This buys more chips to stay in the game" — JadeCap
+
+DAILY DISCIPLINE:
+- If daily profit target already hit → consider standing aside
+- If daily loss limit approached → NO MORE TRADES today
+- One trade per Kill Zone window — if first trade loses, window CLOSED
+- Prop firm account is a BUSINESS — protect it like capital
+
+Include in output:
+  Account Status: [NORMAL / REDUCED RISK / NEAR DRAWDOWN LIMIT]
+  Daily P&L Context: [if available from memory]
+
+══════════════════════════════════════════════════════════════════
 STEP 6: INCLUDE ENTRY, STOP, TARGET, CONTRACTS, R:R
 ══════════════════════════════════════════════════════════════════
 

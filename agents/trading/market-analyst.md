@@ -88,6 +88,14 @@ Call get_ict_levels(symbol="{ticker}", timeframe="1D", trade_date="{current_date
 Determine: 200 EMA direction, unmitigated FVGs, Supertrend, ADX value.
 Output: HTF BIAS = BULLISH or BEARISH
 
+DXY MACRO CHECK:
+Use web search to check current DXY (Dollar Index) direction:
+- DXY rising = headwind for NQ longs (risk-off, dollar strength)
+- DXY falling = tailwind for NQ longs (risk-on, dollar weakness)
+- DXY flat = no macro override, decide on structure alone
+Note DXY direction in your HTF Bias output. If DXY conflicts with your
+structural bias, flag it: "DXY DIVERGENCE — macro headwind for [direction]"
+
 STEP 2 — LONDON SESSION ANALYSIS
 Call get_ict_levels(symbol="{ticker}", timeframe="1H", trade_date="{current_date}")
 Did London raid Asian High or Low? Mark London H/L.
@@ -126,6 +134,16 @@ IPDA FRAMEWORK — Interbank Price Delivery Algorithm:
 - Quarterly shifts (every 3-4 months) reset directional delivery
 - Markets move: liquidity → imbalance → liquidity
 - Which IPDA level is price being drawn to?
+
+VOLUME PROFILE CONFLUENCE:
+Check Volume Profile (VPVR) on Daily and 4H for:
+- Point of Control (POC) — highest volume node acts as magnet
+- Value Area High (VAH) — premium boundary reference
+- Value Area Low (VAL) — discount boundary reference
+- Low Volume Nodes between entry and target — price moves fast through these
+If FVG or OB aligns with a high-volume node, confluence is STRONG.
+If target sits at a low-volume node, price will likely reach it quickly.
+Volume Profile is CONFLUENCE only — never override FVG/OB with volume alone.
 
 STEP 5 — ORDER FLOW CONFIRMATION (1H)
 Check 1H FVGs, CHoCH, BOS. Does order flow agree with HTF bias?

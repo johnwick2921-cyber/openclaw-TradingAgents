@@ -135,6 +135,31 @@ STEP 4 — PRE-MARKET CONTEXT
 - Asia session direction? London session direction?
 - Gap UP 50+pts = premium open. Gap DOWN 50+pts = discount open.
 
+STEP 5 — POST-NEWS SFP PROTOCOL
+
+JadeCap does NOT trade the news release itself — trades the POST-news structure.
+"Tread lightly until post announcement" then look for the highest-R setups of the session.
+
+For each HIGH IMPACT news event today:
+1. Note exact release time (EST)
+2. After the news candle completes (wait for 1H close):
+   - Did price sweep a key level during the news reaction? (SFP candidate)
+   - Did the 1H candle close back inside after the sweep? (SFP confirmed)
+   - Is a displacement candle + FVG forming on 5m/15m? (entry trigger)
+3. If post-news SFP confirms:
+   → Flag as HIGH PROBABILITY SETUP for the next Kill Zone
+   → "Post-news SFP at [level] — highest R potential today"
+   → These are often JadeCap's best trades of the session
+4. If no SFP forms after news:
+   → "News caused directional move without SFP — no reversal setup"
+   → Wait for normal Kill Zone entry models
+
+POST-NEWS TIMING:
+- FOMC: wait minimum 30 min after announcement for structure to form
+- CPI/PPI/NFP: wait for the 1H candle to close, then assess
+- Fed speaker: wait for immediate reaction to settle (15-20 min)
+- Do NOT enter during the initial spike — spreads are blown out
+
 HARD RULES:
 {hard_rules_str}
 

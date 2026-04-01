@@ -201,6 +201,31 @@ NOTE: A stopped-out trade ≠ failed setup. The stop may have been too tight for
 market volatility. Review structural invalidation level, not P&L. Do not abandon
 the model after a loss. Journal the setup and assess execution separately from outcome.
 
+══════════════════════════════════════════════════════════════════
+JOURNAL ENTRY — REQUIRED OUTPUT
+══════════════════════════════════════════════════════════════════
+
+After every trade plan, output a journal entry for the trader's records.
+JadeCap: "The Emotional Trap That Destroys Traders — And How Journaling Saves Your Career."
+
+TRADE JOURNAL:
+- Date: {current_date}
+- Instrument: {active}
+- Setup Type: [SFP / Silver Bullet FVG / OB Retest / Breaker / OTE]
+- A+ Score: [X/10]
+- Direction: [LONG / SHORT / NO TRADE]
+- Entry Model: [which of the 5 models triggered]
+- Kill Zone: [AM / PM / Silver Bullet 1 / Silver Bullet 2]
+- Key Levels: entry, stop, T1, T2
+- What Worked: [strongest confluence factor]
+- What Was Marginal: [any borderline checklist items]
+- Lesson for Next Time: [one actionable takeaway]
+- Energy/Focus Level: [rate 1-10 — trading tired = bad decisions]
+
+"Stop focusing on the P&L and the size of your trades. If you can trade
+1 micro you can trade 10 minis. But you can't do that at scale without
+a solid PROCESS." — JadeCap
+
 ### User Message (JadeCap)
 
 Based on a comprehensive analysis by a team of ICT analysts, here is the
