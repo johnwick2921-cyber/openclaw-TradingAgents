@@ -46,6 +46,7 @@ STOCKSTATS_INDICATORS = {
 SMC_INDICATORS = {
     # Smart Money Concepts (via smartmoneyconcepts package)
     "fvg",                # Fair Value Gaps
+    "ifvg",               # Inverted Fair Value Gaps
     "order_blocks",       # Order Blocks
     "session_levels",     # Session Highs/Lows (Asia/London/NY)
     "equal_highs_lows",   # Liquidity Pools (BSL/SSL)
@@ -203,6 +204,7 @@ def _get_smc(symbol: str, indicator: str, date: str, timeframe: str) -> str:
 
     dispatch = {
         "fvg": lambda: ict.get_fvg(df, timeframe),
+        "ifvg": lambda: ict.get_ifvg(df, timeframe),
         "order_blocks": lambda: ict.get_order_blocks(df, timeframe),
         "session_levels": lambda: ict.get_session_levels(df),
         "equal_highs_lows": lambda: ict.get_equal_highs_lows(df, timeframe),

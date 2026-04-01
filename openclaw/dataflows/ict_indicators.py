@@ -137,6 +137,85 @@ def get_fvg(df: pd.DataFrame, timeframe: str) -> str:
     return "\n".join(lines)
 
 
+def get_ifvg(df: pd.DataFrame, timeframe: str) -> str:
+    """Inverted Fair Value Gaps — mitigated FVGs with flipped polarity.
+
+    When price fully trades through an FVG (mitigates it), the zone flips:
+      - Bull FVG mitigated → becomes BEARISH IFVG (resistance/supply)
+      - Bear FVG mitigated → becomes BULLISH IFVG (support/demand)
+
+    Only shows IFVGs that haven't been retested yet (price hasn't returned
+    to the zone after mitigation).
+    """
+    df = _to_smc_format(df)
+    if df.empty:
+        return f"\n## Inverted FVGs [{timeframe}]\n  No data."
+
+    join = ICT_INDICATORS.get("fvg", {}).get("join_consecutive", True)
+    result = smc.fvg(df, join_consecutive=join)
+
+    ifvgs = []
+    for i in range(len(result)):
+        if np.isnan(result["FVG"].iloc[i]):
+            continue
+
+        is_mitigated = (
+            not np.isnan(result["MitigatedIndex"].iloc[i])
+            and result["MitigatedIndex"].iloc[i] != 0
+        )
+        if not is_mitigated:
+            continue
+
+        orig_dir = "bullish" if result["FVG"].iloc[i] == 1 else "bearish"
+        top = float(result["Top"].iloc[i])
+        bottom = float(result["Bottom"].iloc[i])
+        fvg_date = str(df.index[i])
+        mit_idx = int(result["MitigatedIndex"].iloc[i])
+
+        # Flipped direction
+        if orig_dir == "bullish":
+            ifvg_dir = "bearish"  # was support, now resistance
+        else:
+            ifvg_dir = "bullish"  # was resistance, now support
+
+        # Check if IFVG has been retested: after mitigation, did price
+        # return into the zone? If so, it's consumed.
+        retested = False
+        if mit_idx < len(df) - 1:
+            post_mit = df.iloc[mit_idx + 1:]
+            if not post_mit.empty:
+                if ifvg_dir == "bullish":
+                    # Bullish IFVG (flipped bear) = support. Retested if price dips into zone.
+                    retested = (post_mit["low"].min() <= top)
+                else:
+                    # Bearish IFVG (flipped bull) = resistance. Retested if price reaches into zone.
+                    retested = (post_mit["high"].max() >= bottom)
+
+        if not retested:
+            ifvgs.append({
+                "direction": ifvg_dir,
+                "top": top,
+                "bottom": bottom,
+                "fvg_date": fvg_date,
+                "mitigated_at": str(df.index[mit_idx]) if mit_idx < len(df) else "?",
+            })
+
+    lines = [
+        f"\n## Inverted FVGs [{timeframe}]",
+        f"  Total IFVGs: {len(ifvgs)} (untested)",
+    ]
+    if not ifvgs:
+        lines.append("  No active IFVGs.")
+    else:
+        for f in ifvgs[-10:]:
+            tag = "BULL" if f["direction"] == "bullish" else "BEAR"
+            lines.append(
+                f"  {tag} IFVG @ {_fmt(f['bottom'])} – {_fmt(f['top'])} | "
+                f"FVG: {f['fvg_date']} → Mitigated: {f['mitigated_at']}"
+            )
+    return "\n".join(lines)
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 2. Order Blocks
 # ═══════════════════════════════════════════════════════════════════════════════
