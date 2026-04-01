@@ -40,11 +40,170 @@ def _get_gateway_auth() -> tuple[int, str]:
     return port, token
 
 
+# Agent role descriptions
+AGENT_ROLES = {
+    "market-analyst": "Primary ICT analysis engine. Runs the full 10-step JadeCap playbook. Produces the market report all other agents depend on.",
+    "news-analyst": "Macro news researcher. Pulls multi-source headlines (Brave + yfinance), assesses Kill Zone risk, determines risk-on/risk-off macro bias.",
+    "social-analyst": "Social media and retail sentiment researcher. Searches Reddit, Twitter/X for sentiment data.",
+    "fundamentals-analyst": "Financial fundamentals researcher. Earnings, balance sheets, cash flow.",
+    "bull-researcher": "Bull case advocate. Builds strongest LONG argument using ICT evidence. Has BM25 memory of past bullish analyses.",
+    "bear-researcher": "Bear case advocate. Builds strongest SHORT argument. Counters bull points. Has BM25 memory of past bearish analyses.",
+    "research-manager": "Investment judge. Evaluates bull/bear debate, resolves conflicts, validates checklist, produces investment plan. Deep-think model.",
+    "trader": "Trade execution planner. Validates entry, calculates ATR stops, sizes contracts, enforces set-and-forget rules.",
+    "aggressive-risk": "Aggressive risk perspective. Argues for full size when setup quality is high. Challenges conservative over-caution.",
+    "conservative-risk": "Conservative risk perspective. Protects prop firm account. Challenges marginal setups ruthlessly. Last defense against overtrading.",
+    "neutral-risk": "Balanced risk arbiter. Synthesizes aggressive and conservative views. Final risk-adjusted sizing recommendation.",
+    "portfolio-manager": "Final decision authority. Applies 5-tier ICT rating, verifies hard rules, outputs BUY/OVERWEIGHT/HOLD/UNDERWEIGHT/SELL. Deep-think model.",
+}
+
+# Cache for system prompts — built once per run
+_system_prompt_cache: dict = {}
+
+
+def _read_file(workspace: str, filename: str) -> str:
+    try:
+        with open(os.path.join(workspace, filename)) as f:
+            return f.read().strip()
+    except Exception:
+        return ""
+
+
+def _extract_section(text: str, heading: str) -> str:
+    """Extract a ## section from markdown."""
+    lines = text.split("\n")
+    capturing = False
+    result = []
+    for line in lines:
+        if line.strip().startswith(f"## {heading}"):
+            capturing = True
+            continue
+        if capturing and line.strip().startswith("## "):
+            break
+        if capturing:
+            result.append(line)
+    return "\n".join(result).strip()
+
+
+def _build_system_prompt(agent_name: str) -> str:
+    """Build rich system prompt from ALL 7 OpenClaw core files.
+
+    Each agent gets: identity + trading principles + risk rules +
+    user profile + trading agent role + tools context + day-cycle +
+    red lines + analysis-only constraint + role-specific description.
+    """
+    if agent_name in _system_prompt_cache:
+        return _system_prompt_cache[agent_name]
+
+    workspace = os.environ.get("OPENCLAW_WORKSPACE", "/home/hoang/.openclaw/workspace")
+
+    # Read all 7 core files
+    soul = _read_file(workspace, "SOUL.md")
+    identity = _read_file(workspace, "IDENTITY.md")
+    user = _read_file(workspace, "USER.md")
+    agents = _read_file(workspace, "AGENTS.md")
+    tools = _read_file(workspace, "TOOLS.md")
+    heartbeat = _read_file(workspace, "HEARTBEAT.md")
+    trading = _read_file(workspace, "TRADING.md")
+
+    role_desc = AGENT_ROLES.get(agent_name, f"Specialized trading analysis agent: {agent_name}")
+
+    parts = []
+
+    # 1. IDENTITY.md — who we are
+    parts.append(f"You are {agent_name}, part of OpenClaw — a self-evolving AI trading system.")
+    parts.append("Built by John Doan at LV Intelligent Corporate, Houston TX.")
+    parts.append("Vibe: Professional and sharp. No fluff. Earns trust through results.")
+    parts.append("")
+
+    # 2. SOUL.md — trading principles
+    principles = _extract_section(soul, "Trading Principles")
+    if principles:
+        parts.append("TRADING PRINCIPLES (from SOUL.md):")
+        parts.append(principles)
+        parts.append("")
+
+    core_truths = _extract_section(soul, "Core Truths")
+    if core_truths:
+        parts.append("CORE BEHAVIOR:")
+        parts.append(core_truths)
+        parts.append("")
+
+    # 3. USER.md — trader profile
+    profile = _extract_section(user, "Trading Profile")
+    if profile:
+        parts.append("TRADER PROFILE (from USER.md):")
+        parts.append(profile)
+        parts.append("")
+
+    style = _extract_section(user, "Work Style")
+    if style:
+        parts.append("COMMUNICATION STYLE:")
+        parts.append(style)
+        parts.append("")
+
+    # 4. AGENTS.md — trading agent role + red lines
+    trading_role = _extract_section(agents, "Trading Agent")
+    if trading_role:
+        parts.append("TRADING AGENT PROTOCOL (from AGENTS.md):")
+        parts.append(trading_role)
+        parts.append("")
+
+    red_lines = _extract_section(agents, "Red Lines")
+    if red_lines:
+        parts.append("RED LINES:")
+        parts.append(red_lines)
+        parts.append("")
+
+    # 5. TRADING.md — risk parameters + strategy
+    risk = _extract_section(trading, "Risk Parameters")
+    if risk:
+        parts.append("RISK RULES (non-negotiable, from TRADING.md):")
+        parts.append(risk)
+        parts.append("")
+
+    strategy = _extract_section(trading, "Active Strategy")
+    if strategy:
+        parts.append("ACTIVE STRATEGY:")
+        parts.append(strategy)
+        parts.append("")
+
+    bias_section = _extract_section(trading, "Market Bias")
+    if bias_section:
+        parts.append("CURRENT MARKET BIAS:")
+        parts.append(bias_section)
+        parts.append("")
+
+    # 6. TOOLS.md — available tools (condensed)
+    trading_module = _extract_section(tools, "Trading Module")
+    if trading_module:
+        parts.append("AVAILABLE TOOLS (from TOOLS.md):")
+        parts.append(trading_module)
+        parts.append("")
+
+    # 7. HEARTBEAT.md — day-cycle awareness
+    day_cycle = _extract_section(heartbeat, "Trading Day-Cycle")
+    if day_cycle:
+        parts.append("TRADING DAY-CYCLE (from HEARTBEAT.md):")
+        parts.append(day_cycle)
+        parts.append("")
+
+    # Analysis-only constraint
+    parts.append("HARD CONSTRAINT: Analysis only — no order execution, no positions, no broker connection.")
+    parts.append("")
+
+    # Agent-specific role
+    parts.append(f"YOUR ROLE IN THE PIPELINE: {role_desc}")
+
+    result = "\n".join(parts)
+    _system_prompt_cache[agent_name] = result
+    return result
+
+
 def openclaw_dispatch(agent_name: str, prompt: str, model: str) -> str:
     """Dispatch an agent prompt through OpenClaw's gateway.
 
     ALL agents go through OpenClaw (18789) → 9router (20128) → AI.
-    OpenClaw is the brain. Gateway overhead is ~0 (tested: same speed as direct).
+    Each agent gets a rich system prompt built from all 7 core files.
     """
     port, token = _get_gateway_auth()
     url = GATEWAY_URL.format(port=port)
@@ -55,21 +214,12 @@ def openclaw_dispatch(agent_name: str, prompt: str, model: str) -> str:
 
     full_model = f"9router/{model}" if not model.startswith("9router/") else model
 
-    headers = {"Content-Type": "application/json"}
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-
-    # When OPENCLAW_DIRECT_9ROUTER is set, skip the 9router/ prefix
-    # (prefix is only needed when routing through the OpenClaw gateway)
-    if os.environ.get("OPENCLAW_DIRECT_9ROUTER"):
-        full_model = model.removeprefix("9router/")
-    else:
-        full_model = f"9router/{model}" if not model.startswith("9router/") else model
+    system_prompt = _build_system_prompt(agent_name)
 
     payload = {
         "model": full_model,
         "messages": [
-            {"role": "system", "content": f"You are {agent_name}, a specialized trading analysis agent."},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt},
         ],
         "stream": False,
