@@ -255,13 +255,22 @@ def _fetch_ohlcv_df(symbol: str, timeframe: str, trade_date: str):
     }
     days_back = lookback_map.get(timeframe, 100)
     start_dt = end_dt - timedelta(days=days_back)
+    # Databento Historical has ~15min delay. If trade_date is today,
+    # use "now minus 20 min" as end to include today's bars.
+    # If trade_date is in the past, add 1 day to capture full day.
+    from datetime import timezone as _tz
+    now = datetime.now(_tz.utc).replace(tzinfo=None)
+    if end_dt.date() >= now.date():
+        fetch_end = (now - timedelta(minutes=20)).strftime("%Y-%m-%dT%H:%M")
+    else:
+        fetch_end = (end_dt + timedelta(days=1)).strftime("%Y-%m-%d")
 
     try:
         # Databento supports all timeframes natively
         if vendor == "databento":
             from openclaw.dataflows.databento_nq import get_databento_ohlcv
             csv_data = get_databento_ohlcv(
-                symbol, start_dt.strftime("%Y-%m-%d"), trade_date, timeframe=timeframe
+                symbol, start_dt.strftime("%Y-%m-%d"), fetch_end, timeframe=timeframe
             )
         elif timeframe not in ("1D", "1W"):
             # For intraday timeframes, try Databento first (it supports them),
@@ -276,7 +285,7 @@ def _fetch_ohlcv_df(symbol: str, timeframe: str, trade_date: str):
             if databento_key:
                 from openclaw.dataflows.databento_nq import get_databento_ohlcv
                 csv_data = get_databento_ohlcv(
-                    symbol, start_dt.strftime("%Y-%m-%d"), trade_date, timeframe=timeframe
+                    symbol, start_dt.strftime("%Y-%m-%d"), fetch_end, timeframe=timeframe
                 )
             else:
                 # yfinance intraday fallback

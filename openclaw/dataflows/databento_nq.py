@@ -136,16 +136,36 @@ def get_databento_ohlcv(symbol: str, start_date: str, end_date: str, timeframe: 
     agg_factor = AGGREGATE_FACTOR.get(timeframe, 1)
 
     try:
-        data = client.timeseries.get_range(
-            dataset=dataset,
-            symbols=[db_symbol],
-            schema=schema,
-            start=start_date,
-            end=end_date,
-            stype_in="continuous",
-        )
-
-        df = data.to_df()
+        try:
+            data = client.timeseries.get_range(
+                dataset=dataset,
+                symbols=[db_symbol],
+                schema=schema,
+                start=start_date,
+                end=end_date,
+                stype_in="continuous",
+            )
+            df = data.to_df()
+        except Exception as schema_err:
+            err_str = str(schema_err)
+            # If schema not available (e.g. ohlcv-1h/1d for current incomplete bar),
+            # fall back to ohlcv-1m and aggregate
+            if ("not_fully_available" in err_str or "end_after_available" in err_str) and schema != "ohlcv-1m":
+                logger.info("Schema %s unavailable for %s, falling back to ohlcv-1m + aggregation", schema, symbol)
+                fallback_agg = {"ohlcv-1h": 60, "ohlcv-1d": 1440}.get(schema, agg_factor)
+                data = client.timeseries.get_range(
+                    dataset=dataset,
+                    symbols=[db_symbol],
+                    schema="ohlcv-1m",
+                    start=start_date,
+                    end=end_date,
+                    stype_in="continuous",
+                )
+                df = data.to_df()
+                schema = "ohlcv-1m"
+                agg_factor = fallback_agg * agg_factor  # compound if 4H (4 * 60 = 240)
+            else:
+                raise
 
         if df.empty:
             return f"No data found for symbol '{symbol}' (mapped to {db_symbol}) between {start_date} and {end_date}"
