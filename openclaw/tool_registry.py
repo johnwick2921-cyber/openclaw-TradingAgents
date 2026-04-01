@@ -99,19 +99,31 @@ class ToolRegistry:
 
     def call_many(self, names: List[str], ticker: str, date: str,
                   config: Optional[dict] = None) -> Dict[str, str]:
-        """Call multiple tools, returning results keyed by tool name.
+        """Call multiple tools IN PARALLEL, returning results keyed by tool name.
 
         Failed tools are logged and returned as error strings.
         """
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
         results = {}
-        for name in names:
+
+        def _call_one(name: str) -> tuple:
             try:
-                results[name] = self.call(name, ticker, date, config)
+                return name, self.call(name, ticker, date, config)
             except KeyError:
                 logger.warning("Tool '%s' not registered, skipping", name)
+                return name, None
             except Exception as exc:
                 logger.warning("Tool '%s' failed for %s: %s", name, ticker, exc)
-                results[name] = f"[Data unavailable: {exc}]"
+                return name, f"[Data unavailable: {exc}]"
+
+        with ThreadPoolExecutor(max_workers=min(len(names), 8)) as pool:
+            futures = {pool.submit(_call_one, n): n for n in names}
+            for future in as_completed(futures):
+                name, result = future.result()
+                if result is not None:
+                    results[name] = result
+
         return results
 
     def list_tools(self) -> List[str]:
