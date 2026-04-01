@@ -216,7 +216,7 @@ class RunEngine:
             if analyst_key not in analyst_map:
                 continue
             agent_name, report_field = analyst_map[analyst_key]
-            frontmatter = self._parse_frontmatter(os.path.join(agents_dir, f"{agent_name}.md"))
+            frontmatter = self._parse_frontmatter(os.path.join(agents_dir, agent_name, "PROMPT.md"))
             tier = frontmatter.get("tier", "quick") or "quick"
             model = get_model_for_agent(self.config, agent_name, tier)
             prompt = self._build_analyst_prompt(agents_dir, agent_name, strategy, ticker, date)
@@ -342,7 +342,7 @@ class RunEngine:
                     current_conservative_response=risk_debate.get("last_conservative", ""),
                     current_neutral_response=risk_debate.get("last_neutral", ""),
                 )
-                fm = self._parse_frontmatter(os.path.join(agents_dir, f"{agent_name}.md"))
+                fm = self._parse_frontmatter(os.path.join(agents_dir, agent_name, "PROMPT.md"))
                 model = get_model_for_agent(self.config, agent_name, fm.get("tier", "quick") or "quick")
                 for cb in callbacks:
                     cb.on_agent_status(agent_name, "running")
@@ -530,7 +530,7 @@ class RunEngine:
         return "\n".join(parts)
 
     def _build_analyst_prompt(self, agents_dir, agent_name, strategy, ticker, date):
-        md_path = os.path.join(agents_dir, f"{agent_name}.md")
+        md_path = os.path.join(agents_dir, agent_name, "PROMPT.md")
         prompt_text = self._read_strategy_prompt(md_path, strategy)
         frontmatter = self._parse_frontmatter(md_path)
         tools_key = "tools_jadecap" if strategy == "jadecap" else "tools"
@@ -565,7 +565,7 @@ Trade Date: {date}
 """
 
     def _build_researcher_prompt(self, agents_dir, agent_name, strategy, ticker, date, reports_context, debate, side, reports=None):
-        md_path = os.path.join(agents_dir, f"{agent_name}.md")
+        md_path = os.path.join(agents_dir, agent_name, "PROMPT.md")
         prompt_text = self._read_strategy_prompt(md_path, strategy)
         opponent_history = debate["bear_history"] if side == "bull" else debate["bull_history"]
         reports = reports or {}
@@ -608,7 +608,7 @@ Opponent's Last Argument:
 """
 
     def _build_prompt_with_context(self, agents_dir, agent_name, strategy, **context):
-        md_path = os.path.join(agents_dir, f"{agent_name}.md")
+        md_path = os.path.join(agents_dir, agent_name, "PROMPT.md")
         prompt_text = self._read_strategy_prompt(md_path, strategy)
         base_context = context.copy()
         base_context["user_bias_context"] = self._get_user_bias_context()
