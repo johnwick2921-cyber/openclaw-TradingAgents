@@ -250,7 +250,7 @@ class RunEngine:
         reports_context = self._format_reports(reports)
         for _ in range(max_rounds):
             bull_prompt = self._build_researcher_prompt(agents_dir, "bull-researcher", strategy, ticker, date, reports_context, debate, "bull", reports=reports)
-            fm = self._parse_frontmatter(os.path.join(agents_dir, "bull-researcher.md"))
+            fm = self._parse_frontmatter(os.path.join(agents_dir, "bull-researcher", "PROMPT.md"))
             model = get_model_for_agent(self.config, "bull-researcher", fm.get("tier", "quick") or "quick")
             for cb in callbacks:
                 cb.on_agent_status("bull-researcher", "running")
@@ -263,7 +263,7 @@ class RunEngine:
                 cb.on_agent_status("bull-researcher", "completed")
 
             bear_prompt = self._build_researcher_prompt(agents_dir, "bear-researcher", strategy, ticker, date, reports_context, debate, "bear", reports=reports)
-            fm = self._parse_frontmatter(os.path.join(agents_dir, "bear-researcher.md"))
+            fm = self._parse_frontmatter(os.path.join(agents_dir, "bear-researcher", "PROMPT.md"))
             model = get_model_for_agent(self.config, "bear-researcher", fm.get("tier", "quick") or "quick")
             for cb in callbacks:
                 cb.on_agent_status("bear-researcher", "running")
@@ -292,7 +292,7 @@ class RunEngine:
             bear_history=debate["bear_history"],
             past_memory_str=self._get_memory_context("invest_judge_memory", ticker, date),
         )
-        fm = self._parse_frontmatter(os.path.join(agents_dir, "research-manager.md"))
+        fm = self._parse_frontmatter(os.path.join(agents_dir, "research-manager", "PROMPT.md"))
         model = get_model_for_agent(self.config, "research-manager", fm.get("tier", "deep") or "deep")
         for cb in callbacks:
             cb.on_agent_status("research-manager", "running")
@@ -312,7 +312,7 @@ class RunEngine:
             investment_plan=investment_plan,
             past_memory_str=self._get_memory_context("trader_memory", ticker, date),
         )
-        fm = self._parse_frontmatter(os.path.join(agents_dir, "trader.md"))
+        fm = self._parse_frontmatter(os.path.join(agents_dir, "trader", "PROMPT.md"))
         model = get_model_for_agent(self.config, "trader", fm.get("tier", "quick") or "quick")
         for cb in callbacks:
             cb.on_agent_status("trader", "running")
@@ -378,7 +378,7 @@ class RunEngine:
             neutral_history=risk_debate["neutral_history"],
             past_memory_str=self._get_memory_context("portfolio_manager_memory", ticker, date),
         )
-        fm = self._parse_frontmatter(os.path.join(agents_dir, "portfolio-manager.md"))
+        fm = self._parse_frontmatter(os.path.join(agents_dir, "portfolio-manager", "PROMPT.md"))
         model = get_model_for_agent(self.config, "portfolio-manager", fm.get("tier", "deep") or "deep")
         for cb in callbacks:
             cb.on_agent_status("portfolio-manager", "running")
