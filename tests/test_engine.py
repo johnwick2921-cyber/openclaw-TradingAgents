@@ -317,7 +317,10 @@ def test_analyst_prompt_includes_data_section(config_file):
     agents_dir = engine.config["paths"]["agents_dir"]
 
     # Write analyst with tools that will fail (no real API) but gracefully
-    md_path = os.path.join(agents_dir, "market-analyst.md")
+    # Engine expects agents_dir/agent_name/PROMPT.md (directory structure)
+    agent_dir = os.path.join(agents_dir, "market-analyst")
+    os.makedirs(agent_dir, exist_ok=True)
+    md_path = os.path.join(agent_dir, "PROMPT.md")
     with open(md_path, "w") as f:
         f.write("---\nname: market-analyst\ntools: [get_stock_data]\ntier: quick\n---\n"
                 "# Market Analyst\n## Default Strategy Prompt\nAnalyze the market.\n")

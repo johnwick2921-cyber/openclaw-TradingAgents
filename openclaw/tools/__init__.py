@@ -23,11 +23,57 @@ from openclaw.tools.news_data_tools import (
 # ─── Auto-register all tools with the global registry ───────────────────
 
 from openclaw.tool_registry import registry
-from openclaw.indicators import get_indicators_batch, fetch_live_price
+from openclaw.indicators import get_indicator, get_indicators_batch, fetch_live_price
 
 # Default indicators per strategy
 _DEFAULT_STOCK_INDICATORS = ["rsi", "macd", "macdh", "boll", "boll_ub", "boll_lb", "atr", "close_50_sma"]
 _DEFAULT_ICT_INDICATORS = ["fvg", "order_blocks", "market_structure", "session_levels", "prev_day_levels"]
+
+# ─── ICT indicators per timeframe (what market-analyst prompt asks for) ──
+# The prompt requests get_ict_levels at 5m, 15m, 1H, 4H, 1D separately.
+# We provide ALL timeframes in a single prefetch so the LLM gets complete data.
+
+_ICT_INDICATORS_PER_TF = ["fvg", "order_blocks", "market_structure", "session_levels",
+                           "prev_day_levels", "equal_highs_lows"]
+
+# Additional per-timeframe indicators the agents reference
+_EXTRA_TF_INDICATORS = {
+    "1H": ["sfp_detection", "displacement_candle"],
+    "15m": ["liquidity_sweep", "breaker_block"],
+    "5m": ["displacement_candle"],
+}
+
+# All timeframes the JadeCap market analyst references
+_JADECAP_TIMEFRAMES = ["5m", "15m", "1H", "4H", "1D"]
+
+
+def _get_ict_all_timeframes(symbol: str, date: str) -> str:
+    """Fetch ICT levels for ALL JadeCap timeframes in one call.
+
+    Returns a combined report with sections per timeframe, so the LLM
+    gets the data it would have gotten from 5 separate tool calls.
+    """
+    sections = []
+    for tf in _JADECAP_TIMEFRAMES:
+        indicators = list(_ICT_INDICATORS_PER_TF)
+        indicators.extend(_EXTRA_TF_INDICATORS.get(tf, []))
+        section_header = f"\n{'='*60}\n## ICT LEVELS — {tf} TIMEFRAME\n{'='*60}\n"
+        try:
+            result = get_indicators_batch(
+                symbol=symbol, indicators=indicators, date=date, timeframe=tf,
+            )
+            sections.append(section_header + result)
+        except Exception as exc:
+            sections.append(section_header + f"[Error fetching {tf}: {exc}]")
+    return "\n".join(sections)
+
+
+def _get_intraday_rsi(symbol: str, date: str) -> str:
+    """Fetch RSI on 5m timeframe for intraday momentum context."""
+    try:
+        return get_indicator(symbol, "rsi", date, timeframe="5m", look_back_days=5)
+    except Exception as exc:
+        return f"[5m RSI error: {exc}]"
 
 
 def _pick_indicators(ctx):
@@ -58,16 +104,21 @@ registry.register(
     category="technical",
 )
 
-# ICT levels — convenience alias for full ICT report
+# ICT levels — multi-timeframe (5m, 15m, 1H, 4H, 1D) in one call
 registry.register(
     name="get_ict_levels",
-    fn=get_indicators_batch,
-    param_builder=lambda ctx: {
-        "symbol": ctx["ticker"], "date": ctx["date"],
-        "indicators": ["fvg", "order_blocks", "market_structure", "session_levels",
-                       "prev_day_levels", "equal_highs_lows"],
-    },
-    description="Fetch all ICT levels (via unified indicator system)",
+    fn=_get_ict_all_timeframes,
+    param_builder=lambda ctx: {"symbol": ctx["ticker"], "date": ctx["date"]},
+    description="Fetch ICT levels for ALL timeframes (5m/15m/1H/4H/1D) — FVG, OB, BOS/CHoCH, sessions, liquidity, SFP",
+    category="technical",
+)
+
+# Intraday RSI (5-minute) — so agents can reference short-term momentum
+registry.register(
+    name="get_intraday_rsi",
+    fn=_get_intraday_rsi,
+    param_builder=lambda ctx: {"symbol": ctx["ticker"], "date": ctx["date"]},
+    description="Fetch 5-minute RSI for intraday momentum",
     category="technical",
 )
 

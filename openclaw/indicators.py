@@ -89,13 +89,13 @@ def get_indicator(
     indicator = indicator.strip().lower()
 
     if indicator in STOCKSTATS_INDICATORS:
-        return _get_stockstats(symbol, indicator, date, look_back_days)
+        return _get_stockstats(symbol, indicator, date, look_back_days, timeframe)
     elif indicator in SMC_INDICATORS:
         return _get_smc(symbol, indicator, date, timeframe)
     else:
         # Try stockstats first (it supports many more than our explicit set)
         try:
-            return _get_stockstats(symbol, indicator, date, look_back_days)
+            return _get_stockstats(symbol, indicator, date, look_back_days, timeframe)
         except Exception:
             return f"[Unknown indicator: {indicator}. Available: {', '.join(sorted(ALL_INDICATORS))}]"
 
@@ -128,10 +128,60 @@ def list_indicators() -> dict:
 
 # ─── Backend: stockstats ────────────────────────────────────────────────
 
-def _get_stockstats(symbol: str, indicator: str, date: str, look_back_days: int) -> str:
-    """Route to stockstats via the configured vendor."""
-    from openclaw.dataflows.interface import route_to_vendor
-    return route_to_vendor("get_indicators", symbol, indicator, date, look_back_days)
+def _get_stockstats(symbol: str, indicator: str, date: str, look_back_days: int, timeframe: str = "1D") -> str:
+    """Route to stockstats via the configured vendor.
+
+    For intraday timeframes (5m, 15m, 1H, 4H), fetches intraday OHLCV
+    and computes the indicator directly via stockstats, bypassing the
+    daily-only vendor path.
+    """
+    if timeframe in ("1D", "1W") or not timeframe:
+        # Daily path — use vendor routing (yfinance/databento/alpha_vantage)
+        from openclaw.dataflows.interface import route_to_vendor
+        return route_to_vendor("get_indicators", symbol, indicator, date, look_back_days)
+
+    # Intraday path — fetch intraday bars, compute indicator locally
+    df = _fetch_ohlcv_df(symbol, timeframe, date)
+    if isinstance(df, str):
+        return df  # error message
+    if df is None or df.empty:
+        return f"[No {timeframe} data for {symbol}]"
+
+    try:
+        import stockstats
+        ss = stockstats.wrap(df.rename(columns={
+            "Open": "open", "High": "high", "Low": "low", "Close": "close", "Volume": "volume",
+        }))
+        values = ss[indicator]
+        # Return last N values
+        n = min(20, len(values))
+        tail = values.tail(n).dropna()
+        if tail.empty:
+            return f"[{indicator} on {timeframe}: no data after computation]"
+
+        lines = [f"## {indicator} on {timeframe} (last {len(tail)} bars):\n"]
+        for idx, val in tail.items():
+            ts = idx.strftime("%Y-%m-%d %H:%M") if hasattr(idx, "strftime") else str(idx)
+            lines.append(f"{ts}: {val:.4f}")
+
+        # Add interpretation for RSI
+        if indicator == "rsi" and len(tail) > 0:
+            last_rsi = tail.iloc[-1]
+            lines.append(f"\nCurrent {timeframe} RSI: {last_rsi:.1f}")
+            if last_rsi > 70:
+                lines.append("⚠ OVERBOUGHT (>70)")
+            elif last_rsi < 30:
+                lines.append("⚠ OVERSOLD (<30)")
+            elif last_rsi > 60:
+                lines.append("Bullish momentum")
+            elif last_rsi < 40:
+                lines.append("Bearish momentum")
+            else:
+                lines.append("Neutral zone")
+
+        return "\n".join(lines)
+    except Exception as exc:
+        return f"[{indicator} on {timeframe} error: {exc}]"
 
 
 # ─── Backend: smartmoneyconcepts ────────────────────────────────────────
@@ -207,18 +257,37 @@ def _fetch_ohlcv_df(symbol: str, timeframe: str, trade_date: str):
     start_dt = end_dt - timedelta(days=days_back)
 
     try:
+        # Databento supports all timeframes natively
         if vendor == "databento":
             from openclaw.dataflows.databento_nq import get_databento_ohlcv
             csv_data = get_databento_ohlcv(
                 symbol, start_dt.strftime("%Y-%m-%d"), trade_date, timeframe=timeframe
             )
+        elif timeframe not in ("1D", "1W"):
+            # For intraday timeframes, try Databento first (it supports them),
+            # then fall back to yfinance intraday if available
+            databento_key = os.environ.get("DATABENTO_API_KEY", "")
+            if not databento_key:
+                try:
+                    from openclaw.dataflows.config import get_config
+                    databento_key = get_config().get("api_keys", {}).get("databento", "")
+                except Exception:
+                    pass
+            if databento_key:
+                from openclaw.dataflows.databento_nq import get_databento_ohlcv
+                csv_data = get_databento_ohlcv(
+                    symbol, start_dt.strftime("%Y-%m-%d"), trade_date, timeframe=timeframe
+                )
+            else:
+                # yfinance intraday fallback
+                csv_data = _fetch_yfinance_intraday(symbol, timeframe, start_dt, end_dt)
         else:
             from openclaw.dataflows.interface import route_to_vendor
             csv_data = route_to_vendor(
                 "get_stock_data", symbol, start_dt.strftime("%Y-%m-%d"), trade_date
             )
     except Exception as exc:
-        return f"[Failed to fetch OHLCV for {symbol}: {exc}]"
+        return f"[Failed to fetch OHLCV for {symbol} {timeframe}: {exc}]"
 
     if not csv_data or csv_data.startswith("No data"):
         return None
@@ -246,6 +315,45 @@ def _fetch_ohlcv_df(symbol: str, timeframe: str, trade_date: str):
             break
 
     return df
+
+
+def _fetch_yfinance_intraday(symbol: str, timeframe: str, start_dt, end_dt) -> str:
+    """Fetch intraday OHLCV from yfinance as CSV string.
+
+    yfinance supports: 1m, 2m, 5m, 15m, 30m, 60m, 90m, 1h.
+    Max lookback: 1m=7d, 5m/15m/30m=60d, 1h=730d.
+    """
+    import yfinance as yf
+
+    tf_map = {"1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m", "1H": "60m", "4H": "60m"}
+    yf_interval = tf_map.get(timeframe)
+    if not yf_interval:
+        return f"No data available for {symbol} at {timeframe} (yfinance does not support this interval)"
+
+    futures = {"NQ", "MNQ", "ES", "MES", "YM", "MYM", "RTY", "M2K", "CL", "GC"}
+    clean = symbol.upper().replace("=F", "").strip()
+    ticker_str = f"{clean}=F" if clean in futures else symbol
+
+    hist = yf.Ticker(ticker_str).history(
+        start=start_dt.strftime("%Y-%m-%d"),
+        end=(end_dt + timedelta(days=1)).strftime("%Y-%m-%d"),
+        interval=yf_interval,
+    )
+    if hist.empty:
+        return f"No data available for {symbol} at {timeframe}"
+
+    # If 4H requested, resample from 1H
+    if timeframe == "4H":
+        hist = hist.resample("4h").agg(
+            {"Open": "first", "High": "max", "Low": "min", "Close": "last", "Volume": "sum"}
+        ).dropna()
+
+    lines = [f"# {symbol} {timeframe} (yfinance intraday) | {len(hist)} bars"]
+    lines.append("Date,Open,High,Low,Close,Volume")
+    for idx, row in hist.iterrows():
+        ts = idx.strftime("%Y-%m-%d %H:%M")
+        lines.append(f"{ts},{row['Open']:.2f},{row['High']:.2f},{row['Low']:.2f},{row['Close']:.2f},{int(row['Volume'])}")
+    return "\n".join(lines)
 
 
 def fetch_live_price(symbol: str) -> str:

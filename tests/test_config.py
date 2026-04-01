@@ -19,7 +19,7 @@ def test_load_config_defaults():
         path = f.name
     try:
         config = load_config(path)
-        assert config["strategy"] == "default"
+        assert config["strategy"] == "stocks"
         assert config["llm"]["default"] == "gpt-4o"
         assert config["llm"]["deep_think"] == "claude-opus-4-6"
         assert config["llm"]["quick_think"] == "gpt-4o-mini"
@@ -56,7 +56,7 @@ def test_load_config_overrides():
 def test_load_config_missing_file():
     """Missing config file should return defaults without error."""
     config = load_config("/nonexistent/path/config.json")
-    assert config["strategy"] == "default"
+    assert config["strategy"] == "stocks"
     assert config["halt"] is False
     assert config["llm"]["default"] == "gpt-4o"
 
