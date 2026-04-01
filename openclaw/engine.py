@@ -458,9 +458,9 @@ class RunEngine:
 
         if abs(total) >= 5:
             strength = "strong"
-        elif abs(total) >= 3:
+        elif abs(total) >= 2:
             strength = "moderate"
-        elif abs(total) >= 1:
+        elif abs(total) == 1:
             strength = "weak"
         else:
             strength = "neutral"
