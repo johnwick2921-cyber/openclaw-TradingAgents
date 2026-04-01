@@ -2,7 +2,7 @@
 name: news-analyst
 model: null
 tools: [get_news, get_global_news, get_insider_transactions]
-tools_jadecap: [get_news, get_global_news]
+tools_jadecap: [get_news, get_global_news, brave_news_search]
 strategy_variants: [default, jadecap]
 memory: null
 memory_jadecap: portfolio_manager_memory

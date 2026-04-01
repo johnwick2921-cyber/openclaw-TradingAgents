@@ -1,7 +1,7 @@
 ---
 name: social-analyst
 model: null
-tools: [get_news]
+tools: [get_news, brave_social_search]
 strategy_variants: [default]
 memory: null
 tier: quick

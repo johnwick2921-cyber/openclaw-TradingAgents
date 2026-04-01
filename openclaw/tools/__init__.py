@@ -174,3 +174,21 @@ registry.register(
     description="Fetch midnight open reference price",
     category="realtime",
 )
+
+# Brave web search — multi-source news headlines
+from openclaw.tools.brave_search import brave_news_search, brave_social_search
+
+registry.register(
+    name="brave_news_search",
+    fn=brave_news_search,
+    param_builder=lambda ctx: {"ticker": ctx["ticker"], "date": ctx["date"]},
+    description="Search web for multi-source news headlines (Brave API)",
+    category="news",
+)
+registry.register(
+    name="brave_social_search",
+    fn=brave_social_search,
+    param_builder=lambda ctx: {"ticker": ctx["ticker"], "date": ctx["date"]},
+    description="Search web for social media sentiment (Reddit, Twitter)",
+    category="news",
+)

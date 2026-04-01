@@ -40,50 +40,20 @@ def _get_gateway_auth() -> tuple[int, str]:
     return port, token
 
 
-# Agents that need web search tools — dispatch through OpenClaw gateway (full agent session)
-SEARCH_AGENTS = {"news-analyst", "social-analyst"}
-
-
-def _get_9router_auth() -> tuple[int, str]:
-    """Get 9router port and API key for direct dispatch."""
-    port = int(os.environ.get("NINE_ROUTER_PORT", "20128"))
-    api_key = ""
-    env_path = os.path.join(
-        os.environ.get("OPENCLAW_WORKSPACE", "/home/hoang/.openclaw/workspace"),
-        ".env",
-    )
-    if os.path.exists(env_path):
-        with open(env_path) as f:
-            for line in f:
-                line = line.strip()
-                if line.startswith("NINE_ROUTER_API_KEY="):
-                    api_key = line.split("=", 1)[1].strip().strip('"').strip("'")
-                    break
-    return port, api_key
-
-
 def openclaw_dispatch(agent_name: str, prompt: str, model: str) -> str:
-    """Dispatch an agent prompt — smart routing based on agent needs.
+    """Dispatch an agent prompt through OpenClaw's gateway.
 
-    news-analyst, social-analyst → OpenClaw gateway (18789) — full agent session with web search
-    all other agents → 9router directly (20128) — fast, no session overhead
+    ALL agents go through OpenClaw (18789) → 9router (20128) → AI.
+    OpenClaw is the brain. Gateway overhead is ~0 (tested: same speed as direct).
     """
-    if agent_name in SEARCH_AGENTS:
-        # Full OpenClaw dispatch — agent gets web search tools
-        port, token = _get_gateway_auth()
-        url = GATEWAY_URL.format(port=port)
-        headers = {"Content-Type": "application/json"}
-        if token:
-            headers["Authorization"] = f"Bearer {token}"
-        full_model = f"9router/{model}" if not model.startswith("9router/") else model
-    else:
-        # Direct 9router — fast, no agent session overhead
-        port, api_key = _get_9router_auth()
-        url = f"http://127.0.0.1:{port}/v1/chat/completions"
-        headers = {"Content-Type": "application/json"}
-        if api_key:
-            headers["Authorization"] = f"Bearer {api_key}"
-        full_model = model.removeprefix("9router/")
+    port, token = _get_gateway_auth()
+    url = GATEWAY_URL.format(port=port)
+
+    headers = {"Content-Type": "application/json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    full_model = f"9router/{model}" if not model.startswith("9router/") else model
 
     headers = {"Content-Type": "application/json"}
     if token:
