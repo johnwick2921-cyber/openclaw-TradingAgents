@@ -490,6 +490,43 @@ class RunEngine:
             parts.append(f"Reason: {reason}")
         return "\n".join(parts) + "\n"
 
+    def _get_confluence_context(self) -> str:
+        """Format confluence score as context for agent prompts."""
+        bias = self.config.get("bias", {})
+        direction = bias.get("direction", "neutral")
+        confidence = bias.get("confidence", "medium")
+        reason = bias.get("reason", "")
+
+        agent_bias = self.config.get("agent_bias", {})
+        agent_dir = agent_bias.get("direction", "")
+        agent_signal = agent_bias.get("signal", "")
+
+        parts = []
+        parts.append("\n══ BIAS & CONFLUENCE CONTEXT ══")
+        parts.append(f"Trader's Pre-Session Bias: {direction.upper()} (confidence: {confidence})")
+        if reason:
+            parts.append(f"Bias Reason: {reason}")
+
+        if not agent_dir:
+            parts.append("No prior analysis available — this is the first run or no previous signal.")
+            parts.append("Confluence cannot be computed yet. Decide based on trader bias + current evidence.")
+        else:
+            parts.append(f"Last Run Agent Bias: {agent_dir.upper()} (signal: {agent_signal})")
+            aligned = (direction == "bullish" and agent_dir == "bullish") or \
+                      (direction == "bearish" and agent_dir == "bearish")
+            if direction == "neutral":
+                parts.append("Confluence: NEUTRAL — trader has no directional bias")
+            elif aligned:
+                parts.append(f"Confluence: ALIGNED — trader and agents agree ({direction})")
+            elif agent_dir == "neutral":
+                parts.append(f"Confluence: MIXED — trader is {direction} but agents are neutral")
+            else:
+                parts.append(f"Confluence: CONFLICT — trader is {direction} but agents say {agent_dir}")
+                parts.append("⚠ When trader and agents disagree, proceed with caution. Reduce size or wait.")
+
+        parts.append("══════════════════════════════\n")
+        return "\n".join(parts)
+
     def _build_analyst_prompt(self, agents_dir, agent_name, strategy, ticker, date):
         md_path = os.path.join(agents_dir, f"{agent_name}.md")
         prompt_text = self._read_strategy_prompt(md_path, strategy)
@@ -550,8 +587,12 @@ Trade Date: {date}
         if strategy == "jadecap":
             context.update(self._build_jadecap_context(ticker, date))
         prompt_text = self._substitute_placeholders(prompt_text, context)
-        return f"""{prompt_text}
+        user_bias = self._get_user_bias_context()
+        confluence = self._get_confluence_context()
 
+        return f"""{prompt_text}
+{user_bias}
+{confluence}
 Company/Instrument: {ticker}
 Trade Date: {date}
 
@@ -568,6 +609,8 @@ Opponent's Last Argument:
         md_path = os.path.join(agents_dir, f"{agent_name}.md")
         prompt_text = self._read_strategy_prompt(md_path, strategy)
         base_context = context.copy()
+        base_context["user_bias_context"] = self._get_user_bias_context()
+        base_context["confluence_context"] = self._get_confluence_context()
         if strategy == "jadecap":
             ticker = context.get("ticker") or context.get("company_name") or ""
             current_date = context.get("date") or context.get("current_date") or ""
