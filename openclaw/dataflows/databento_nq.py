@@ -265,31 +265,45 @@ def get_all_timeframes(symbol: str = "NQ", trade_date: str = None) -> dict:
         from openclaw.jadecap_config import TIMEFRAMES
     except ImportError:
         TIMEFRAMES = {
-            "1m": {"lookback_bars": 390}, "5m": {"lookback_bars": 390},
-            "15m": {"lookback_bars": 192}, "30m": {"lookback_bars": 96},
-            "1H": {"lookback_bars": 120}, "4H": {"lookback_bars": 120},
-            "1D": {"lookback_bars": 60},
+            "1m": {"lookback_bars": 400}, "5m": {"lookback_bars": 400},
+            "15m": {"lookback_bars": 400}, "30m": {"lookback_bars": 400},
+            "1H": {"lookback_bars": 400}, "4H": {"lookback_bars": 400},
+            "1D": {"lookback_bars": 400}, "1W": {"lookback_bars": 400},
         }
 
     end_dt = datetime.strptime(trade_date, "%Y-%m-%d")
     results = {}
 
     for tf, tf_config in TIMEFRAMES.items():
-        lookback = tf_config.get("lookback_bars", 100)
+        lookback = tf_config.get("lookback_bars", 400)
 
-        # Calculate start date based on timeframe and lookback bars
+        # Calculate start date to get `lookback` bars worth of data.
+        # Multiply by calendar-to-trading ratio (~7/5 for weekdays,
+        # plus buffer for holidays). Futures trade ~23h/day Sun-Fri.
         if tf == "1m":
-            start_dt = end_dt - timedelta(days=2)  # 2 days of 1m bars
-        elif tf in ("5m", "15m"):
-            start_dt = end_dt - timedelta(days=5)
+            # 400 1m bars ≈ 6.7 trading hours ≈ 1 day, +1 buffer
+            start_dt = end_dt - timedelta(days=3)
+        elif tf == "5m":
+            # 400 5m bars ≈ 33 trading hours ≈ ~2.5 days, +buffer
+            start_dt = end_dt - timedelta(days=7)
+        elif tf == "15m":
+            # 400 15m bars ≈ 100 trading hours ≈ ~7 days, +buffer
+            start_dt = end_dt - timedelta(days=14)
         elif tf == "30m":
-            start_dt = end_dt - timedelta(days=10)
+            # 400 30m bars ≈ 200 trading hours ≈ ~13 days, +buffer
+            start_dt = end_dt - timedelta(days=25)
         elif tf == "1H":
-            start_dt = end_dt - timedelta(days=15)
+            # 400 1H bars ≈ 400 trading hours ≈ ~26 days, +buffer
+            start_dt = end_dt - timedelta(days=45)
         elif tf == "4H":
-            start_dt = end_dt - timedelta(days=60)
+            # 400 4H bars ≈ 1600 trading hours ≈ ~104 days, +buffer
+            start_dt = end_dt - timedelta(days=180)
+        elif tf == "1W":
+            # 400 weekly bars ≈ 400 weeks ≈ ~7.7 years
+            start_dt = end_dt - timedelta(weeks=lookback)
         else:  # 1D
-            start_dt = end_dt - timedelta(days=lookback)
+            # 400 daily bars ≈ ~560 calendar days with weekends
+            start_dt = end_dt - timedelta(days=int(lookback * 1.5))
 
         results[tf] = get_databento_ohlcv(
             symbol,

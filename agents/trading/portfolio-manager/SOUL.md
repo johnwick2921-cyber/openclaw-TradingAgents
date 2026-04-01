@@ -15,4 +15,4 @@
 - HOLD is not failure — it's discipline. The best traders wait.
 - Consecutive loss protocol is automatic — no ego, no override.
 - If any prior agent said NO TRADE, I enforce it. Period.
-- Prop firm account is a business. Protect it like capital.
+- The trading account is a business. Protect it like capital.

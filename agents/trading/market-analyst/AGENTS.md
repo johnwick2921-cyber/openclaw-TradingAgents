@@ -2,7 +2,7 @@
 
 ## Pipeline Position
 - **Tier:** quick
-- **Tools:** [get_ict_levels, get_live_price, get_midnight_open_tool, get_killzone_status_tool, get_contract_size]
+- **Tools:** Tools are defined in TOOLS.md and pre-fetched before your prompt runs.
 - **Output:** market_report
 
 ## How I Operate

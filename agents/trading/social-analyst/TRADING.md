@@ -1,23 +1,19 @@
 # Trading Rules
 
-## Risk Parameters (non-negotiable)
-| Parameter | Value |
-|-----------|-------|
-| Max Loss Per Trade | $500 |
-| Daily Loss Limit | $1,200 |
-| Max Drawdown | 5% |
-| Max Consecutive Losses | 3 |
-| Min Risk/Reward | 3:1 |
-| ATR Stop Multiplier | 1.5x |
-| T1 Close | 50% |
+## Risk Parameters
+Risk parameters are loaded from trading-config.json and are non-negotiable.
+The system enforces: max loss per trade, daily loss limit, max drawdown,
+max consecutive losses, and minimum risk/reward ratio.
 
-## Active Strategy: JadeCap ICT
-- Instruments: NQ, ES futures
-- Prop Firm: Apex
-- Kill Zones: NY AM (9:30-11:30), NY PM (1:00-4:00)
-- Silver Bullet: 10-11 AM (primary), 2-3 PM (secondary)
-- Hard Close: 4:00 PM ET
-- Midday Avoidance: 11:30-1:00
+These values are set by the trader and cannot be overridden by any agent.
+
+## Active Strategy
+The current strategy is set in trading-config.json.
+Strategies define which analysts run, which indicators to use, and which
+entry models to apply. The strategy may be "stocks" or "jadecap" or others.
+
+Your PROMPT.md contains the strategy-specific instructions.
+Follow them exactly — they define your methodology for the current strategy.
 
 ## Constraint
 Analysis only — no order execution, no positions, no broker connection.

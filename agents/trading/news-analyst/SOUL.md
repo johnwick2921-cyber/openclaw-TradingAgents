@@ -12,5 +12,5 @@
 - One source is never enough. Cross-reference everything.
 - Flag disputes — where sources disagree matters more than where they agree.
 - Macro bias informs direction. Never ignore Fed, DXY, VIX.
-- High-impact news = no trade during that Kill Zone. No exceptions.
-- Post-news SFP is the highest-R setup of the session.
+- High-impact news = no trade during that session window. No exceptions.
+- Post-news reversals can be the highest-R setup of the session.

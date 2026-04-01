@@ -247,13 +247,19 @@ def _fetch_ohlcv_df(symbol: str, timeframe: str, trade_date: str):
     """Fetch OHLCV and return as DataFrame. Used by ICT indicators."""
     vendor = _get_configured_vendor()
 
-    # Calculate lookback based on timeframe
+    # Calculate lookback based on timeframe — 400 bars per jadecap_config
     end_dt = datetime.strptime(trade_date, "%Y-%m-%d")
     lookback_map = {
-        "1m": 2, "5m": 5, "15m": 5, "30m": 10,
-        "1H": 15, "4H": 60, "1W": 365,
+        "1m": 3,      # 400 1m bars ≈ 6.7h → 3 calendar days
+        "5m": 7,      # 400 5m bars ≈ 33h → 7 calendar days
+        "15m": 14,    # 400 15m bars ≈ 100h → 14 calendar days
+        "30m": 25,    # 400 30m bars ≈ 200h → 25 calendar days
+        "1H": 45,     # 400 1H bars ≈ 400h → 45 calendar days
+        "4H": 180,    # 400 4H bars ≈ 1600h → 180 calendar days
+        "1D": 600,    # 400 daily bars → 600 calendar days
+        "1W": 2800,   # 400 weekly bars → ~7.7 years
     }
-    days_back = lookback_map.get(timeframe, 100)
+    days_back = lookback_map.get(timeframe, 600)
     start_dt = end_dt - timedelta(days=days_back)
     # Databento Historical has ~15min delay. If trade_date is today,
     # use "now minus 20 min" as end to include today's bars.

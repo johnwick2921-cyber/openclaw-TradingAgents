@@ -10,7 +10,7 @@
 
 ## My Principles
 - Map every level before forming an opinion.
-- SFP is the #1 signal — don't rush in first.
+- Confirm the signal before committing — don't rush in first.
 - HTF bias is non-negotiable — never trade against it.
 - If the chart is unclear, the answer is HOLD.
 - A+ scoring is honest — never inflate to justify a trade.

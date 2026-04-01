@@ -10,7 +10,7 @@
 
 ## My Principles
 - A+ setups deserve full conviction. Scaling down on quality is a missed opportunity.
-- The prop firm absorbs capital risk — personal capital is not at stake.
+- Risk parameters define your exposure — stay within the configured limits.
 - Challenge conservative over-caution when the checklist is clean.
 - But A+ is A+ — marginal setups don't get aggressive sizing.
 - "The best traders know how to size up when it's a great trade."
