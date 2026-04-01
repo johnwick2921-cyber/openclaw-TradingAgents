@@ -46,6 +46,15 @@ except ImportError:
 # Helpers
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def _current_et_offset() -> str:
+    """Return current US/Eastern UTC offset string (e.g. 'UTC-5' or 'UTC-4').
+    Accounts for DST automatically — no hardcoded offset."""
+    from datetime import timezone as _tz
+    now_et = datetime.now(_tz.utc).astimezone(EST)
+    offset_hours = int(now_et.utcoffset().total_seconds() / 3600)
+    return f"UTC{offset_hours:+d}"
+
+
 def _localize_est(dt: datetime) -> datetime:
     """Attach EST timezone to a naive datetime (works with both pytz and zoneinfo)."""
     if hasattr(EST, "localize"):
@@ -294,7 +303,7 @@ def get_session_levels(df: pd.DataFrame) -> str:
                 df, "Custom",
                 start_time=sess["start"],
                 end_time=sess["end"],
-                time_zone="UTC-5",
+                time_zone=_current_et_offset(),
             )
             active_mask = result["Active"] == 1
             if active_mask.any():
@@ -513,7 +522,11 @@ def get_midnight_open(df_1m: pd.DataFrame, trade_date: str) -> str:
 
 def get_killzone_status(current_time: datetime = None) -> str:
     """Kill Zone timer and AMD phase check."""
-    now_est = _to_est(current_time) if current_time else datetime.now(EST)
+    if current_time:
+        now_est = _to_est(current_time)
+    else:
+        from datetime import timezone as _tz
+        now_est = datetime.now(_tz.utc).astimezone(EST)
     current_hm = now_est.strftime("%H:%M")
     weekday = now_est.weekday()  # 0=Mon, 5=Sat, 6=Sun
     t_min = now_est.hour * 60 + now_est.minute
@@ -1210,8 +1223,8 @@ def calc_amd_phase():
     Distribution = NY (8AM-5PM).
     """
     from datetime import datetime, timezone, timedelta
-    est = timezone(timedelta(hours=-5))
-    now = datetime.now(est)
+    now_utc = datetime.now(timezone.utc)
+    now = now_utc.astimezone(EST)
     weekday = now.weekday()  # 0=Mon, 5=Sat, 6=Sun
     hour, minute = now.hour, now.minute
     t = hour * 60 + minute

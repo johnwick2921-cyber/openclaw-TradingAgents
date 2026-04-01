@@ -259,7 +259,8 @@ def get_all_timeframes(symbol: str = "NQ", trade_date: str = None) -> dict:
     from datetime import datetime, timedelta
 
     if trade_date is None:
-        trade_date = datetime.now().strftime("%Y-%m-%d")
+        from datetime import timezone as _tz
+        trade_date = datetime.now(_tz.utc).strftime("%Y-%m-%d")
 
     try:
         from openclaw.jadecap_config import TIMEFRAMES
