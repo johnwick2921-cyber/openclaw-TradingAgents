@@ -213,15 +213,86 @@ def get_indicators_batch(
     timeframe: str = "1D",
     look_back_days: int = 30,
 ) -> str:
-    """Fetch multiple indicators at once. Returns combined result string."""
+    """Fetch multiple indicators at once. Fetches OHLCV ONCE, computes all.
+
+    This is the key optimization — instead of fetching data per indicator,
+    we fetch once and reuse the DataFrame for all SMC indicators.
+    """
+    # Split into stockstats vs SMC indicators
+    ss_indicators = [i for i in indicators if i.strip().lower() in STOCKSTATS_INDICATORS]
+    smc_indicators = [i for i in indicators if i.strip().lower() in SMC_INDICATORS]
+    other = [i for i in indicators if i.strip().lower() not in STOCKSTATS_INDICATORS and i.strip().lower() not in SMC_INDICATORS]
+
     results = []
-    for ind in indicators:
+
+    # Fetch OHLCV ONCE for all SMC indicators
+    _smc_df = None
+    if smc_indicators:
+        _smc_df = _fetch_ohlcv_df(symbol, timeframe, date)
+
+    # Compute SMC indicators on the shared DataFrame
+    for ind in smc_indicators:
+        ind_lower = ind.strip().lower()
+        try:
+            if isinstance(_smc_df, str):
+                results.append(f"--- {ind} ---\n{_smc_df}")
+            elif _smc_df is None or _smc_df.empty:
+                results.append(f"--- {ind} ---\n[No data for {symbol}]")
+            else:
+                result = _compute_smc_on_df(_smc_df, ind_lower, date, timeframe)
+                results.append(f"--- {ind} ---\n{result}")
+        except Exception as exc:
+            results.append(f"--- {ind} ---\n[Error: {exc}]")
+
+    # Compute stockstats indicators (these use vendor routing — each is fast)
+    for ind in ss_indicators:
+        try:
+            result = _get_stockstats(symbol, ind.strip().lower(), date, look_back_days, timeframe)
+            results.append(f"--- {ind} ---\n{result}")
+        except Exception as exc:
+            results.append(f"--- {ind} ---\n[Error: {exc}]")
+
+    # Any unknown indicators
+    for ind in other:
         try:
             result = get_indicator(symbol, ind, date, timeframe, look_back_days)
             results.append(f"--- {ind} ---\n{result}")
         except Exception as exc:
             results.append(f"--- {ind} ---\n[Error: {exc}]")
+
     return "\n\n".join(results)
+
+
+def _compute_smc_on_df(df, indicator: str, date: str, timeframe: str) -> str:
+    """Compute a single SMC indicator on an already-fetched DataFrame."""
+    if smc is None:
+        return "[smartmoneyconcepts not installed]"
+
+    dispatch = {
+        "fvg": lambda: get_fvg(df, timeframe),
+        "ifvg": lambda: get_ifvg(df, timeframe),
+        "order_blocks": lambda: get_order_blocks(df, timeframe),
+        "session_levels": lambda: get_session_levels(df),
+        "equal_highs_lows": lambda: get_equal_highs_lows(df, timeframe),
+        "market_structure": lambda: get_market_structure(df, timeframe),
+        "prev_day_levels": lambda: get_prev_day_levels(df),
+        "midnight_open": lambda: get_midnight_open(df, date),
+        "killzone_status": lambda: get_killzone_status(),
+        "fib_ote": lambda: get_fib_ote(df, timeframe),
+        "math_indicators": lambda: get_math_indicators(df, timeframe),
+        "ndog": lambda: str(calc_ndog(df, date)),
+        "nwog": lambda: str(calc_nwog(df, date)),
+        "sfp_detection": lambda: str(calc_sfp_detection(df)),
+        "displacement_candle": lambda: str(calc_displacement_candle(df)),
+        "liquidity_sweep": lambda: str(calc_liquidity_sweep(df)),
+        "breaker_block": lambda: str(calc_breaker_block(df)),
+        "amd_phase": lambda: str(calc_amd_phase()),
+    }
+
+    fn = dispatch.get(indicator)
+    if not fn:
+        return f"[ICT indicator '{indicator}' not implemented]"
+    return fn()
 
 
 def list_indicators() -> dict:

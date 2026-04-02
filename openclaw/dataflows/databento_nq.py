@@ -68,21 +68,22 @@ def _databento_dataset(symbol: str) -> str:
 
 
 # Timeframe to Databento schema mapping
+# Databento only reliably has ohlcv-1m for NQ/ES — aggregate everything from 1m
 TIMEFRAME_SCHEMAS = {
     "1m":  "ohlcv-1m",
     "5m":  "ohlcv-1m",   # aggregate from 1m
     "15m": "ohlcv-1m",   # aggregate from 1m
     "30m": "ohlcv-1m",   # aggregate from 1m
-    "1H":  "ohlcv-1h",
-    "4H":  "ohlcv-1h",   # aggregate from 1h
-    "1D":  "ohlcv-1d",
-    "1W":  "ohlcv-1d",   # fetch daily, resample to weekly in post-processing
+    "1H":  "ohlcv-1m",   # aggregate 60x from 1m
+    "4H":  "ohlcv-1m",   # aggregate 240x from 1m
+    "1D":  "ohlcv-1m",   # aggregate all bars per day from 1m
+    "1W":  "ohlcv-1m",   # aggregate all bars per week from 1m
 }
 
 # How many source bars to aggregate into one target bar
 AGGREGATE_FACTOR = {
     "1m": 1, "5m": 5, "15m": 15, "30m": 30,
-    "1H": 1, "4H": 4, "1D": 1, "1W": 1,  # 1W uses pandas resample, not row-based agg
+    "1H": 60, "4H": 240, "1D": 1, "1W": 1,  # 1D/1W use pandas resample
 }
 
 
@@ -217,6 +218,20 @@ def get_databento_ohlcv(symbol: str, start_date: str, end_date: str, timeframe: 
         # Aggregate if needed (e.g., 1m -> 5m, 1h -> 4h)
         if agg_factor > 1:
             df = _aggregate_ohlcv(df, agg_factor)
+
+        # Daily resampling: group 1m bars into daily bars
+        if timeframe == "1D" and "Date" in df.columns:
+            df["_dt"] = pd.to_datetime(df["Date"], errors="coerce")
+            df = df.set_index("_dt")
+            daily = df.resample("D").agg({
+                "Open": "first",
+                "High": "max",
+                "Low": "min",
+                "Close": "last",
+                "Volume": "sum",
+            }).dropna()
+            daily["Date"] = daily.index.strftime("%Y-%m-%d")
+            df = daily.reset_index(drop=True)
 
         # Weekly resampling: group daily bars into weekly bars
         if timeframe == "1W" and "Date" in df.columns:

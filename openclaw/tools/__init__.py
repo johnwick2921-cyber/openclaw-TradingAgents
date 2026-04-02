@@ -328,7 +328,9 @@ _EXTRA_TF_INDICATORS = {
     "5m": ["displacement_candle"],
 }
 
-_JADECAP_TIMEFRAMES = ["5m", "15m", "1H", "4H", "1D"]
+# Only fetch the 2 most critical timeframes — 15m (entry) and 1H (structure)
+# The 5-step process uses 4H/Daily for HTF bias but those come from get_stock_data
+_JADECAP_TIMEFRAMES = ["15m", "1H"]
 
 
 def _get_ict_all_timeframes(symbol: str, date: str) -> str:
