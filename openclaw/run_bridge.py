@@ -92,21 +92,63 @@ def _build_system_prompt(agent_name: str) -> str:
 
     These are tailored per agent — not shared workspace files.
     """
-    if agent_name in _system_prompt_cache:
-        return _system_prompt_cache[agent_name]
+    # Don't cache — config values change between runs
+    # Each run reads fresh values from trading-config.json
 
     workspace = os.environ.get("OPENCLAW_WORKSPACE", "/home/hoang/.openclaw/workspace")
     agent_dir = os.path.join(workspace, "agents", "trading", agent_name)
 
-    # Read this agent's 7 core files
+    # Read this agent's core files
     identity = _read_file(agent_dir, "IDENTITY.md")
     soul = _read_file(agent_dir, "SOUL.md")
     user = _read_file(agent_dir, "USER.md")
     agents_md = _read_file(agent_dir, "AGENTS.md")
     tools = _read_file(agent_dir, "TOOLS.md")
     heartbeat = _read_file(agent_dir, "HEARTBEAT.md")
-    trading = _read_file(agent_dir, "TRADING.md")
+    trading_static = _read_file(agent_dir, "TRADING.md")
     memory_md = _read_file(agent_dir, "MEMORY.md")
+
+    # Build LIVE trading rules from trading-config.json (not hardcoded)
+    trading = trading_static + "\n"
+    try:
+        import json as _json
+        cfg_path = os.path.join(workspace, "trading-config.json")
+        with open(cfg_path) as _f:
+            cfg = _json.load(_f)
+
+        risk = cfg.get("risk", {})
+        bias = cfg.get("bias", {})
+        analysis = cfg.get("analysis", {})
+
+        trading += "\n## LIVE Risk Parameters (from trading-config.json)\n"
+        trading += f"- Max Loss Per Trade: ${risk.get('max_loss_per_trade', 500)}\n"
+        trading += f"- Daily Loss Limit: ${risk.get('daily_loss_limit', 1000)}\n"
+        trading += f"- Max Drawdown: {risk.get('max_drawdown_pct', 5)}%\n"
+        trading += f"- Max Consecutive Losses: {risk.get('max_consecutive_losses', 3)}\n"
+        trading += f"- Min Risk/Reward: {risk.get('min_risk_reward', 3)}:1\n"
+
+        trading += f"\n## LIVE Strategy\n"
+        trading += f"- Strategy: {cfg.get('strategy', 'stocks')}\n"
+        trading += f"- Analysts: {analysis.get('analysts', [])}\n"
+        trading += f"- Debate Rounds: {analysis.get('max_debate_rounds', 1)}\n"
+        trading += f"- Risk Rounds: {analysis.get('max_risk_discuss_rounds', 1)}\n"
+
+        trading += f"\n## LIVE Bias\n"
+        trading += f"- Direction: {bias.get('direction', 'neutral')}\n"
+        trading += f"- Confidence: {bias.get('confidence', 'medium')}\n"
+        if bias.get("reason"):
+            trading += f"- Reason: {bias['reason']}\n"
+
+        # JadeCap-specific (only if strategy is jadecap)
+        if cfg.get("strategy") == "jadecap":
+            jc = cfg.get("jadecap", {})
+            trading += f"\n## LIVE JadeCap Settings\n"
+            trading += f"- Prop Firm: {jc.get('prop_firm', 'apex')}\n"
+            trading += f"- Hard Close: {jc.get('hard_close_time', '15:45')} ET\n"
+            trading += f"- ATR Stop Multiplier: {jc.get('atr_stop_multiplier', 1.5)}x\n"
+            trading += f"- T1 Close: {int(jc.get('t1_close_pct', 0.5) * 100)}%\n"
+    except Exception:
+        pass
 
     # Fallback to workspace root if agent dir files don't exist yet
     if not identity:
@@ -139,9 +181,7 @@ def _build_system_prompt(agent_name: str) -> str:
     if memory_md:
         parts.append(memory_md)
 
-    result = "\n".join(parts)
-    _system_prompt_cache[agent_name] = result
-    return result
+    return "\n".join(parts)
 
 
 def openclaw_dispatch(agent_name: str, prompt: str, model: str) -> str:
