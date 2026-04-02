@@ -52,17 +52,34 @@ class RunEngine:
         self._running = False
 
         self.memories = {
-            "bull_memory": FinancialSituationMemory("bull_memory"),
-            "bear_memory": FinancialSituationMemory("bear_memory"),
-            "trader_memory": FinancialSituationMemory("trader_memory"),
-            "invest_judge_memory": FinancialSituationMemory("invest_judge_memory"),
-            "portfolio_manager_memory": FinancialSituationMemory("portfolio_manager_memory"),
+            "market-analyst": FinancialSituationMemory("market-analyst"),
+            "news-analyst": FinancialSituationMemory("news-analyst"),
+            "social-analyst": FinancialSituationMemory("social-analyst"),
+            "fundamentals-analyst": FinancialSituationMemory("fundamentals-analyst"),
+            "bull-researcher": FinancialSituationMemory("bull-researcher"),
+            "bear-researcher": FinancialSituationMemory("bear-researcher"),
+            "research-manager": FinancialSituationMemory("research-manager"),
+            "trader": FinancialSituationMemory("trader"),
+            "aggressive-risk": FinancialSituationMemory("aggressive-risk"),
+            "conservative-risk": FinancialSituationMemory("conservative-risk"),
+            "neutral-risk": FinancialSituationMemory("neutral-risk"),
+            "portfolio-manager": FinancialSituationMemory("portfolio-manager"),
         }
 
         db_path = self._resolve_path(self.config["paths"]["database"])
         if os.path.exists(db_path):
             from openclaw.memory_persistence import hydrate_memories
             hydrate_memories(self.memories, db_path)
+
+        # Clean stub entries from dry runs
+        if os.path.exists(db_path):
+            try:
+                from openclaw.database import get_db
+                with get_db(db_path) as conn:
+                    conn.execute("DELETE FROM memories WHERE situation LIKE '%Stub response%'")
+                    conn.commit()
+            except Exception:
+                pass
 
     def _resolve_path(self, p: str) -> str:
         """Resolve a path relative to the workspace root."""
@@ -290,7 +307,7 @@ class RunEngine:
             history=debate["history"],
             bull_history=debate["bull_history"],
             bear_history=debate["bear_history"],
-            past_memory_str=self._get_memory_context("invest_judge_memory", ticker, date),
+            past_memory_str=self._get_memory_context("research-manager", ticker, date),
         )
         fm = self._parse_frontmatter(os.path.join(agents_dir, "research-manager", "PROMPT.md"))
         model = get_model_for_agent(self.config, "research-manager", fm.get("tier", "deep") or "deep")
@@ -310,7 +327,7 @@ class RunEngine:
             news_report=reports.get("news_report", ""),
             fundamentals_report=reports.get("fundamentals_report", ""),
             investment_plan=investment_plan,
-            past_memory_str=self._get_memory_context("trader_memory", ticker, date),
+            past_memory_str=self._get_memory_context("trader", ticker, date),
         )
         fm = self._parse_frontmatter(os.path.join(agents_dir, "trader", "PROMPT.md"))
         model = get_model_for_agent(self.config, "trader", fm.get("tier", "quick") or "quick")
@@ -376,7 +393,7 @@ class RunEngine:
             aggressive_history=risk_debate["aggressive_history"],
             conservative_history=risk_debate["conservative_history"],
             neutral_history=risk_debate["neutral_history"],
-            past_memory_str=self._get_memory_context("portfolio_manager_memory", ticker, date),
+            past_memory_str=self._get_memory_context("portfolio-manager", ticker, date),
         )
         fm = self._parse_frontmatter(os.path.join(agents_dir, "portfolio-manager", "PROMPT.md"))
         model = get_model_for_agent(self.config, "portfolio-manager", fm.get("tier", "deep") or "deep")
@@ -553,6 +570,11 @@ class RunEngine:
             for tool_name, result in tool_data.items():
                 data_sections += f"\n--- {tool_name} ---\n{result}\n"
 
+        # Inject agent's past memory
+        memory_str = self._get_memory_context(agent_name, ticker, date)
+        if memory_str:
+            data_sections += f"\n\n=== PAST ANALYSIS MEMORY ===\n{memory_str}\n"
+
         user_bias = self._get_user_bias_context()
 
         return f"""Analyze {ticker} for trade date {date}.
@@ -570,8 +592,7 @@ Trade Date: {date}
         opponent_history = debate["bear_history"] if side == "bull" else debate["bull_history"]
         reports = reports or {}
         frontmatter = self._parse_frontmatter(md_path)
-        memory_key = "memory_jadecap" if self.config["strategy"] == "jadecap" else "memory"
-        memory_name = frontmatter.get(memory_key) or ("bull_memory" if side == "bull" else "bear_memory")
+        memory_name = agent_name  # Each agent has its own memory store now
         past_memory_str = self._get_memory_context(memory_name, ticker, date)
         context = {
             "ticker": ticker,
@@ -613,6 +634,11 @@ Opponent's Last Argument:
         base_context = context.copy()
         base_context["user_bias_context"] = self._get_user_bias_context()
         base_context["confluence_context"] = self._get_confluence_context()
+        base_context["past_memory_str"] = self._get_memory_context(
+            agent_name,
+            str(context.get("ticker") or context.get("company_name") or ""),
+            str(context.get("date") or context.get("current_date") or ""),
+        )
         if strategy == "jadecap":
             ticker = context.get("ticker") or context.get("company_name") or ""
             current_date = context.get("date") or context.get("current_date") or ""
