@@ -2,7 +2,7 @@
 
 ## What This Is
 
-**OpenClaw** is the main project — a self-evolving AI agent framework. It gives AI assistants persistent identity, memory, personality, and behavioral protocols across sessions. The agent wakes up fresh each time and uses these files as its continuity.
+**OpenClaw** is the main project — a self-evolving AI agent framework with an integrated trading analysis pipeline. It gives AI assistants persistent identity, memory, personality, and behavioral protocols across sessions. The agent wakes up fresh each time and uses these files as its continuity.
 
 ## OpenClaw Framework Files
 
@@ -12,10 +12,10 @@
 | `IDENTITY.md` | Name, creature type, vibe, emoji, avatar |
 | `USER.md` | Profile of the human being helped |
 | `AGENTS.md` | Session startup protocol, memory system, heartbeats, group chat rules, red lines |
-| `BOOTSTRAP.md` | First-run onboarding — deleted after initial setup |
 | `TOOLS.md` | Local environment notes (cameras, SSH, TTS, device names) |
 | `HEARTBEAT.md` | Periodic task checklist for proactive background work |
 | `TRADING.md` | Trading control panel — bias, watchlist, strategy, risk, status |
+| `MEMORY.md` | Curated long-term memory (main session only) |
 | `.openclaw/` | Internal state (workspace-state.json) |
 
 ## Key Concepts
@@ -27,20 +27,22 @@
 - **Boundaries**: No data exfiltration, `trash` over `rm`, ask before external actions
 - **Identity evolution**: Agent fills in IDENTITY.md during first conversation, evolves SOUL.md over time
 
-## Merge: TradingAgents → OpenClaw (COMPLETE)
+## TradingAgents Merge (COMPLETE)
+
+The `TradingAgents/` directory has been fully merged into `openclaw/` and deleted. All trading functionality now lives in the `openclaw/` Python package.
 
 **Full plan:** `docs/superpowers/plans/2026-03-27-openclaw-tradingagents-merge.md`
 **Tag:** `v0.1.0-merge`
 
-### Architecture Decisions (locked in)
+### Architecture
 
-- **OpenClaw is MAIN.** TradingAgents dissolves into `openclaw/` Python package. The `TradingAgents/` directory will be FULLY DELETED after merge.
-- **Full subagent architecture.** No LangGraph. Each of the 12 trading agents becomes an AI-agnostic `.md` file in `agents/trading/`. Any AI can execute them.
-- **Zero LangChain.** All `@tool` decorators removed from tool files. Plain Python functions. All langchain/langgraph dependencies deleted from pyproject.toml.
-- **`dispatch_fn(agent_name, prompt, model) -> str`** is the critical hook. The RunEngine orchestrates the pipeline but does NOT call LLMs directly. The caller provides their own AI dispatch mechanism (Claude Code Agent tool, direct API, etc.).
+- **Full subagent architecture.** No LangGraph, no LangChain. Zero langchain/langgraph dependencies.
+- Each of the 12 trading agents is a **subdirectory** in `agents/trading/{name}/` with 9 OpenClaw files (SOUL.md, IDENTITY.md, USER.md, AGENTS.md, TOOLS.md, HEARTBEAT.md, TRADING.md, MEMORY.md, PROMPT.md). Each agent gets the full OpenClaw context plus role-specific additions.
+- **`dispatch_fn(agent_name, prompt, model) -> str`** is the critical hook. The RunEngine orchestrates the pipeline but does NOT call LLMs directly. The caller provides their own AI dispatch mechanism.
 - **`dispatch_parallel_fn`** for Tier 1 analysts (4 at once). Everything else is sequential — pipeline order enforced.
+- All tool functions are plain Python (no `@tool` decorators), merged into `openclaw/tools/__init__.py`.
 
-### Pipeline (preserved from original TradingAgents)
+### Pipeline
 
 ```
 Tier 1: 4 Analysts → PARALLEL (market, social, news, fundamentals)
@@ -51,14 +53,14 @@ Tier 4: Portfolio Manager → FINAL SIGNAL (BUY/OVERWEIGHT/HOLD/UNDERWEIGHT/SELL
 
 ### Config
 
-- **Single source:** `trading-config.json` (replaces default_config.py, jadecap_config.py, WebUI SQLite settings)
-- **Schema defaults** in `openclaw/config.py` — user only specifies overrides
+- **Schema defaults** in `openclaw/config.py` — auto-loads `trading-config.json` on first access if present
 - **Per-agent model:** `llm.per_agent.bull-researcher: "claude-sonnet-4-6"` overrides the default model for that agent
 - **Strategies:** `"default"` (stocks, 4 analysts) or `"jadecap"` (ICT futures, 2 analysts, 23 indicators)
+- **JadeCap config:** `openclaw/jadecap_config.py` — full ICT strategy definitions, indicators, playbooks
 
 ### Market Hours
 
-- All times in **exchange server time (US/Eastern)**, NOT machine local time
+- All timestamps use **server UTC** — no local machine dependency
 - Stocks: 9:30 AM - 4:00 PM ET
 - Futures: 6:00 PM - 5:00 PM ET (nearly 24h, Sunday open to Friday close)
 - Config `market_hours.use: "auto"` picks based on strategy (default=stock, jadecap=futures)
@@ -66,10 +68,10 @@ Tier 4: Portfolio Manager → FINAL SIGNAL (BUY/OVERWEIGHT/HOLD/UNDERWEIGHT/SELL
 
 ### Memory
 
-- **BM25** (`openclaw/memory.py`) for runtime retrieval — 5 stores (bull, bear, trader, judge, portfolio)
+- **BM25** (`openclaw/memory.py`) for runtime retrieval — **12 stores** (one per agent)
 - **SQLite** (`trading.db`) for persistence — memories survive restarts
-- **Markdown** (`memory/YYYY-MM-DD.md`) for OpenClaw session context — human-readable summaries
-- **Outcome tracking** — post-session: fetch actual close price, compare to signal, store reflection
+- **Per-agent MEMORY.md** — each agent subdirectory has its own `MEMORY.md` with role-specific lessons
+- **Outcome tracking** — post-run: fetch actual close price, compare to signal, store reflection, write lessons
 - **No lost work** — partial state saved to SQLite after each pipeline tier completes
 
 ### Error Handling
@@ -84,68 +86,74 @@ Tier 4: Portfolio Manager → FINAL SIGNAL (BUY/OVERWEIGHT/HOLD/UNDERWEIGHT/SELL
 - SQLite WAL mode for concurrent writes.
 - `halt()` blocks NEW runs, does not kill running ones.
 
-### File Structure After Merge
+### File Structure
 
 ```
-TRADING.md             ← Trading control panel (bias, watchlist, status)
-openclaw/              ← THE Python package (everything)
-├── engine.py          ← RunEngine (dispatch_fn hook)
-├── config.py          ← trading-config.json loader + SCHEMA_DEFAULTS
-├── indicators.py      ← Unified indicator interface (stockstats + smartmoneyconcepts)
-├── tool_registry.py   ← Dynamic tool registry (register/call by name)
-├── memory.py          ← BM25 financial situation memory
-├── database.py        ← SQLite schema (runs, reports, debates, memories, outcomes)
+TRADING.md                ← Trading control panel (bias, watchlist, status)
+openclaw/                 ← THE Python package (everything)
+├── engine.py             ← RunEngine (dispatch_fn hook)
+├── config.py             ← Config loader + SCHEMA_DEFAULTS (auto-loads trading-config.json)
+├── indicators.py         ← Unified indicator interface (stockstats + smartmoneyconcepts)
+├── jadecap_config.py     ← Full JadeCap/ICT strategy configuration
+├── memory.py             ← BM25 financial situation memory (12 stores)
 ├── memory_persistence.py ← BM25 ↔ SQLite sync
-├── heartbeat.py       ← market phase detection
-├── callbacks.py       ← RunCallback protocol (Print, Collector, FileMemory)
-├── dataflows/         ← data vendor integrations (15 files)
-└── tools/             ← plain Python tool functions (5 files, auto-registered)
+├── database.py           ← SQLite schema (runs, reports, debates, memories, outcomes)
+├── agent_states.py       ← Agent state management during pipeline runs
+├── run_bridge.py         ← Bridge between RunEngine and Claude Code dispatch
+├── heartbeat.py          ← Market phase detection
+├── callbacks.py          ← RunCallback protocol (Print, Collector, FileMemory)
+├── dataflows/            ← Data vendor integrations (yfinance, Alpha Vantage, Databento)
+└── tools/                ← Plain Python tool functions (merged into __init__.py)
 
-agents/trading/        ← 12 subagent .md definitions
-dashboard/terminal/    ← Rich monitor + analysis viewer
-dashboard/web/         ← React + FastAPI web dashboard
+agents/trading/           ← 12 subagent directories, each with 9 OpenClaw files
+├── market-analyst/       ← SOUL.md, IDENTITY.md, USER.md, AGENTS.md, TOOLS.md,
+├── social-analyst/          HEARTBEAT.md, TRADING.md, MEMORY.md, PROMPT.md
+├── news-analyst/
+├── fundamentals-analyst/
+├── bull-researcher/
+├── bear-researcher/
+├── research-manager/
+├── trader/
+├── aggressive-risk/
+├── conservative-risk/
+├── neutral-risk/
+└── portfolio-manager/
+
+dashboard/terminal/       ← Rich terminal monitor + analysis viewer
 ```
 
-### Key Dependencies (after merge)
+### Key Dependencies
 
-Core: `pandas`, `yfinance`, `stockstats`, `rank-bm25`, `requests`, `aiosqlite`, `rich`, `python-dotenv`
-Optional (webui): `fastapi`, `uvicorn`, `websockets`, `smartmoneyconcepts`, `databento`
+Core: `pandas`, `yfinance`, `stockstats`, `rank-bm25`, `requests`, `rich`, `python-dotenv`
+Optional ICT: `smartmoneyconcepts`, `databento`
+Optional web: `websockets`
+Dev: `pytest`
 **ZERO langchain/langgraph**
 
-### 9 Phases (see full plan for detail)
+### Data Flow
 
-1. Bug fixes + @tool removal
-2. Config system (trading-config.json)
-3. Agent .md files (12 subagent definitions with verbatim prompts)
-4. RunEngine (dispatch_fn, parallel Tier 1, debate loops, error recovery)
-5. Memory + outcomes (SQLite, BM25 persistence, outcome tracking)
-6. Dashboard (Rich terminal + React WebUI migration)
-7. OpenClaw integration (TOOLS.md, HEARTBEAT.md, AGENTS.md, SOUL.md, trading-integrator.md)
-8. Cleanup (move to openclaw/, delete TradingAgents/ entirely)
-9. Full review + test (code-reviewer agent, regression, all tests pass)
-
-Each phase has a **verification gate** — must pass before proceeding to next phase.
+- **OHLCV data**: yfinance for all timeframes (fast); Databento for live price only
+- **Indicators**: stockstats for standard TA; smartmoneyconcepts for ICT (FVG, OB, BOS, etc.)
+- **News/social**: Alpha Vantage news API + Brave Search pre-fetch for news + social agents
+- **Fundamentals**: Alpha Vantage fundamentals API
 
 ### Gotchas for Future Sessions
 
 - `dataflows/config.py` has a thread-safe singleton (`get_config()`/`set_config()`) — RunEngine must call `set_config()` at start of `run()` to bridge new config into old dataflow code
-- `dataflows/interface.py` `route_to_vendor()` has a fallback chain — catches ALL exceptions now (was only AlphaVantageRateLimitError)
-- JadeCap prompts use runtime variables (`{bull_req}`, `{hard_rules_str}`, `{kz_str}`, etc.) — RunEngine must inject these from jadecap config section
-- `fundamentals_analyst.py` has a bug: system_message is a tuple `(string,)` — extract the string when creating .md file
-- Agent .md files have YAML frontmatter — `model: null` means use config default, set specific model ID to override
-- `tier: deep` in frontmatter = use `llm.deep_think` model (research-manager, portfolio-manager)
-- BOOTSTRAP.md still exists — merge doesn't trigger it, leave for OpenClaw lifecycle
+- `dataflows/interface.py` `route_to_vendor()` has a fallback chain — catches ALL exceptions
+- JadeCap prompts use runtime variables (`{bull_req}`, `{hard_rules_str}`, `{kz_str}`, etc.) — RunEngine injects these from jadecap config section
+- Agent subdirectories have 9 files each — core files are strategy-neutral, strategy details live in PROMPT.md only
+- User bias score is capped at ±2 — pre-session gut feel shouldn't dominate
+- Confluence strength thresholds: ±2 is moderate (not weak)
+- Databento OHLCV uses 12s prefetch; live price uses Databento Live API
+- Smart dispatch routing: only news + social agents use Brave web search tools
+- Parallel tool prefetch runs at pipeline start for all data-gathering tools
 
 ---
-
-## Subprojects
-
-- **TradingAgents/** — **DEPRECATED. Being merged into OpenClaw.** See merge plan above. After merge, this directory will be deleted.
 
 ## Key Rules
 
 - OpenClaw files are the agent's persistent self — update carefully, tell the user if changing SOUL.md
-- BOOTSTRAP.md is meant to be deleted after first onboarding conversation
 - Write things down — "mental notes" don't survive session restarts, files do
 - Private things stay private. Period.
 - Be helpful without being annoying — quality over quantity in interactions
