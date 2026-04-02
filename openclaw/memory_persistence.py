@@ -14,6 +14,24 @@ from openclaw.database import get_db
 
 logger = logging.getLogger(__name__)
 
+# Map old memory store names to new agent names
+_NAME_MAP = {
+    "bull_memory": "bull-researcher",
+    "bear_memory": "bear-researcher",
+    "trader_memory": "trader",
+    "invest_judge_memory": "research-manager",
+    "portfolio_manager_memory": "portfolio-manager",
+    "bull": "bull-researcher",
+    "bear": "bear-researcher",
+    "invest_judge": "research-manager",
+    "portfolio_manager": "portfolio-manager",
+}
+
+
+def _normalize_agent_name(name: str) -> str:
+    """Normalize old memory store names to current agent names."""
+    return _NAME_MAP.get(name, name)
+
 
 def persist_memories(
     memories_dict: Dict[str, FinancialSituationMemory],
@@ -37,7 +55,8 @@ def persist_memories(
     inserted = 0
 
     with get_db(db_path) as conn:
-        for agent_name, mem in memories_dict.items():
+        for store_key, mem in memories_dict.items():
+            agent_name = _normalize_agent_name(store_key)
             # Fetch existing (situation, recommendation) pairs for this agent
             cursor = conn.execute(
                 "SELECT situation, recommendation FROM memories WHERE agent_name = ?",
@@ -85,7 +104,8 @@ def hydrate_memories(
     total = 0
 
     with get_db(db_path) as conn:
-        for agent_name, mem in memories_dict.items():
+        for store_key, mem in memories_dict.items():
+            agent_name = _normalize_agent_name(store_key)
             mem.clear()
 
             cursor = conn.execute(
