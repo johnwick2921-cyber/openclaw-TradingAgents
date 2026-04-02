@@ -43,7 +43,7 @@ def test_get_fundamentals_is_plain_function():
 
 def test_registry_has_default_tools():
     """All default strategy tools should be auto-registered on import."""
-    from openclaw.tool_registry import registry
+    from openclaw.tools import registry
     import openclaw.tools  # triggers registration
 
     expected = [
@@ -57,7 +57,7 @@ def test_registry_has_default_tools():
 
 def test_registry_call_returns_string():
     """Registered tool should be callable and return a string."""
-    from openclaw.tool_registry import ToolRegistry
+    from openclaw.tools import ToolRegistry
 
     reg = ToolRegistry()
     reg.register(
@@ -73,7 +73,7 @@ def test_registry_call_returns_string():
 
 def test_registry_call_many():
     """call_many should return results for all registered tools."""
-    from openclaw.tool_registry import ToolRegistry
+    from openclaw.tools import ToolRegistry
 
     reg = ToolRegistry()
     reg.register("tool_a", fn=lambda: "A", param_builder=lambda _: {}, description="A")
@@ -85,7 +85,7 @@ def test_registry_call_many():
 
 def test_registry_call_many_handles_missing():
     """call_many should skip unregistered tools gracefully."""
-    from openclaw.tool_registry import ToolRegistry
+    from openclaw.tools import ToolRegistry
 
     reg = ToolRegistry()
     reg.register("tool_a", fn=lambda: "A", param_builder=lambda _: {}, description="A")
@@ -97,7 +97,7 @@ def test_registry_call_many_handles_missing():
 
 def test_registry_call_many_handles_errors():
     """call_many should catch tool errors and return error string."""
-    from openclaw.tool_registry import ToolRegistry
+    from openclaw.tools import ToolRegistry
 
     def failing():
         raise ValueError("API down")
@@ -112,7 +112,7 @@ def test_registry_call_many_handles_errors():
 
 def test_registry_describe_all():
     """describe_all should list all tools with descriptions."""
-    from openclaw.tool_registry import ToolRegistry
+    from openclaw.tools import ToolRegistry
 
     reg = ToolRegistry()
     reg.register("tool_x", fn=lambda: "", param_builder=lambda _: {}, description="Does X", category="test")
@@ -125,7 +125,7 @@ def test_registry_describe_all():
 
 def test_registry_list_by_category():
     """list_by_category should filter tools."""
-    from openclaw.tool_registry import registry
+    from openclaw.tools import registry
     import openclaw.tools
 
     stock_tools = registry.list_by_category("stock")

@@ -807,7 +807,7 @@ Opponent's Last Argument:
         if not tool_names:
             return {}
         import openclaw.tools
-        from openclaw.tool_registry import registry
+        from openclaw.tools import registry
         return registry.call_many(tool_names, ticker, date, self.config)
 
     def _get_memory_context(self, memory_name: str, ticker: str, date: str) -> str:

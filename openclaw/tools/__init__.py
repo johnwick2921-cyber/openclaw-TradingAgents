@@ -1,21 +1,110 @@
 """Trading data tools — plain Python functions (no LangChain).
 
-All tool functions and registry registrations live in this single file.
-Functions route to the configured data vendor via openclaw.dataflows.interface.
+All tool functions, the ToolRegistry class, and registry registrations
+live in this single file. Functions route to the configured data vendor
+via openclaw.dataflows.interface.
 """
 
 import json
 import logging
 import os
-from typing import Annotated
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timedelta
+from typing import Annotated, Any, Callable, Dict, List, Optional
 
 import requests
 
 from openclaw.dataflows.interface import route_to_vendor
-from openclaw.tool_registry import registry
 from openclaw.indicators import get_indicator, get_indicators_batch, fetch_live_price
 
 logger = logging.getLogger(__name__)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Tool Registry
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _build_context(ticker: str, date: str, config: Optional[dict] = None) -> dict:
+    """Build standard context dict from ticker + date."""
+    date_obj = datetime.strptime(date, "%Y-%m-%d")
+    return {
+        "ticker": ticker,
+        "date": date,
+        "start_7d": (date_obj - timedelta(days=7)).strftime("%Y-%m-%d"),
+        "start_30d": (date_obj - timedelta(days=30)).strftime("%Y-%m-%d"),
+        "start_90d": (date_obj - timedelta(days=90)).strftime("%Y-%m-%d"),
+        "config": config or {},
+    }
+
+
+class ToolRegistry:
+    """Central registry for all callable tools in the trading pipeline."""
+
+    def __init__(self):
+        self._tools: Dict[str, dict] = {}
+
+    def register(self, name: str, fn: Callable, param_builder: Callable[[dict], dict],
+                 description: str = "", category: str = "general") -> None:
+        self._tools[name] = {
+            "fn": fn, "param_builder": param_builder,
+            "description": description, "category": category,
+        }
+
+    def call(self, name: str, ticker: str, date: str, config: Optional[dict] = None) -> str:
+        if name not in self._tools:
+            raise KeyError(f"Tool '{name}' not registered. Available: {list(self._tools.keys())}")
+        tool = self._tools[name]
+        ctx = _build_context(ticker, date, config)
+        kwargs = tool["param_builder"](ctx)
+        return tool["fn"](**kwargs)
+
+    def call_many(self, names: List[str], ticker: str, date: str,
+                  config: Optional[dict] = None) -> Dict[str, str]:
+        results = {}
+        def _call_one(name: str) -> tuple:
+            try:
+                return name, self.call(name, ticker, date, config)
+            except KeyError:
+                logger.warning("Tool '%s' not registered, skipping", name)
+                return name, None
+            except Exception as exc:
+                logger.warning("Tool '%s' failed for %s: %s", name, ticker, exc)
+                return name, f"[Data unavailable: {exc}]"
+        with ThreadPoolExecutor(max_workers=min(len(names), 8)) as pool:
+            futures = {pool.submit(_call_one, n): n for n in names}
+            for future in as_completed(futures):
+                name, result = future.result()
+                if result is not None:
+                    results[name] = result
+        return results
+
+    def list_tools(self) -> List[str]:
+        return list(self._tools.keys())
+
+    def list_by_category(self, category: str) -> List[str]:
+        return [n for n, t in self._tools.items() if t["category"] == category]
+
+    def get_info(self, name: str) -> Optional[dict]:
+        tool = self._tools.get(name)
+        if not tool:
+            return None
+        return {"name": name, "description": tool["description"], "category": tool["category"]}
+
+    def describe_all(self) -> str:
+        lines = []
+        for name, tool in sorted(self._tools.items()):
+            lines.append(f"- {name} [{tool['category']}]: {tool['description']}")
+        return "\n".join(lines)
+
+    def __contains__(self, name: str) -> bool:
+        return name in self._tools
+
+    def __len__(self) -> int:
+        return len(self._tools)
+
+
+# Module-level singleton
+registry = ToolRegistry()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
