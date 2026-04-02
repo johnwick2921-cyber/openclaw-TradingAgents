@@ -20,22 +20,22 @@ def test_no_langchain_in_kept_utils():
 
 def test_get_stock_data_is_plain_function():
     """get_stock_data should be a plain function, not a LangChain StructuredTool."""
-    from openclaw.tools.core_stock_tools import get_stock_data
+    from openclaw.tools import get_stock_data
     assert type(get_stock_data).__name__ == "function", f"Expected function, got {type(get_stock_data)}"
 
 
 def test_get_indicators_is_plain_function():
-    from openclaw.tools.technical_indicators_tools import get_indicators
+    from openclaw.tools import get_indicators
     assert type(get_indicators).__name__ == "function", f"Expected function, got {type(get_indicators)}"
 
 
 def test_get_news_is_plain_function():
-    from openclaw.tools.news_data_tools import get_news
+    from openclaw.tools import get_news
     assert type(get_news).__name__ == "function", f"Expected function, got {type(get_news)}"
 
 
 def test_get_fundamentals_is_plain_function():
-    from openclaw.tools.fundamental_data_tools import get_fundamentals
+    from openclaw.tools import get_fundamentals
     assert type(get_fundamentals).__name__ == "function", f"Expected function, got {type(get_fundamentals)}"
 
 
