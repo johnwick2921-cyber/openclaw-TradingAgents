@@ -208,6 +208,7 @@ __marimo__/
 
 # OpenClaw private data
 MEMORY.md
+!agents/trading/*/MEMORY.md
 memory/
 .claude/agent-memory/
 .openclaw/

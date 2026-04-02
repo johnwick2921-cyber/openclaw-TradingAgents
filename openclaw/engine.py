@@ -208,6 +208,11 @@ class RunEngine:
             except Exception as exc:
                 logger.warning("Failed to persist memories: %s", exc)
 
+            try:
+                self._write_agent_memories(result, agents_dir)
+            except Exception as exc:
+                logger.warning("Failed to write agent memories: %s", exc)
+
             for cb in callbacks:
                 cb.on_run_complete(result)
             return result
@@ -907,6 +912,25 @@ Opponent's Last Argument:
         print(f"[PROMPT] {prompt[:200]}...")
         return f"[Stub response from {agent_name}]"
 
+    def _write_agent_memories(self, result, agents_dir: str):
+        """Write run lessons to each agent's MEMORY.md file."""
+        for agent_name, mem in self.memories.items():
+            if not mem.documents:
+                continue
+            memory_file = os.path.join(agents_dir, agent_name, "MEMORY.md")
+            if not os.path.exists(os.path.dirname(memory_file)):
+                continue
+            latest_situation = mem.documents[-1] if mem.documents else ""
+            latest_recommendation = mem.recommendations[-1] if mem.recommendations else ""
+            entry = f"\n### {result.date}: {result.ticker} → {result.signal}\n"
+            entry += f"- Situation: {latest_situation[:200]}\n"
+            entry += f"- Lesson: {latest_recommendation[:200]}\n\n"
+            try:
+                with open(memory_file, "a") as f:
+                    f.write(entry)
+            except Exception as exc:
+                logger.warning("Failed to write memory for %s: %s", agent_name, exc)
+
     def reflect(self, ticker: str, date: str, dispatch_fn=None, callbacks=None):
         import yfinance as yf
         from datetime import timedelta
@@ -954,6 +978,33 @@ Opponent's Last Argument:
                     (run_id, ticker, date, signal or "", 1 if correct is True else 0 if correct is False else None, datetime.now(timezone.utc).isoformat()),
                 )
                 conn.commit()
+
+        # Write outcome to agent MEMORY.md files
+        agents_dir = self._resolve_path(self.config["paths"]["agents_dir"])
+        outcome_text = "CORRECT" if correct is True else "WRONG" if correct is False else "N/A"
+        for agent_name in self.memories:
+            memory_file = os.path.join(agents_dir, agent_name, "MEMORY.md")
+            if os.path.exists(memory_file):
+                try:
+                    entry = f"\n### Outcome: {ticker} {date} — {outcome_text}\n"
+                    entry += f"- Signal: {signal}, Actual change: {actual_change_pct:.2f}%\n"
+                    if correct is True:
+                        entry += f"- Lesson: {signal} was correct. Reinforce this pattern.\n\n"
+                    elif correct is False:
+                        entry += f"- Lesson: {signal} was wrong. Actual moved {actual_change_pct:.2f}%. Review what was missed.\n\n"
+                    else:
+                        entry += f"- Lesson: Signal was {signal} (neutral). No directional lesson.\n\n"
+                    with open(memory_file, "a") as f:
+                        f.write(entry)
+                except Exception:
+                    pass
+
+            # Also add to BM25 for runtime retrieval
+            self.memories[agent_name].add_situations([{
+                "situation": f"Outcome: {ticker} {date}, signal={signal}, change={actual_change_pct:.2f}%",
+                "recommendation": f"Signal {signal} was {'correct' if correct else 'wrong' if correct is False else 'neutral'}. Actual change: {actual_change_pct:.2f}%.",
+            }])
+
         return {
             "ticker": ticker,
             "date": date,

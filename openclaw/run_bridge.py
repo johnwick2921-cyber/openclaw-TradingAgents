@@ -106,6 +106,7 @@ def _build_system_prompt(agent_name: str) -> str:
     tools = _read_file(agent_dir, "TOOLS.md")
     heartbeat = _read_file(agent_dir, "HEARTBEAT.md")
     trading = _read_file(agent_dir, "TRADING.md")
+    memory_md = _read_file(agent_dir, "MEMORY.md")
 
     # Fallback to workspace root if agent dir files don't exist yet
     if not identity:
@@ -135,6 +136,8 @@ def _build_system_prompt(agent_name: str) -> str:
         parts.append("")
     if trading:
         parts.append(trading)
+    if memory_md:
+        parts.append(memory_md)
 
     result = "\n".join(parts)
     _system_prompt_cache[agent_name] = result
