@@ -10,3 +10,8 @@ _(will populate after first run with outcomes)_
 - Situation: A+ score -1/10. No entry taken. Market moved +224pts bullish. TP1 would have been 19pts from being hit.
 - Lesson: A+ scoring too strict. Weight SFP + displacement + FVG stack higher vs pure rule-gates (KZ timing, premium zone). Consider 7/10 minimum instead of strict gates.
 
+
+### 2026-04-02: NQ → HOLD
+- Situation: A+ score -1/10. No entry taken. Market moved +224pts bullish. TP1 would have been 19pts from being hit.
+- Lesson: A+ scoring too strict. Weight SFP + displacement + FVG stack higher vs pure rule-gates (KZ timing, premium zone). Consider 7/10 minimum instead of strict gates.
+

@@ -936,7 +936,10 @@ Opponent's Last Argument:
         from datetime import timedelta
         callbacks = callbacks or []
         db_path = self._resolve_path(self.config["paths"]["database"])
-        stock = yf.Ticker(ticker)
+        # Add =F suffix for futures tickers
+        futures = {"NQ", "MNQ", "ES", "MES", "YM", "MYM", "RTY", "M2K", "GC", "SI", "CL"}
+        ticker_yf = f"{ticker}=F" if ticker.upper() in futures else ticker
+        stock = yf.Ticker(ticker_yf)
         date_obj = datetime.strptime(date, "%Y-%m-%d")
         end_date = (date_obj + timedelta(days=1)).strftime("%Y-%m-%d")
         hist = stock.history(start=date, end=end_date, interval="1d")
