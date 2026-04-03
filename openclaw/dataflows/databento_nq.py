@@ -10,6 +10,7 @@ import warnings
 from datetime import datetime, timedelta
 
 import pandas as pd
+import pytz
 
 # Suppress Databento degraded data quality warnings
 warnings.filterwarnings("ignore", module="databento")
@@ -219,10 +220,20 @@ def get_databento_ohlcv(symbol: str, start_date: str, end_date: str, timeframe: 
         if agg_factor > 1:
             df = _aggregate_ohlcv(df, agg_factor)
 
-        # Daily resampling: group 1m bars into daily bars
+        # Daily resampling: group 1m bars into CME trading day bars
+        # CME futures trading day: 5:00 PM ET (previous day) to 5:00 PM ET (current day)
+        # Shift timestamps by 7 hours so 5PM ET aligns with midnight for .resample("D")
         if timeframe == "1D" and "Date" in df.columns:
             df["_dt"] = pd.to_datetime(df["Date"], errors="coerce")
-            df = df.set_index("_dt")
+            # Convert UTC to ET, then shift so 5PM ET = midnight
+            et = pytz.timezone("US/Eastern") if "pytz" in dir() else None
+            if et:
+                df["_dt_et"] = df["_dt"].dt.tz_localize("UTC").dt.tz_convert(et).dt.tz_localize(None)
+            else:
+                df["_dt_et"] = df["_dt"] - pd.Timedelta(hours=5)  # rough UTC→ET
+            # Shift by 7h so 5PM ET becomes midnight → resample("D") groups correctly
+            df["_session"] = df["_dt_et"] + pd.Timedelta(hours=7)
+            df = df.set_index("_session")
             daily = df.resample("D").agg({
                 "Open": "first",
                 "High": "max",
