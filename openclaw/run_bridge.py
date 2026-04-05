@@ -331,11 +331,36 @@ def main():
 
     parser = argparse.ArgumentParser(description="Run trading analysis via RunEngine")
     parser.add_argument("--ticker", required=True, help="Ticker symbol (e.g. NVDA)")
-    parser.add_argument("--date", required=True, help="Trade date YYYY-MM-DD")
-    parser.add_argument("--progress-file", required=True, help="Path to JSON-lines progress file")
+    parser.add_argument("--date", default=None,
+                        help="Trade date YYYY-MM-DD (default: next trading day from now)")
+    parser.add_argument("--progress-file", default=None,
+                        help="Path to JSON-lines progress file (default: auto-generated)")
     parser.add_argument("--config", default=None, help="Path to trading-config.json")
     parser.add_argument("--run-id", default=None, help="Run ID (passed from gateway)")
     args = parser.parse_args()
+
+    # Auto-detect trade date if not provided
+    if args.date is None:
+        from zoneinfo import ZoneInfo
+        now_et = datetime.now(ZoneInfo("America/New_York"))
+        # If before 5 PM ET (market close) → today is the trade date
+        # If after 5 PM ET → next weekday is the trade date
+        if now_et.hour < 17:
+            trade_date = now_et.date()
+        else:
+            trade_date = now_et.date()
+            # Move to next weekday
+            from datetime import timedelta
+            trade_date += timedelta(days=1)
+            while trade_date.weekday() >= 5:  # skip Sat/Sun
+                trade_date += timedelta(days=1)
+        args.date = trade_date.strftime("%Y-%m-%d")
+        print(f"  Auto trade date: {args.date} (from {now_et.strftime('%Y-%m-%d %H:%M %Z')})")
+
+    if args.progress_file is None:
+        import uuid
+        args.progress_file = f"/tmp/run-{args.ticker}-{args.date}-{uuid.uuid4().hex[:8]}.jsonl"
+        print(f"  Progress file: {args.progress_file}")
 
     config_path = args.config or os.path.join(
         os.environ.get("OPENCLAW_WORKSPACE", "/home/hoang/.openclaw/workspace"),

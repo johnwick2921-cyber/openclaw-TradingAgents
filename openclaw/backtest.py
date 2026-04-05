@@ -862,6 +862,7 @@ def _simulate_trade(df_after_entry: pd.DataFrame, trade: dict) -> dict:
 
     # Runner: only exit on BE stop or hard close at 4:00 PM
     # JCAP: "set and forget — let it run until end of day"
+    # Runner exits at BE stop or EOD hard close. No T2 exit — EOD captures bigger moves.
     for ts, row in runner_df.iterrows():
         if direction == "long":
             if row["low"] <= be_stop:
@@ -1792,7 +1793,7 @@ def main():
     elif args.kz == "830":
         KILL_ZONES = {"AM": ("08:30", "11:30"), "PM": ("13:00", "16:00")}
     elif args.kz == "full":
-        KILL_ZONES = {"FULL": ("06:00", "16:00")}
+        KILL_ZONES = {"AM": ("06:00", "11:30"), "PM": ("13:00", "16:00")}
 
     ticker = args.ticker
 
