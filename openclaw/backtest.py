@@ -346,19 +346,88 @@ def _build_entry(direction: str, entry_price: float, entry_time, stop: float,
     return result
 
 
+def _build_trade_plan(direction: str, midnight_open: float,
+                      pdh: float, pdl: float,
+                      pre_kz_df: Optional[pd.DataFrame] = None,
+                      session_high: Optional[float] = None,
+                      session_low: Optional[float] = None) -> dict:
+    """Build trade plan at 9:00 AM BEFORE the KZ — same as pipeline does.
+
+    Maps all key levels and identifies which entry models to watch for.
+    Returns a plan dict with levels, direction, and entry zones.
+    """
+    plan = {
+        "direction": direction,
+        "midnight_open": midnight_open,
+        "pdh": pdh,
+        "pdl": pdl,
+        "key_levels_long": [],
+        "key_levels_short": [],
+        "mapped_sfp_levels": [],
+        "entry_models": ["SFP_RAID", "FVG_RETRACE", "ORDER_BLOCK", "LIQ_RAID", "BREAKER"],
+    }
+
+    # Map key levels for sweep detection
+    if pdl is not None:
+        plan["key_levels_long"].append(("PDL", pdl))
+    if pdh is not None:
+        plan["key_levels_short"].append(("PDH", pdh))
+    if session_high is not None:
+        plan["key_levels_short"].append(("Session High", session_high))
+    if session_low is not None:
+        plan["key_levels_long"].append(("Session Low", session_low))
+
+    # Equal highs/lows from pre-KZ data
+    if pre_kz_df is not None and len(pre_kz_df) > 30:
+        pre_5m = _agg(pre_kz_df, 5)
+        if len(pre_5m) >= 5:
+            for j in range(2, len(pre_5m) - 1):
+                if abs(pre_5m.iloc[j]["low"] - pre_5m.iloc[j-1]["low"]) < 2:
+                    plan["key_levels_long"].append(("Equal Low", float(pre_5m.iloc[j]["low"])))
+                if abs(pre_5m.iloc[j]["high"] - pre_5m.iloc[j-1]["high"]) < 2:
+                    plan["key_levels_short"].append(("Equal High", float(pre_5m.iloc[j]["high"])))
+
+    # Map 1H swings for SFP (prior session)
+    if pre_kz_df is not None and not pre_kz_df.empty:
+        pre_1h = _agg(pre_kz_df, 60) if len(pre_kz_df) >= 60 else pd.DataFrame()
+        if len(pre_1h) >= 3:
+            h = pre_1h["high"].values
+            l = pre_1h["low"].values
+            for j in range(1, len(pre_1h) - 1):
+                if h[j] > h[j-1] and h[j] > h[j+1]:
+                    plan["mapped_sfp_levels"].append(("swing_high", float(h[j])))
+                if l[j] < l[j-1] and l[j] < l[j+1]:
+                    plan["mapped_sfp_levels"].append(("swing_low", float(l[j])))
+
+    # Identify entry zones based on direction
+    if direction == "long":
+        # Watch for: price sweep below key_levels_long → displacement up → FVG/OB entry
+        plan["sweep_targets"] = [lvl for _, lvl in plan["key_levels_long"]]
+        plan["sfp_targets"] = [lvl for t, lvl in plan["mapped_sfp_levels"] if t == "swing_low"]
+    else:
+        plan["sweep_targets"] = [lvl for _, lvl in plan["key_levels_short"]]
+        plan["sfp_targets"] = [lvl for t, lvl in plan["mapped_sfp_levels"] if t == "swing_high"]
+
+    return plan
+
+
 def _find_entry_realtime(kz_df: pd.DataFrame, direction: str, midnight_open: float,
                          pdh: float, pdl: float,
                          pre_kz_df: Optional[pd.DataFrame] = None,
                          session_high: Optional[float] = None,
                          session_low: Optional[float] = None) -> Optional[dict]:
-    """Simulate real-time trading: walk forward candle-by-candle.
+    """Execute trade plan during KZ — walk forward candle-by-candle.
+
+    The plan (levels, direction, entry models) was built at 9:00 AM.
+    This function watches for the plan to trigger during the KZ.
 
     5 JCAP entry models checked in priority order:
       Entry 0: Daily Sweep SFP — 1H SFP of pre-mapped swing levels + LTF FVG
       Entry 1: FVG Retrace — sweep + displacement + FVG retrace
-      Entry 2: Order Block — OB retrace after displacement
-      Entry 3: Liquidity Raid (Turtle Soup) — sweep of key level + displacement + FVG
+      Entry 2: Order Block with sweep — OB retrace after displacement
+      Entry 3: Liquidity Raid (Turtle Soup) — sweep of equal level + displacement + FVG
       Entry 4: Breaker Block — violated OB becomes re-entry zone
+      Entry 5: Order Block without sweep — fallback (lowest priority)
 
     Silver Bullet rules applied in 10:00-11:00 and 14:00-15:00 windows:
       - Only FIRST FVG is valid
@@ -961,9 +1030,9 @@ def backtest_day(ticker: str, date: str, prev_df: Optional[pd.DataFrame] = None,
         day_result["skip_reason"] = "unclear_daily_bias"
         return day_result
 
-    # Try each kill zone — ONE trade per KZ, up to 2 per day (AM + PM)
-    # PM gets fresh pre-KZ analysis from the AM session (like running pipeline at 12:30)
-    # AM loss ($500) = daily cap hit = no PM. AM BE = 12:30 review = PM at full size.
+    # ── 9:00 AM: BUILD TRADE PLAN (before KZ opens) ──
+    # Same as pipeline: map levels, set direction, identify entry zones
+    # Plan is built ONCE per session (AM plan at 9:00, PM plan at 12:30)
     day_result["trades"] = []
     day_result["daily_pnl"] = 0
 
@@ -1034,6 +1103,18 @@ def backtest_day(ticker: str, date: str, prev_df: Optional[pd.DataFrame] = None,
             s_high = float(asia_london["high"].max()) if not asia_london.empty else None
             s_low = float(asia_london["low"].min()) if not asia_london.empty else None
 
+        # ── BUILD PLAN before KZ (9:00 AM for AM, 12:30 PM for PM) ──
+        trade_plan = _build_trade_plan(direction, mo, pdh, pdl,
+                                        pre_kz_df=pre_kz,
+                                        session_high=s_high, session_low=s_low)
+        day_result.setdefault("plans", []).append({
+            "kz": kz_name,
+            "direction": direction,
+            "sweep_targets": trade_plan.get("sweep_targets", []),
+            "sfp_targets": trade_plan.get("sfp_targets", []),
+        })
+
+        # ── EXECUTE PLAN during KZ — watch for planned setups to trigger ──
         entry = _find_entry_realtime(kz_df, direction, mo, pdh, pdl,
                                      pre_kz_df=pre_kz,
                                      session_high=s_high, session_low=s_low)
