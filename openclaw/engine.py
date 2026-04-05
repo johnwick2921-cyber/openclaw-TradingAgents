@@ -599,7 +599,7 @@ class RunEngine:
                     span = min(200, len(close))
                     if span < 20:
                         continue
-                    ema = close.ewm(span=span, adjust=False).mean()
+                    ema = close.ewm(span=span, adjust=True).mean()
                     ema_val = float(ema.iloc[-1])
                     price = float(close.iloc[-1])
                     above = price > ema_val
@@ -633,11 +633,15 @@ class RunEngine:
         tool_names = frontmatter.get(tools_key, [])
         tool_data = self._prefetch_tool_data(tool_names, ticker, date)
 
+        # Inject agent's past memory
+        memory_str = self._get_memory_context(agent_name, ticker, date)
+
         context = {
             "ticker": ticker,
             "current_date": date,
             "company_name": ticker,
             "instrument_context": f"Instrument: {ticker}",
+            "past_memory_str": memory_str or "No prior analysis memory available.",
         }
         if strategy == "jadecap":
             context.update(self._build_jadecap_context(ticker, date))
@@ -648,11 +652,6 @@ class RunEngine:
             data_sections = "\n\n=== PRE-FETCHED DATA ===\n"
             for tool_name, result in tool_data.items():
                 data_sections += f"\n--- {tool_name} ---\n{result}\n"
-
-        # Inject agent's past memory
-        memory_str = self._get_memory_context(agent_name, ticker, date)
-        if memory_str:
-            data_sections += f"\n\n=== PAST ANALYSIS MEMORY ===\n{memory_str}\n"
 
         user_bias = self._get_user_bias_context()
         ema200_context = self._get_ema200_context(ticker)

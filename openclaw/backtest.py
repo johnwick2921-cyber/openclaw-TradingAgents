@@ -243,9 +243,8 @@ def _daily_bias(df_daily: pd.DataFrame) -> str:
             swing_lows.append(lows[j])
 
     last = df_daily.iloc[-1]
-    prev = df_daily.iloc[-2]
 
-    # MSS check: did today break a prior swing?
+    # MSS check: did yesterday break a prior swing?
     mss_bullish = False
     mss_bearish = False
     if swing_highs:
@@ -834,9 +833,9 @@ def backtest_day(ticker: str, date: str, prev_df: Optional[pd.DataFrame] = None,
     # Daily bias — use pre-computed daily candles if available (bulk mode)
     if indicators and "1d" in indicators:
         df_daily = indicators["1d"]
-        # Get daily candles up to today
+        # Get daily candles BEFORE today (no look-ahead — can't use today's candle for bias)
         today = datetime.strptime(date, "%Y-%m-%d").date()
-        df_daily_to_today = df_daily[df_daily.index.date <= today]
+        df_daily_to_today = df_daily[df_daily.index.date < today]
         bias = _daily_bias(df_daily_to_today) if len(df_daily_to_today) >= 5 else "unclear"
     elif daily_history:
         combined = pd.concat(daily_history + [df])
@@ -1198,6 +1197,10 @@ class ApexSimulator:
             return 0
         if self.full_send:
             return self.max_contracts_mnq  # 40 MNQ every trade, no scaling down, till bust
+        # Before safety net: hard limit to max_contracts (2ct)
+        if not self.past_safety_net:
+            return min(self.base_contracts, self.max_contracts)
+        # After safety net: scale by profit, cap at max_contracts_mnq
         profit = max(0, self.balance - self.starting_balance)
         steps = int(profit / self.scaling_step)
         contracts = self.base_contracts + (steps * self.scaling_increment)
@@ -1249,11 +1252,11 @@ class ApexSimulator:
                 return 0  # Fails consistency
 
         # Payout ladder (from firm config)
-        self.payout_count += 1
+        next_payout = self.payout_count + 1  # tentative — only commit on actual cashout
         ladder = self.payout_ladder
 
-        if self.payout_count <= len(ladder):
-            max_payout = ladder[self.payout_count - 1]
+        if next_payout <= len(ladder):
+            max_payout = ladder[next_payout - 1]
         else:
             max_payout = float("inf")  # uncapped after ladder
 
@@ -1262,7 +1265,7 @@ class ApexSimulator:
         # Phase 1 (ladder payouts): firm-specific ladder
         ladder_len = len(self.payout_ladder)
         floor = self.post_ladder_floor
-        if self.payout_count <= ladder_len:
+        if next_payout <= ladder_len:
             available = self.balance - self.safety_net
             if available <= 500:
                 return 0
@@ -1292,7 +1295,8 @@ class ApexSimulator:
         if cashout_amount < 500:  # Apex minimum
             return 0
 
-        # Execute cashout
+        # Execute cashout — only now commit payout_count
+        self.payout_count = next_payout
         self.balance -= cashout_amount
         self.total_cashed_out += cashout_amount
         self.peak_balance = self.balance  # reset peak after cashout
@@ -1506,7 +1510,7 @@ def _run_backtest(ticker: str, dates: list, point_value: float, contracts: int,
 
                 trades.append(trade)
                 if not quiet:
-                    half = " (HALF)" if trade.get("half_size") else ""
+                    budget_adj = f" ({trade['size_adjusted']})" if trade.get("size_adjusted") else ""
                     model = trade.get("model", "?")
                     icon = {"WIN": "+", "LOSS": "-"}.get(result_str, "=")
                     ct_str = f" [{trade['contracts']}ct]" if scale_step > 0 else ""
@@ -1514,7 +1518,7 @@ def _run_backtest(ticker: str, dates: list, point_value: float, contracts: int,
                           f"[{model:12s}] "
                           f"entry:{trade['entry']:.0f} stop:{trade['stop']:.0f} "
                           f"target:{trade['target']:.0f} exit:{trade['exit']:.0f} "
-                          f"{result_str:5s}{half}{ct_str} ${pnl:+.0f}  (total: ${total_pnl:+.0f})")
+                          f"{result_str:5s}{budget_adj}{ct_str} ${pnl:+.0f}  (total: ${total_pnl:+.0f})")
 
             # Apex cashout check once per day (after all trades)
             if day_had_trade and apex_sim:
@@ -1777,10 +1781,6 @@ def main():
             print(f"\n  Loss Review (post-trade analysis):")
             for review, count in review_counts.most_common():
                 print(f"    {review:35s}: {count:3d}")
-            pm_after_loss = [t for t in trades_for_memory if t.get("pm_after_am_loss")]
-            if pm_after_loss:
-                pm_wins = sum(1 for t in pm_after_loss if t["result"] in ("WIN", "T1_WIN"))
-                print(f"    PM trades after AM loss:          {len(pm_after_loss)} ({pm_wins} wins)")
 
         # EMA 200 alignment stats
         ema_stats = result_for_save.get("ema200_stats", {})
