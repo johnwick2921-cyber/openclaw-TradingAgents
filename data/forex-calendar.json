@@ -1,120 +1,80 @@
 {
-  "week_start": "2026-03-30",
-  "week_end": "2026-04-03",
-  "fetched_at": "2026-04-04T20:19:34.008Z",
+  "week_start": "2026-04-06",
+  "week_end": "2026-04-10",
+  "fetched_at": "2026-04-05T17:24:12.595902",
   "filter": "US RED (high impact) only",
   "source": "nfs.faireconomy.media (ForexFactory data)",
   "events": [
     {
-      "event": "Fed Chair Powell Speaks",
-      "date": "2026-03-30",
+      "event": "ISM Services PMI",
+      "date": "2026-04-06",
       "day": "Monday",
-      "time_est": "10:30",
+      "time_est": "10:00",
+      "impact": "RED",
+      "currency": "USD",
+      "forecast": "54.8",
+      "previous": "56.1"
+    },
+    {
+      "event": "FOMC Meeting Minutes",
+      "date": "2026-04-08",
+      "day": "Wednesday",
+      "time_est": "14:00",
       "impact": "RED",
       "currency": "USD",
       "forecast": "",
       "previous": ""
     },
     {
-      "event": "JOLTS Job Openings",
-      "date": "2026-03-31",
-      "day": "Tuesday",
-      "time_est": "10:00",
-      "impact": "RED",
-      "currency": "USD",
-      "forecast": "6.89M",
-      "previous": "6.95M"
-    },
-    {
-      "event": "ADP Non-Farm Employment Change",
-      "date": "2026-04-01",
-      "day": "Wednesday",
-      "time_est": "08:15",
-      "impact": "RED",
-      "currency": "USD",
-      "forecast": "41K",
-      "previous": "63K"
-    },
-    {
-      "event": "Core Retail Sales m/m",
-      "date": "2026-04-01",
-      "day": "Wednesday",
-      "time_est": "08:30",
-      "impact": "RED",
-      "currency": "USD",
-      "forecast": "0.3%",
-      "previous": "0.0%"
-    },
-    {
-      "event": "Retail Sales m/m",
-      "date": "2026-04-01",
-      "day": "Wednesday",
-      "time_est": "08:30",
-      "impact": "RED",
-      "currency": "USD",
-      "forecast": "0.5%",
-      "previous": "-0.2%"
-    },
-    {
-      "event": "ISM Manufacturing PMI",
-      "date": "2026-04-01",
-      "day": "Wednesday",
-      "time_est": "10:00",
-      "impact": "RED",
-      "currency": "USD",
-      "forecast": "52.3",
-      "previous": "52.4"
-    },
-    {
-      "event": "President Trump Speaks",
-      "date": "2026-04-01",
-      "day": "Wednesday",
-      "time_est": "21:00",
-      "impact": "RED",
-      "currency": "USD",
-      "forecast": "",
-      "previous": ""
-    },
-    {
-      "event": "Unemployment Claims",
-      "date": "2026-04-02",
+      "event": "Core PCE Price Index m/m",
+      "date": "2026-04-09",
       "day": "Thursday",
       "time_est": "08:30",
       "impact": "RED",
       "currency": "USD",
-      "forecast": "212K",
-      "previous": "210K"
+      "forecast": "0.4%",
+      "previous": "0.4%"
     },
     {
-      "event": "Average Hourly Earnings m/m",
-      "date": "2026-04-03",
+      "event": "Final GDP q/q",
+      "date": "2026-04-09",
+      "day": "Thursday",
+      "time_est": "08:30",
+      "impact": "RED",
+      "currency": "USD",
+      "forecast": "0.7%",
+      "previous": "0.7%"
+    },
+    {
+      "event": "Core CPI m/m",
+      "date": "2026-04-10",
       "day": "Friday",
       "time_est": "08:30",
       "impact": "RED",
       "currency": "USD",
       "forecast": "0.3%",
-      "previous": "0.4%"
+      "previous": "0.2%"
     },
     {
-      "event": "Non-Farm Employment Change",
-      "date": "2026-04-03",
+      "event": "CPI m/m",
+      "date": "2026-04-10",
       "day": "Friday",
       "time_est": "08:30",
       "impact": "RED",
       "currency": "USD",
-      "forecast": "65K",
-      "previous": "-92K"
+      "forecast": "1.0%",
+      "previous": "0.3%"
     },
     {
-      "event": "Unemployment Rate",
-      "date": "2026-04-03",
+      "event": "CPI y/y",
+      "date": "2026-04-10",
       "day": "Friday",
       "time_est": "08:30",
       "impact": "RED",
       "currency": "USD",
-      "forecast": "4.4%",
-      "previous": "4.4%"
+      "forecast": "3.4%",
+      "previous": "2.4%"
     }
   ],
-  "no_entry_rule": "No entries from 1 min before to 30 min after each RED event"
+  "no_entry_rule": "Do not enter during the actual news release candle (1 min before to 1 min after). Once the candle closes, trade normally. If already in a position before news, hold \u2014 set and forget. REDUCE SIZE 50% on high-impact news days."
 }

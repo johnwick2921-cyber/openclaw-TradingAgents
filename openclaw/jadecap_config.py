@@ -1763,28 +1763,31 @@ HOLIDAY_RULES = {
 # =====================================================================
 
 TRADE_OUTPUT_FORMAT = """
-TRADE PLAN (fill in EVERY field — even for NO TRADE):
-Current Price: [REQUIRED — always show the >>> CURRENT PRICE from above, even if NO TRADE]
+TRADE PLAN (fill in EVERY field — even for HOLD, output as STANDBY PLAN):
+Current Price: [REQUIRED — always show the >>> CURRENT PRICE from above]
 Direction:    LONG / SHORT / NO TRADE
+Entry Model:  [SFP_RAID / FVG_RETRACE / ORDER_BLOCK / LIQ_RAID / BREAKER / NONE]
+Entry Score:  [4-9] — matches backtest scoring
 Entry:        [exact price or N/A if NO TRADE]
 Stop Loss:    [exact price or N/A]
-Target 1:     [price — first liquidity pool] / N/A
-Target 2:     [price — PDH or PDL] / N/A
+Target 1:     [price — first liquidity pool (close 50%, move stop to BE)] / N/A
+Target 2:     [price — PDH or PDL (runner holds to EOD or BE stop)] / N/A
 Stop Points:  [number] / N/A
 Risk:         $[amount] / $0
 Contracts:    [number] / 0
 R:R Ratio:    [number]:1 / N/A
-Kill Zone:    [which window or "Outside KZ — market OPEN, waiting for next window"]
-A+ Score:     [X/10] — [Full Size / Half Size / Marginal / NO TRADE]
+Kill Zone:    [which window or "Outside KZ — waiting for next window"]
 SFP Status:   CONFIRMED at [price] on 1H / NOT YET / NO SFP TODAY
 Draw on Liquidity: [target price] — [reason]
 NDOG Level:   [price] (50% CE) / N/A
 NWOG Level:   [price] (50% CE) / N/A (Monday only)
 Invalidation: [exact price action] / N/A
-AMD Phase:    [from calc_amd_phase — use ACTUAL session not just "Distribution"]
+AMD Phase:    [from calc_amd_phase — use ACTUAL session]
+Daily Bias:   [from PRE-COMPUTED SESSION LEVELS above]
 Checklist:    [X/14 PASS — list all 14]
 
 FINAL TRANSACTION PROPOSAL: **BUY/HOLD/SELL**
+If HOLD: label above as "STANDBY PLAN" — trader needs a plan ready if conditions change.
 """
 
 
