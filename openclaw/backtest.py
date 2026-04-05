@@ -125,9 +125,7 @@ def _precompute_indicators(df_all: pd.DataFrame) -> dict:
         return stockstats.wrap(df.rename(columns={c: c.lower() for c in df.columns}).copy())
 
     # Daily indicators
-    if len(df_d) >= 14:
-        ss_d = _ss(df_d)
-        indicators["daily_atr"] = ss_d["atr"]
+    # Daily indicators via stockstats (ATR removed — not used for ICT decisions)
         if len(df_d) >= 200:
             indicators["ema_200"] = ss_d["close_200_ema"]
         elif len(df_d) >= 50:
@@ -146,6 +144,12 @@ def _precompute_indicators(df_all: pd.DataFrame) -> dict:
 
 
 def _agg(df: pd.DataFrame, minutes: int) -> pd.DataFrame:
+    if minutes >= 1440:
+        # Daily candles: use CME session boundary (5 PM ET close, not midnight)
+        # offset="17h" shifts the daily resample to start at 5 PM = CME session close
+        return df.resample("1D", offset="17h").agg({
+            "open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"
+        }).dropna()
     return df.resample(f"{minutes}min").agg({
         "open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"
     }).dropna()
@@ -902,8 +906,11 @@ def backtest_day(ticker: str, date: str, prev_df: Optional[pd.DataFrame] = None,
     """
     # Bulk mode: slice today's data from pre-fetched dataset
     if df_all is not None:
-        day_mask = df_all.index.date == datetime.strptime(date, "%Y-%m-%d").date()
-        df = df_all[day_mask]
+        # CME futures session: 6 PM prior day → 5 PM today (not calendar day)
+        today = datetime.strptime(date, "%Y-%m-%d")
+        session_start = pd.Timestamp(today - timedelta(hours=6), tz=df_all.index.tz) if df_all.index.tz else pd.Timestamp(today - timedelta(hours=6))
+        session_end = pd.Timestamp(today + timedelta(hours=17), tz=df_all.index.tz) if df_all.index.tz else pd.Timestamp(today + timedelta(hours=17))
+        df = df_all[(df_all.index >= session_start) & (df_all.index < session_end)]
         if df.empty:
             return {"date": date, "status": "no_data", "trade": None}
     else:
