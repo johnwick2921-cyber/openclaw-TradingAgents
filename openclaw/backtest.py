@@ -1511,7 +1511,7 @@ def _scale_contracts(base_contracts: int, total_pnl: float, scale_step: float,
 def _run_backtest(ticker: str, dates: list, point_value: float, contracts: int,
                   quiet: bool = False, scale_step: float = 0,
                   compound: bool = False, starting_equity: float = 10000,
-                  apex: str = None) -> dict:
+                  apex: str = None, respawn: bool = False) -> dict:
     """Run a full backtest and return results dict.
 
     Args:
@@ -1570,7 +1570,21 @@ def _run_backtest(ticker: str, dates: list, point_value: float, contracts: int,
             if apex_sim and apex_sim.busted:
                 if not quiet:
                     print(f"  {date}  ACCOUNT BUSTED — liquidation hit")
-                break
+                if respawn:
+                    # Reset with new account (fresh eval)
+                    old_cashed = apex_sim.total_cashed_out
+                    old_cashouts = list(apex_sim.cashouts)
+                    apex_sim = ApexSimulator(firm_config=apex_sim.firm_config)
+                    apex_sim.total_cashed_out = old_cashed  # carry forward total cashed
+                    apex_sim.cashouts = old_cashouts
+                    apex_sim.cashouts.append({"payout_num": -1, "amount": 0,
+                                              "balance_after": 50000, "date": date,
+                                              "bust": True})
+                    if not quiet:
+                        print(f"  {date}  RESPAWN — new $50K account (eval #{len([c for c in old_cashouts if c.get('payout_num') == 'BUST']) + 1})")
+                    continue
+                else:
+                    break
 
             # Progressive scaling: adjust FIXED_CONTRACTS before each day
             if apex_sim:
@@ -1764,6 +1778,8 @@ def main():
                              "Options: apex, mff, lucid")
     parser.add_argument("--save-memory", action="store_true",
                         help="Save trade outcomes to BM25 agent memory")
+    parser.add_argument("--respawn", action="store_true",
+                        help="On bust: respawn with new account instead of stopping")
     parser.add_argument("--kz", default=None,
                         help="Kill zone preset: '930' (9:30-11:30), '830' (8:30-11:30), "
                              "'full' (6:00-16:00). Default: use KILL_ZONES constant")
@@ -1834,7 +1850,7 @@ def main():
 
         result_for_save = _run_backtest(ticker, dates, point_value, contracts,
                                         scale_step=args.scale, compound=args.compound,
-                                        apex=args.apex)
+                                        apex=args.apex, respawn=args.respawn)
         trades_for_memory = result_for_save["trades"]
 
         r = result_for_save
