@@ -335,6 +335,8 @@ def _build_entry(direction: str, entry_price: float, entry_time, stop: float,
     max_by_risk = max(1, int(MAX_LOSS / risk_per_contract))
     contracts = min(FIXED_CONTRACTS, max_by_risk) if FIXED_CONTRACTS else max_by_risk
 
+    # All entries same size — premium sizing tested, busts account (FVG/SFP WR too low for double)
+
     result = {
         "direction": direction,
         "entry": entry_price,
