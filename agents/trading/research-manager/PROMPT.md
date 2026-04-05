@@ -80,7 +80,7 @@ FULL DEBATE HISTORY:
 DAILY BIAS — PRICE STRUCTURE ONLY (ICT/JCAP top-down):
 Daily bias comes from PRICE STRUCTURE only — ICT/JCAP top-down:
 1. Daily chart: MSS (break of prior swing H/L), liquidity sweep (wick + close back), candle direction
-2. 4H chart: confirms daily direction — same structure checks
+2. 1H chart: confirms daily direction — 15 completed overnight candles (6PM-9AM) with full OHLC
 3. NO indicators for bias (EMA 200, ADX are reference context only, not bias determinants)
 4. If Daily and 4H agree = strong bias. If they conflict = unclear, reduce conviction.
 

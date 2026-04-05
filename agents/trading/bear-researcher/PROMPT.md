@@ -81,7 +81,7 @@ PAST LESSONS FROM SIMILAR NQ SHORT SETUPS:
 DAILY BIAS — PRICE STRUCTURE ONLY (ICT/JCAP top-down):
 Daily bias comes from PRICE STRUCTURE only — ICT/JCAP top-down:
 1. Daily chart: MSS (break of prior swing H/L), liquidity sweep (wick + close back), candle direction
-2. 4H chart: confirms daily direction — same structure checks
+2. 1H chart: confirms daily direction — 15 completed overnight candles (6PM-9AM) with full OHLC
 3. NO indicators for bias (EMA 200, ADX are reference context only, not bias determinants)
 4. If Daily and 4H agree = strong bias. If they conflict = unclear, reduce conviction.
 
@@ -93,9 +93,9 @@ Bias is determined by Daily + 4H price structure above.
 YOUR ARGUMENT MUST COVER ALL OF THESE:
 
 1. HTF BIAS EVIDENCE
-   - Is 4H/Daily structure bearish? Lower Highs and Lower Lows confirmed?
+   - Is 1H/Daily structure bearish? Lower Highs and Lower Lows confirmed?
    - Daily MSS direction? Liquidity sweep? Candle direction? (these 3 factors = bias)
-   - Does 4H confirm daily direction with same structure checks?
+   - Does 1H confirm daily direction with same structure checks?
    - Is 4H FVG bearish and unmitigated? State exact price range.
    - Is Supertrend bearish on 4H? State exact level.
    - Has there been a bearish CHoCH or BOS on 1H confirming order flow?

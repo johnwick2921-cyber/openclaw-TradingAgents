@@ -572,6 +572,132 @@ class RunEngine:
         parts.append("══════════════════════════════\n")
         return "\n".join(parts)
 
+    def _get_session_context(self, ticker: str, date: str) -> str:
+        """Pre-compute ALL session levels using indicators.py — same functions as backtest.
+
+        Uses existing indicator functions: get_prev_day_levels, get_session_levels,
+        get_midnight_open, calc_sfp_detection, calc_displacement_candle.
+        No guessing — agents get exact pre-computed values.
+        """
+        try:
+            from openclaw.indicators import (
+                _fetch_ohlcv_df, get_prev_day_levels, get_session_levels,
+                get_midnight_open, calc_sfp_detection, calc_displacement_candle,
+                get_math_indicators,
+            )
+            import pandas as pd
+
+            parts = ["\n══ PRE-COMPUTED SESSION LEVELS (exact values — use these, do not recompute) ══"]
+
+            # Fetch data via indicators engine
+            df_1m = _fetch_ohlcv_df(ticker, "1m", date)
+            df_1h = _fetch_ohlcv_df(ticker, "1H", date)
+            df_15m = _fetch_ohlcv_df(ticker, "15m", date)
+            df_daily = _fetch_ohlcv_df(ticker, "1D", date)
+
+            # ── MIDNIGHT OPEN + PDH/PDL + NDOG/NWOG ──
+            if df_1m is not None and not isinstance(df_1m, str) and not df_1m.empty:
+                parts.append(get_midnight_open(df_1m, date))
+
+            # ── PDH / PDL (from indicators.py) ──
+            if df_1h is not None and not isinstance(df_1h, str) and not df_1h.empty:
+                parts.append(get_prev_day_levels(df_1h))
+
+            # ── ASIA/LONDON SESSION LEVELS (from indicators.py) ──
+            if df_15m is not None and not isinstance(df_15m, str) and not df_15m.empty:
+                parts.append(get_session_levels(df_15m))
+
+            # ── 1H SWING LEVELS + SFP DETECTION (from indicators.py) ──
+            if df_1h is not None and not isinstance(df_1h, str) and not df_1h.empty:
+                col_map = {c: c.lower() for c in df_1h.columns}
+                df_1h_norm = df_1h.rename(columns=col_map)
+                # Only use bars before today's NY open (completed 1H candles)
+                if df_1h_norm.index.tz:
+                    cutoff = pd.Timestamp(f"{date} 09:30", tz=df_1h_norm.index.tz)
+                else:
+                    cutoff = pd.Timestamp(f"{date} 09:30")
+                prior_1h = df_1h_norm[df_1h_norm.index < cutoff].tail(30)
+
+                if len(prior_1h) >= 5:
+                    sfp_result = calc_sfp_detection(prior_1h)
+                    # Format swing levels
+                    swings = []
+                    for sh in sfp_result.get("swing_highs", [])[-5:]:
+                        swings.append(f"  Swing High: {sh['price']:.2f} ({sh.get('timestamp', '')})")
+                    for sl in sfp_result.get("swing_lows", [])[-5:]:
+                        swings.append(f"  Swing Low: {sl['price']:.2f} ({sl.get('timestamp', '')})")
+                    if swings:
+                        parts.append("\n1H Swing Levels (prior session — SFP targets):")
+                        parts.extend(swings)
+
+                    # SFP status
+                    status = sfp_result.get("status", "no_sfp")
+                    if status == "sfp_confirmed":
+                        latest = sfp_result.get("latest_sfp", {})
+                        parts.append(f"\nSFP CONFIRMED: {latest.get('direction', '?')} at {latest.get('swept_level', '?'):.2f} "
+                                     f"(penetration: {latest.get('points_beyond', 0):.1f} pts)")
+                    else:
+                        parts.append(f"\nSFP Status: {status}")
+
+            # ── DISPLACEMENT CANDLES (5m — from indicators.py) ──
+            if df_15m is not None and not isinstance(df_15m, str) and not df_15m.empty:
+                disp = calc_displacement_candle(df_15m)
+                latest = disp.get("latest")
+                if latest:
+                    parts.append(f"\nDisplacement: {latest['direction'].upper()} candle at {latest['timestamp']} "
+                                 f"(body {latest['body_pct']:.0f}% of range)")
+                else:
+                    parts.append("\nDisplacement: NONE detected on 15m")
+
+            # ── DAILY BIAS (structure only — same logic as backtest._daily_bias) ──
+            if df_daily is not None and not isinstance(df_daily, str) and not df_daily.empty:
+                df_d = df_daily.rename(columns={c: c.lower() for c in df_daily.columns})
+                today_dt = pd.Timestamp(date).date()
+                prior_daily = df_d[df_d.index.date < today_dt]
+                if len(prior_daily) >= 5:
+                    last_d = prior_daily.iloc[-1]
+                    bull_candle = last_d["close"] > last_d["open"]
+                    dh = prior_daily["high"].values
+                    dl = prior_daily["low"].values
+                    d_sh = [float(dh[j]) for j in range(1, len(prior_daily) - 1)
+                            if dh[j] > dh[j - 1] and dh[j] > dh[j + 1]]
+                    d_sl = [float(dl[j]) for j in range(1, len(prior_daily) - 1)
+                            if dl[j] < dl[j - 1] and dl[j] < dl[j + 1]]
+
+                    mss_bull = bool(d_sh and last_d["high"] > d_sh[-1] and last_d["close"] > d_sh[-1])
+                    mss_bear = bool(d_sl and last_d["low"] < d_sl[-1] and last_d["close"] < d_sl[-1])
+                    sweep_bull = bool(d_sl and last_d["low"] < d_sl[-1] and last_d["close"] > d_sl[-1])
+                    sweep_bear = bool(d_sh and last_d["high"] > d_sh[-1] and last_d["close"] < d_sh[-1])
+
+                    b = sum([mss_bull, sweep_bull, bull_candle])
+                    s = sum([mss_bear, sweep_bear, not bull_candle])
+
+                    if b >= 2:
+                        bias = "BULLISH"
+                    elif s >= 2:
+                        bias = "BEARISH"
+                    elif b == 1 and s == 0:
+                        bias = "BULLISH (weak)"
+                    elif s == 1 and b == 0:
+                        bias = "BEARISH (weak)"
+                    else:
+                        bias = "UNCLEAR"
+
+                    parts.append(f"\nDAILY BIAS: {bias}")
+                    parts.append(f"  Yesterday: {'BULLISH' if bull_candle else 'BEARISH'} close")
+                    parts.append(f"  MSS: {'bull' if mss_bull else 'bear' if mss_bear else 'none'}")
+                    parts.append(f"  Sweep: {'bull' if sweep_bull else 'bear' if sweep_bear else 'none'}")
+
+            # ── ATR (from indicators.py math indicators) ──
+            if df_daily is not None and not isinstance(df_daily, str) and not df_daily.empty:
+                parts.append(f"\n{get_math_indicators(df_daily, '1D')}")
+
+            parts.append("══════════════════════════════\n")
+            return "\n".join(parts)
+        except Exception as exc:
+            logger.warning("Failed to compute session context: %s", exc)
+            return ""
+
     def _get_ema200_context(self, ticker: str) -> str:
         """Compute EMA 200 on multiple timeframes and format as context."""
         try:
@@ -655,9 +781,11 @@ class RunEngine:
 
         user_bias = self._get_user_bias_context()
         ema200_context = self._get_ema200_context(ticker)
+        session_context = self._get_session_context(ticker, date)
 
         return f"""Analyze {ticker} for trade date {date}.
 {user_bias}
+{session_context}
 {ema200_context}
 {prompt_text}
 
