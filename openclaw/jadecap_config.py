@@ -27,7 +27,7 @@ strategy, organized into 27 sections:
  16. ENTRY_MODELS         — 6 entry models (0-5) with full rules
  17. RISK                 — Risk management parameters
  18. A_PLUS_SCORING       — Weighted 1-10 setup quality scoring
- 19. HARD_RULES           — 21 non-negotiable rules for all agents
+ 19. HARD_RULES           — 24 non-negotiable rules for all agents
  20. BULL_SETUP           — Bullish long setup criteria
  21. BEAR_SETUP           — Bearish short setup criteria
  22. CHECKLIST            — 14-item pre-trade checklist
@@ -133,31 +133,75 @@ INSTRUMENTS = {
 PROP_FIRMS = {
     "apex": {
         "name":              "Apex Trader Funding",
-        "base_risk_pct":     0.25,
-        "a_plus_risk_pct":   0.50,
-        "max_contracts_nq":  20,
-        "max_contracts_mnq": 200,
-        "trailing_drawdown": 2500,
+        "account_size":      50000,
+        "trailing_drawdown": 2000,
+        "safety_net":        52100,
         "profit_target":     3000,
-        "note": "World record $2.55M single payout by JadeCap in 56 sessions",
+        "max_contracts_nq":  4,
+        "max_contracts_mnq": 40,
+        "base_contracts_mnq": 5,
+        "scaling_step":      2500,
+        "scaling_increment": 5,
+        "payout_ladder":     [1500, 1875, 2250, 2625, 3000, 3000],
+        "post_ladder_floor": 20000,
+        "consistency_rule":  0.50,
+        "min_days_between_payouts": 8,
+        "runner_exit":       "EOD",
+        "note": "2026 rules: $50K PA, $2K trailing DD, 6-step ladder, uncapped after 6th",
+        "scaling_description": (
+            "Apex scaling: base 5 MNQ (0.5 NQ). Add 5 MNQ per $2,500 profit "
+            "(5→10→15→20→25→30→35→40). Cap: 40 MNQ (4 NQ). Sizes down if profit drops."
+        ),
+        "runner_description": (
+            "Runner holds until 4:00 PM hard close or BE stop. PDH/PDL is the draw "
+            "on liquidity (where price is heading), not an exit target. Let it run."
+        ),
     },
     "mff": {
         "name":              "My Funded Futures",
-        "base_risk_pct":     0.25,
-        "a_plus_risk_pct":   0.50,
-        "max_contracts_nq":  15,
-        "max_contracts_mnq": 150,
+        "account_size":      50000,
         "trailing_drawdown": 2000,
+        "safety_net":        52100,
         "profit_target":     2500,
+        "max_contracts_nq":  3,
+        "max_contracts_mnq": 30,
+        "base_contracts_mnq": 5,
+        "scaling_step":      2500,
+        "scaling_increment": 5,
+        "payout_ladder":     [1000, 1500, 2000, 2000, 2500, 2500],
+        "post_ladder_floor": 15000,
+        "consistency_rule":  0.50,
+        "min_days_between_payouts": 8,
+        "runner_exit":       "EOD",
+        "scaling_description": (
+            "MFF scaling: base 5 MNQ. Add 5 MNQ per $2,500 profit. Cap: 30 MNQ (3 NQ)."
+        ),
+        "runner_description": (
+            "Runner holds until 4:00 PM hard close or BE stop. Let it run."
+        ),
     },
     "lucid": {
         "name":              "Lucid Trading",
-        "base_risk_pct":     0.25,
-        "a_plus_risk_pct":   0.50,
-        "max_contracts_nq":  10,
-        "max_contracts_mnq": 100,
+        "account_size":      50000,
         "trailing_drawdown": 2000,
+        "safety_net":        52100,
         "profit_target":     2000,
+        "max_contracts_nq":  2,
+        "max_contracts_mnq": 20,
+        "base_contracts_mnq": 5,
+        "scaling_step":      2500,
+        "scaling_increment": 5,
+        "payout_ladder":     [1000, 1000, 1500, 1500, 2000, 2000],
+        "post_ladder_floor": 10000,
+        "consistency_rule":  0.50,
+        "min_days_between_payouts": 8,
+        "runner_exit":       "EOD",
+        "scaling_description": (
+            "Lucid scaling: base 5 MNQ. Add 5 MNQ per $2,500 profit. Cap: 20 MNQ (2 NQ)."
+        ),
+        "runner_description": (
+            "Runner holds until 4:00 PM hard close or BE stop. Let it run."
+        ),
     },
 }
 
@@ -613,8 +657,8 @@ ICT_INDICATORS = {
         "description":  "Previous Day High / Low",
         "jadecap_note": (
             "PRIMARY draw targets for the trading day. "
-            "If PDH already taken before Kill Zone — NO TRADE. "
-            "If PDL already taken before Kill Zone — NO TRADE. "
+            "If PDH already taken before Kill Zone — reduce A+ score by 1, evaluate new setup. "
+            "If PDL already taken before Kill Zone — reduce A+ score by 1, evaluate new setup. "
             "NY session targets PDH or PDL every day."
         ),
         "bull_target": "PDH = buy side target for long trades",
@@ -683,13 +727,12 @@ ICT_INDICATORS = {
         "key":          "adx",
         "function":     "get_math_indicators",
         "timeframes":   ["1H", "4H"],
-        "description":  "ADX — trend strength confirmation",
+        "description":  "ADX — trend strength reference only (not a trade filter)",
         "jadecap_note": (
-            "ADX above 25 = strong trend — ICT setups high probability. "
-            "ADX 20-25 = borderline — reduce size or proceed with caution. "
-            "ADX below 20 = choppy/ranging — NO TRADE."
+            "ADX is computed for reference only — not part of ICT methodology. "
+            "Do NOT use ADX as a trade filter, gate, or sizing adjustment. "
+            "ICT setups are validated by structure (FVG, OB, sweep, displacement), not ADX."
         ),
-        "threshold": 25,
     },
 
     "rsi": {
@@ -751,8 +794,8 @@ ICT_INDICATORS = {
             "Bullish: anchor from swing LOW to swing HIGH. "
             "Bearish: anchor from swing HIGH to swing LOW. "
             "OTE zone 62-79% = institutional entry area. "
-            "NEVER buy in premium (above 50%). "
-            "NEVER sell in discount (below 50%). "
+            "Premium (above 50%) = context favoring shorts, not a blocker. "
+            "Discount (below 50%) = context favoring longs, not a blocker. "
             "Entry 5 in JadeCap playbook."
         ),
         "premium_above":  0.50,
@@ -775,7 +818,7 @@ ICT_INDICATORS = {
 
     "displacement_candle": {
         "library":      "manual",
-        "function":     "get_displacement_candle",
+        "function":     "calc_displacement_candle",
         "timeframes":   ["5m", "15m"],
         "description":  "Strong candle moving away from swept liquidity level",
         "min_body_pct": 0.6,
@@ -791,7 +834,7 @@ ICT_INDICATORS = {
 
     "liquidity_sweep": {
         "library":      "manual",
-        "function":     "get_liquidity_sweep",
+        "function":     "calc_liquidity_sweep",
         "timeframes":   ["5m", "15m"],
         "description":  "Confirms a liquidity pool has been raided this session",
         "jadecap_note": (
@@ -806,7 +849,7 @@ ICT_INDICATORS = {
 
     "breaker_block": {
         "library":      "manual",
-        "function":     "get_breaker_block",
+        "function":     "calc_breaker_block",
         "timeframes":   ["15m", "1H"],
         "description":  "Failed OB that flipped — now acts as opposite S/R",
         "jadecap_note": (
@@ -865,7 +908,7 @@ ICT_INDICATORS = {
 
     "sfp_detection": {
         "library":      "manual",
-        "function":     "get_sfp",
+        "function":     "calc_sfp_detection",
         "timeframes":   ["1H"],
         "description":  "Swing Failure Pattern — JadeCap's #1 strategy engine",
         "jadecap_note": (
@@ -1223,7 +1266,7 @@ ENTRY_MODELS = {
             "Bearish setups ONLY in premium (above 50% level)",
             "OTE zone: 62-79% retracement = institutional entry area",
             "Combine OTE with FVG or OB for maximum confluence",
-            "Never buy in premium, never sell in discount — hard rule",
+            "Premium/discount is CONTEXT for targets — not a trade blocker. Use it to identify draw on liquidity.",
         ],
         "stop_placement": "Below swing low (bull) or above swing high (bear)",
         "invalidation":   "Price moves through 100% retracement level",
@@ -1320,7 +1363,7 @@ A_PLUS_SCORING = {
             "name":    "HTF + LTF Alignment",
             "weight":  +2,
             "enabled": True,
-            "detail":  "Weekly/Daily and 1H/15m all point same direction",
+            "detail":  "Daily bias and LTF (1H/15m) all point same direction",
         },
         {
             "id":      "fvg_at_htf_poi",
@@ -1385,12 +1428,14 @@ A_PLUS_SCORING = {
         },
         {
             "id":      "news_risk",
-            "name":    "High-Impact News Within 30 Min",
+            "name":    "Currently Inside News Release Candle Blackout",
             "weight":  -1,
             "enabled": True,
             "detail": (
-                "DEDUCT if FOMC, NFP, or CPI releasing during trade window — "
-                "reduce size or stand aside"
+                "DEDUCT if FOMC, NFP, or CPI releasing during trade window. "
+                "Do not enter during the actual news release candle (1 min before to 1 min after). "
+                "Once the candle closes, trade normally. REDUCE SIZE 50% on high-impact news days. "
+                "If a post-news SFP forms, it's high conviction."
             ),
         },
     ],
@@ -1452,42 +1497,56 @@ def calculate_contracts(stop_points: float, instrument: str = "NQ") -> int:
 
 
 # =====================================================================
-# 19. HARD RULES — 21 non-negotiable rules injected into every agent
+# 19. HARD RULES — 24 non-negotiable rules injected into every agent
 # =====================================================================
 # These rules are absolute constraints. No agent, no scoring system,
 # and no market condition can override them. They are injected into
 # every agent prompt as the highest-priority instructions.
 #
-# Rules 1-14: Original JadeCap rules.
-# Rules 15-20: New in v2 — SFP confirmation, Silver Bullet protocol,
-#   midday avoidance, holiday caution, and A+ scoring discipline.
+# Rules 1-12: Absolute hard rules (kill zones, risk limits, SB protocol, etc.).
+# Rules 13-18: Setup confirmation (daily bias, premium/discount, sweep, SFP).
+# Rules 19-21: Trade decision tiers (TAKE IT / REDUCE SIZE / NO TRADE).
+# Rules 22: News events (avoid news candle only, not block).
+# Rules 23-24: Risk management (holidays, distribution phase only).
 # =====================================================================
 
 HARD_RULES = [
-    # Original 14 rules
-    "NEVER trade against HTF order flow — Weekly/4H/Daily bias is law. No exceptions.",
+    # ══ ABSOLUTE HARD RULES (cannot be overridden) ══
     "ONLY enter inside Kill Zones: AM 9:30-11:30 or PM 1:00-4:00 EST. Nothing outside.",
     "MINIMUM 2R required before entry — measure it before placing the trade.",
     "Stop loss MUST sit behind candle 1 of FVG or the OB body. Never arbitrary.",
     "ONE trade per Kill Zone — if stopped out the window is DONE. No revenge trades.",
     "HARD CLOSE all positions by 4:00 PM EST. No overnight holds on day trades.",
-    "If previous day High or Low already taken before Kill Zone — output NO TRADE.",
-    "NEVER buy in premium zone — NEVER sell in discount zone. Non-negotiable.",
-    "Wait for liquidity sweep BEFORE entry — no anticipation entries ever.",
-    "NO TRADE without displacement candle confirming institutional direction.",
     "Max loss per trade is $500 — calculate contracts based on stop distance.",
     "Stop trading when daily profit reaches $1,000 — lock in and protect gains.",
     "No single day loss can exceed $500 — protect the prop account.",
-    "Only trade during Distribution phase (NY session). Not Accumulation or Manipulation.",
-
-    # New in v2 — 7 additional rules (total 21)
-    "1H SFP must confirm before ANY lower timeframe entry — no anticipation.",
     "Only the FIRST FVG forming in a Silver Bullet window is valid — skip subsequent ones.",
     "Unfilled Silver Bullet limit orders CANCELED when window closes — never leave orders open.",
     "No new entries 11:30 AM – 1:00 PM EST — midday chop zone. Exit stalling trades.",
-    "Stand aside or reduce size 75% on holiday/low-volume days — SFPs are unreliable.",
-    "A+ score below 4/10 = NO TRADE. Do not override. Discipline IS the edge.",
     "After 2 consecutive losses, CUT RISK IN HALF until account returns to starting equity — buys more chips to stay in the game.",
+
+    # ══ SETUP CONFIRMATION RULES (guide sizing, do NOT block trades) ══
+    # These were previously hard blocks that caused 100% HOLD output.
+    # Now they are context and confirmation rules.
+    # Sweep + displacement + FVG = TAKE IT. Missing one = REDUCE SIZE.
+    "DAILY BIAS: Establish a clear daily bias (BULLISH or BEARISH) from the daily chart — recent MSS, liquidity sweeps, inefficiencies, where price is heading. This is YOUR read for TODAY. If daily bias is unclear or choppy → NO TRADE. You do NOT need Weekly + 4H + Daily all agreeing — just a clear daily direction.",
+    "PREMIUM/DISCOUNT CONTEXT: Premium (above 50% of range / above midnight open) = look for shorts. Discount (below 50% / below midnight open) = look for longs. This is CONTEXT for identifying targets and draw on liquidity — NOT a trade blocker. If your daily bias is bullish and you have sweep + FVG confirmation, you CAN buy above midnight open. Do NOT counter-trend — if daily bias is bullish, only take longs. If bearish, only shorts.",
+    "PDH/PDL AWARENESS (SCORED -1): If previous day High or Low already taken before Kill Zone, reduce A+ score by 1. Not an automatic NO TRADE — evaluate whether the sweep created a new setup.",
+    "LIQUIDITY SWEEP (SCORED -2): Strongly prefer waiting for liquidity sweep before entry. If no sweep visible, reduce A+ score by 2. OVERRIDE ALLOWED: if displacement is massive (>70% body, >2x ATR range) the displacement itself acts as the sweep.",
+    "DISPLACEMENT REQUIRED (SCORED -2): Need displacement candle confirming direction. If absent, reduce A+ by 2. No override — displacement is the institutional footprint.",
+    "1H SFP CONFIRMATION (SCORED -2): 1H SFP should confirm before LTF entry. If absent, reduce A+ by 2. OVERRIDE ALLOWED: if 15m shows clear CHoCH + FVG + displacement, SFP may form on the next 1H candle — flag as early entry with tighter stop.",
+
+    # ══ TRADE DECISION (simple 3-tier) ══
+    "TAKE IT (standard size): Sweep confirmed + displacement confirmed + FVG/OB entry available + inside Kill Zone. This is a valid setup — take it. 40-55% of setups will fail and that is NORMAL. The edge is in R:R (3:1 minimum), not win rate.",
+    "REDUCE SIZE (half size): Daily bias is clear but missing ONE confirmation (e.g., no clear sweep but strong displacement, or SFP not yet confirmed on 1H). Flag as reduced-conviction entry.",
+    "NO TRADE: No sweep + no displacement, OR outside Kill Zone, OR daily bias unclear, OR max loss/profit limits hit. These are the ONLY reasons to not trade.",
+
+    # ══ NEWS EVENTS (news candle blackout only) ══
+    "NEWS EVENTS: Do not enter during the actual news release candle (1 min before to 1 min after). Once the candle closes, trade normally. REDUCE SIZE 50% on high-impact news days (FOMC, CPI, NFP, RED events). If already in a position before news, hold — set and forget. If a post-news SFP forms, it's high conviction.",
+
+    # ══ RISK MANAGEMENT (always enforced) ══
+    "Stand aside or reduce size 75% on holiday/low-volume days — SFPs are unreliable.",
+    "Only trade during Distribution phase (NY session). Not Accumulation or Manipulation.",
 ]
 
 
@@ -1504,13 +1563,13 @@ HARD_RULES = [
 BULL_SETUP = {
     "name": "Bullish Long Setup",
     "requirements": [
-        "HTF structure is bullish — higher highs, higher lows on Weekly/4H/Daily",
-        "Price is in DISCOUNT zone — below 50% Fib of HTF range",
-        "Price is below Midnight Open — discount confirmed",
+        "Daily bias is BULLISH — today's daily chart shows bullish intent (recent MSS buy-side, liquidity swept, price heading higher)",
+        "Daily bias is bullish — only take LONG setups today (do NOT counter-trend)",
+        "Identify premium/discount zone relative to midnight open — use for target selection, not trade blocking",
         "Bullish FVG on 4H or Daily is unmitigated",
         "Price has swept SELL-SIDE LIQUIDITY (equal lows, prior session low)",
         "Displacement candle forms BACK to the upside after sweep",
-        "Bullish FVG or OB visible on 5m or 15m for entry",
+        "Bullish FVG or OB visible on 5m or 15m — entry at FVG CE (50% midpoint of gap)",
         "Entry is inside AM or Silver Bullet Kill Zone",
         # New in v2
         "1H SFP confirmed — hourly candle swept a swing low and CLOSED BACK INSIDE the range",
@@ -1535,13 +1594,13 @@ BULL_SETUP = {
 BEAR_SETUP = {
     "name": "Bearish Short Setup",
     "requirements": [
-        "HTF structure is bearish — lower highs, lower lows on Weekly/4H/Daily",
-        "Price is in PREMIUM zone — above 50% Fib of HTF range",
-        "Price is above Midnight Open — premium confirmed",
+        "Daily bias is BEARISH — today's daily chart shows bearish intent (recent MSS sell-side, liquidity swept, price heading lower)",
+        "Daily bias is bearish — only take SHORT setups today (do NOT counter-trend)",
+        "Identify premium/discount zone relative to midnight open — use for target selection, not trade blocking",
         "Bearish FVG on 4H or Daily is unmitigated",
         "Price has swept BUY-SIDE LIQUIDITY (equal highs, prior session high)",
         "Displacement candle forms BACK to the downside after sweep",
-        "Bearish FVG or OB visible on 5m or 15m for entry",
+        "Bearish FVG or OB visible on 5m or 15m — entry at FVG CE (50% midpoint of gap)",
         "Entry is inside AM or Silver Bullet Kill Zone",
         # New in v2
         "1H SFP confirmed — hourly candle swept a swing high and CLOSED BACK INSIDE the range",
@@ -1561,7 +1620,7 @@ BEAR_SETUP = {
 # Expanded from 10 to 14 items in v2. The 4 new items enforce:
 #   - SFP confirmation on 1H before any LTF entry
 #   - Draw on Liquidity identification (know the target)
-#   - A+ score calculation (minimum 4/10 to proceed)
+#   - Setup tier determination (TAKE IT / REDUCE SIZE / NO TRADE)
 #   - Midday chop zone avoidance (no entries 11:30-1:00)
 #
 # Each item has a required flag. apply_settings() can override
@@ -1570,15 +1629,15 @@ BEAR_SETUP = {
 
 CHECKLIST = [
     {
-        "id":          "htf_bias",
-        "description": "HTF Bias Confirmed",
-        "detail":      "Weekly/Daily structure AND 4H FVG order flow both point same direction",
+        "id":          "daily_bias",
+        "description": "Daily Bias Confirmed",
+        "detail":      "Clear bullish or bearish bias established from daily chart — MSS, liquidity, inefficiencies",
         "required":    True,
     },
     {
-        "id":          "correct_zone",
-        "description": "Price in Correct Zone",
-        "detail":      "Discount for longs, premium for shorts — relative to Fib and Midnight Open",
+        "id":          "not_counter_trend",
+        "description": "Not Counter-Trend",
+        "detail":      "Trade direction matches daily bias — longs only if bullish, shorts only if bearish",
         "required":    True,
     },
     {
@@ -1643,9 +1702,9 @@ CHECKLIST = [
         "required":    True,
     },
     {
-        "id":          "a_plus_score",
-        "description": "A+ Score Calculated",
-        "detail":      "A+ Score Calculated — minimum 4/10 to proceed, 8+/10 for full size",
+        "id":          "setup_tier",
+        "description": "Setup Tier Determined",
+        "detail":      "TAKE IT (sweep+displacement+FVG) / REDUCE SIZE (missing one) / NO TRADE (no setup)",
         "required":    True,
     },
     {
@@ -1781,7 +1840,7 @@ JADECAP_CONFIG = {
 # =====================================================================
 # 26. apply_settings — Runtime override from UI settings
 # =====================================================================
-# Called by the runner before creating TradingAgentsGraph. Since agents
+# Called by the runner before creating RunEngine. Since agents
 # import RISK, JADECAP_CONFIG, etc. as module-level references to
 # mutable dicts, mutating them here affects all agents immediately.
 #
@@ -1794,7 +1853,7 @@ JADECAP_CONFIG = {
 def apply_settings(settings: dict) -> None:
     """Apply saved UI settings to jadecap_config module globals.
 
-    Called by the runner before creating TradingAgentsGraph.
+    Called by the runner before creating RunEngine.
     Since agents import RISK, JADECAP_CONFIG, etc. as module-level
     references to mutable dicts, mutating them here affects all agents.
 

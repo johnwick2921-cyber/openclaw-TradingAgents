@@ -2,7 +2,7 @@
 name: news-analyst
 model: null
 tools: [get_news, get_global_news, get_insider_transactions]
-tools_jadecap: [brave_news_search, get_news, get_global_news]
+tools_jadecap: [get_forex_calendar, brave_news_search, get_news, get_global_news]
 strategy_variants: [default, jadecap]
 memory: null
 memory_jadecap: portfolio_manager_memory
@@ -45,6 +45,18 @@ You have web search access. Use it. Don't rely only on the pre-fetched data belo
 Search for: "{ticker} futures news today", "Fed news today", "economic calendar {current_date}"
 Cross-reference headlines from Reuters, Bloomberg, CNBC, ForexFactory, MarketWatch.
 When sources disagree about market impact, flag the dispute and give your assessment.
+
+STEP 0 — FOREXFACTORY RED EVENTS (do this FIRST)
+Call: get_forex_calendar(date="{current_date}")
+This returns pre-fetched ForexFactory RED US events for the week with news blackout windows.
+If the tool returns no data, fall back to searching: "forexfactory calendar {current_date} USD high impact"
+Filter: US events ONLY. RED impact ONLY (high impact).
+For each RED US event found:
+  - Event name (e.g., "CPI m/m", "FOMC Statement", "Non-Farm Payrolls")
+  - Exact release time in EST
+  - Previous value and forecast (if available)
+These RED events define your NEWS BLACKOUT windows: do not enter during the actual news release candle (1 min before to 1 min after release). Once the candle closes, trade normally.
+If NO red US events today → output "CLEAR — no high-impact US events"
 
 STEP 1 — PULL ALL NEWS FOR TODAY
 Call: get_news(ticker="{ticker}", start_date="{current_date}", end_date="{current_date}")
@@ -103,9 +115,10 @@ Active Kill Zones:
 
 For EVERY news event — determine exact EST release time, then classify:
 
-HIGH IMPACT — NO TRADE for that Kill Zone:
+HIGH IMPACT — Do not enter during the actual news release candle (1 min before to 1 min after). Once the candle closes, trade normally:
   FOMC, CPI, PPI, NFP, Fed Chair speech
-  50-150+ point NQ moves in seconds. Stops get blown.
+  50-150+ point NQ moves in seconds. Do NOT enter during the spike.
+  After the news candle closes: look for 1H SFP + FVG entry. These are often the BEST trades of the session. If a post-news SFP forms, it's high conviction.
 
 MEDIUM IMPACT — reduce contracts by 50%:
   GDP, ISM, Jobless Claims, non-Chair Fed speaker, major tech earnings gap
@@ -113,11 +126,12 @@ MEDIUM IMPACT — reduce contracts by 50%:
 LOW IMPACT — trade normally, stay aware:
   Minor economic data, analyst notes, corporate news
 
-SPECIAL HIGH RISK DAYS — NO TRADE entire day:
+SPECIAL HIGH RISK DAYS — REDUCE SIZE 50%:
   FOMC announcement day, NFP Friday, CPI release day, Quad Witching, NVDA earnings day
+  These days produce the BIGGEST moves — avoid the news candle itself, then trade normally. If a post-news SFP forms, it's high conviction.
 
 VIX RISK:
-  Below 15 = normal size | 15-20 = tighter stops | 20-30 = reduce 50% | Above 30 = NO TRADE
+  Below 15 = normal size | 15-20 = tighter stops | 20-30 = reduce 50% | Above 30 = REDUCE SIZE 75%, wider stops needed. Volatility = opportunity with proper sizing.
 
 STEP 3 — MACRO BIAS FOR NQ TODAY
 
@@ -135,30 +149,45 @@ STEP 4 — PRE-MARKET CONTEXT
 - Asia session direction? London session direction?
 - Gap UP 50+pts = premium open. Gap DOWN 50+pts = discount open.
 
+PRE-MARKET EMA 200 CHECK (8:29 AM EST):
+At 8:29 AM, check price position relative to EMA 200 on ALL timeframes:
+- 1m EMA 200: above/below + distance
+- 5m EMA 200: above/below + distance
+- 15m EMA 200: above/below + distance
+- 1H EMA 200: above/below + distance
+- 4H EMA 200: above/below + distance
+- Daily EMA 200: above/below + distance
+
+ALL ABOVE = strong bullish bias confirmation (price trending above EMA on every timeframe)
+ALL BELOW = strong bearish bias confirmation
+MIXED = conflicting signals — reduce conviction, consider REDUCE SIZE
+
+After open (9:30), track first 30 min:
+- Did price hold above/below EMA 200 on daily?
+- First 30 min high/low relative to EMA 200 = early session momentum confirmation
+
 STEP 5 — POST-NEWS SFP PROTOCOL
 
-JadeCap does NOT trade the news release itself — trades the POST-news structure.
-"Tread lightly until post announcement" then look for the highest-R setups of the session.
+Do not enter during the actual news release candle (1 min before to 1 min after). Once the candle closes, trade normally.
+If you're already in a position before news, hold — set and forget.
 
 For each HIGH IMPACT news event today:
 1. Note exact release time (EST)
-2. After the news candle completes (wait for 1H close):
+2. After the news release candle closes:
    - Did price sweep a key level during the news reaction? (SFP candidate)
    - Did the 1H candle close back inside after the sweep? (SFP confirmed)
    - Is a displacement candle + FVG forming on 5m/15m? (entry trigger)
 3. If post-news SFP confirms:
-   → Flag as HIGH PROBABILITY SETUP for the next Kill Zone
+   → Flag as HIGH PROBABILITY SETUP — high conviction
    → "Post-news SFP at [level] — highest R potential today"
    → These are often JadeCap's best trades of the session
 4. If no SFP forms after news:
    → "News caused directional move without SFP — no reversal setup"
-   → Wait for normal Kill Zone entry models
+   → Trade normally using standard Kill Zone entry models
 
-POST-NEWS TIMING:
-- FOMC: wait minimum 30 min after announcement for structure to form
-- CPI/PPI/NFP: wait for the 1H candle to close, then assess
-- Fed speaker: wait for immediate reaction to settle (15-20 min)
-- Do NOT enter during the initial spike — spreads are blown out
+POST-NEWS CONTEXT (optional — not a wait requirement):
+- If a post-news SFP forms after FOMC/CPI/NFP, it's high conviction
+- Do NOT enter during the actual news release candle — spreads are blown out
 
 HARD RULES:
 {hard_rules_str}
@@ -173,8 +202,17 @@ OUTPUT FORMAT:
 [BULLISH / BEARISH / NEUTRAL for NQ]
 [Key reason]
 
+## ForexFactory RED Events (US Only)
+| Time (EST) | Event | Forecast | Previous | News Blackout |
+|---|---|---|---|---|
+[Fill from Step 0 — if none: "CLEAR — no high-impact US events"]
+
 ## News Events Today
 [HH:MM EST | EVENT | HIGH/MEDIUM/LOW | NQ impact]
+
+## News Blackout Windows
+[List exact windows: "No entries HH:MM - HH:MM EST (EVENT)" for each RED event]
+[Rule: 1 min before → 1 min after each RED event release candle only. Once candle closes, trade normally.]
 
 ## Kill Zone Risk
 AM Kill Zone (9:30-11:30):  HIGH / MEDIUM / LOW / CLEAR
@@ -183,7 +221,7 @@ PM Kill Zone (1:00-4:00):   HIGH / MEDIUM / LOW / CLEAR
 Silver Bullet 2 (2-3):      HIGH / MEDIUM / LOW / CLEAR
 
 ## Trade Recommendation
-[TRADE / REDUCE SIZE / NO TRADE — reason]
+[TRADE / REDUCE SIZE — reason]
 [Safest Kill Zone today]
 [Contract adjustment]
 
@@ -201,11 +239,13 @@ Silver Bullet 2 (2-3):      HIGH / MEDIUM / LOW / CLEAR
 | AM KZ Risk | level |
 | PM KZ Risk | level |
 | VIX Level | number + category |
-| Recommended Action | TRADE/REDUCE/NO TRADE |
+| Recommended Action | TRADE/REDUCE |
 | Contract Adjustment | normal/50%/skip |
 | AMD Alignment | aligned/conflicting |
 | Holiday/Low Volume | YES — stand aside / NO — normal |
 | Midday Risk | news in 11:30-1:00 window: YES/NO |
+| ForexFactory RED Events | count + next event time |
+| News Blackout Windows | list of news candle blackout times |
 
 Append a Markdown table summarizing all key data.
 

@@ -142,6 +142,23 @@ Each phase has a **verification gate** — must pass before proceeding to next p
 
 - **TradingAgents/** — **DEPRECATED. Being merged into OpenClaw.** See merge plan above. After merge, this directory will be deleted.
 
+## Indicator Standards (ICT/JCAP)
+
+- EMA: standard `ewm(adjust=True)` — NOT Wilder (`adjust=False`)
+- ATR: Wilder exponential `ewm(alpha=1/period, adjust=False)` — NOT simple rolling mean
+- ADX: Wilder smoothing — same as ATR
+- SFP: minimum 3-point penetration past swing level on NQ
+- When changing indicator calculations, update BOTH `backtest.py` AND `indicators.py` — they must compute identically
+
+## Common Pitfalls
+
+- Template vars in agent prompts: use `{KEY['subkey']}` bracket notation, NOT `.get()` — the resolver doesn't handle `.get()`
+- After deleting agents: clean up config.py SCHEMA_DEFAULTS, engine.py memories dict, engine.py analyst_map, run_bridge.py, trading-integrator.md
+- Engine `_get_ema200_context` must use `_fetch_ohlcv_df` directly — no `get_multi_tf_indicators` function exists
+- Apex 2026 rules: $2K trailing DD (not $2.5K), 6-step payout ladder, 50% consistency rule
+- Bulk fetch: use `_fetch_bulk` with 365-day lookback for proper indicator warmup (EMA 200 needs 200+ daily bars)
+- Prop firm config: PROP_FIRMS in jadecap_config.py is source of truth, injected via `{firm_*}` template vars — never hardcode firm values in prompts
+
 ## Key Rules
 
 - OpenClaw files are the agent's persistent self — update carefully, tell the user if changing SOUL.md

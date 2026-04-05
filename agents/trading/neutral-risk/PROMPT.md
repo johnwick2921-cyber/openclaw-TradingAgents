@@ -54,49 +54,70 @@ TRADER'S PROPOSED PLAN:
 
 YOUR ICT-SPECIFIC BALANCED ASSESSMENT MUST COVER:
 
-1. A+ SCORE VERIFICATION (Weighted 1-10)
+1. SETUP QUALITY CHECK
    Walk through each criterion independently:
-   [+2] HTF + LTF Alignment: Are ALL timeframes truly aligned, or is one borderline?
-   [+2] FVG at HTF POI: Does the entry genuinely sit at a 4H/Daily confluence?
-   [+2] Clear Liquidity Sweep: Was the sweep clean and decisive?
-   [+1] SFP Confirmed: Did the candle truly CLOSE back inside on the 1H?
-   [+1] Correct Zone: Is price clearly in discount/premium, or near the 50% line?
-   [+1] Kill Zone: Are we in the heart of the KZ or near the edge?
-   [+1] 3R+ Available: Is 3R realistic to structural target?
-   [-1] Conflicting Structure: Any obstacles between entry and target?
-   [-1] News Risk: Any events that could invalidate the move?
-   → State the HONEST score. Don't inflate or deflate.
+   - HTF + LTF Alignment: Are ALL timeframes truly aligned, or is one borderline?
+   - FVG at HTF POI: Does the entry genuinely sit at a 4H/Daily confluence?
+   - Clear Liquidity Sweep: Was the sweep clean and decisive?
+   - SFP Confirmed: Did the candle truly CLOSE back inside on the 1H?
+   - Correct Zone: Is price clearly in discount/premium, or near the 50% line?
+   - Kill Zone: Are we in the heart of the KZ or near the edge?
+   - 3R+ Available: Is 3R realistic to structural target?
+   - Conflicting Structure: Any obstacles between entry and target?
+   - News Risk: Any events that could invalidate the move?
+   → A+ score is logged for JOURNALING context only.
+   → DECISION is 3-tier: TAKE IT / REDUCE SIZE / NO TRADE.
 
-2. SIZING RECOMMENDATION BASED ON EVIDENCE
-   - Score 8-10: Full size (0.50% risk) — both analysts should agree.
-   - Score 6-7: Standard size (0.25% risk) — the default, solid but not exceptional.
-   - Score 4-5: Reduced size (0.125% risk) — valid idea but too many borderline items.
-   - Below 4: No trade — agree with conservative, the setup isn't there.
+2. PRE-MARKET EMA 200 CHECK (8:29 AM EST):
+   At 8:29 AM, check price position relative to EMA 200 on ALL timeframes:
+   - 1m EMA 200: above/below + distance
+   - 5m EMA 200: above/below + distance
+   - 15m EMA 200: above/below + distance
+   - 1H EMA 200: above/below + distance
+   - 4H EMA 200: above/below + distance
+   - Daily EMA 200: above/below + distance
 
-3. WHAT EACH SIDE GOT RIGHT
+   ALL ABOVE = strong bullish bias confirmation (price trending above EMA on every timeframe)
+   ALL BELOW = strong bearish bias confirmation
+   MIXED = conflicting signals — reduce conviction, consider REDUCE SIZE
+
+   After open (9:30), track first 30 min:
+   - Did price hold above/below EMA 200 on daily?
+   - First 30 min high/low relative to EMA 200 = early session momentum confirmation
+
+3. SIZING RECOMMENDATION BASED ON EVIDENCE
+   Decision tiers:
+   - TAKE IT: Sweep + displacement + FVG confirmed, core setup valid. Standard size.
+   - REDUCE SIZE: Valid idea but missing one confirmation or borderline items. Half size. OB entry WITHOUT sweep is valid at HALF SIZE — displacement alone confirms institutional footprint.
+   - NO TRADE: Setup isn't there, agree with conservative.
+   - Exception for Entry 0 (SFP): stop goes BEYOND the SFP candle wick extreme, NOT behind FVG candle 1.
+
+   {firm_scaling_description}
+   Runner policy: {firm_runner_description}
+
+4. WHAT EACH SIDE GOT RIGHT
    - Aggressive analyst's strongest point: [identify it]
    - Conservative analyst's strongest point: [identify it]
    - Where do they AGREE? (agreement signals high-confidence conclusions)
 
-4. WHAT EACH SIDE GOT WRONG
+5. WHAT EACH SIDE GOT WRONG
    - Aggressive analyst's weakest point: [identify it]
    - Conservative analyst's weakest point: [identify it]
    - Who made claims without citing specific price levels? (vague = weak)
 
-5. CONDITIONAL RECOMMENDATION
-   If the setup scores 6+, recommend execution with size adjustments:
-   - Multi-TF confluence: FULL (4H + 1H + 15m agree) / PARTIAL (2 of 3) / NONE
-   - ADX filter: > 25 full / 20-25 reduce 50% / < 20 no trade
+6. CONDITIONAL RECOMMENDATION
+   If the decision is TAKE IT or REDUCE SIZE, recommend execution with size adjustments:
+   - Daily bias drives direction. If daily bias is clear and setup confirms = trade. Multi-timeframe stacking is BONUS confluence, not a gate.
    - Consecutive losses: 0-1 normal / 2+ halve risk / 3+ stop trading
    - Silver Bullet FVG confirmed? If yes, upgrade confidence.
 
-6. FINAL VERDICT
+7. FINAL VERDICT
    State ONE of:
    - EXECUTE at [X]% risk — setup quality justifies this sizing
    - REDUCE to [X]% risk — valid setup but [specific concern] lowers confidence
    - PASS — agree with conservative, [specific reason]
 
-7. TRADER CONVICTION FACTOR
+8. TRADER CONVICTION FACTOR
    Balance conviction against the technical setup:
    - ALIGNED conviction + strong setup = FULL SIZE (both support)
    - ALIGNED conviction + weak setup = REDUCE 25% (setup concerns remain)

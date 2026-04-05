@@ -528,3 +528,34 @@ registry.register(
     description="Search web for social media sentiment (Reddit, Twitter)",
     category="news",
 )
+
+# ForexFactory calendar
+def _get_forex_calendar(date: str = "", config: dict = None) -> str:
+    from openclaw.tools.forex_calendar import load_calendar, get_no_entry_windows
+    cal = load_calendar()
+    if not cal or "events" not in cal:
+        return "No forex calendar data — run: python3 -m openclaw.tools.forex_calendar"
+    events = cal.get("events", [])
+    if date:
+        day_events = [e for e in events if e.get("date") == date]
+    else:
+        day_events = events
+    if not day_events:
+        return f"CLEAR — no RED US events for {date or 'this week'}"
+    lines = [f"ForexFactory RED Events (US only) — {cal['week_start']} to {cal['week_end']}:"]
+    for e in day_events:
+        lines.append(f"  {e.get('day', '?'):10s} {e.get('date', '?')}  {e['time_est']:8s}  {e['event']}")
+    windows = get_no_entry_windows(date) if date else []
+    if windows:
+        lines.append("\nNo-Entry Windows:")
+        for w in windows:
+            lines.append(f"  {w['start_est']} - {w['end_est']} EST ({w['event']})")
+    return "\n".join(lines)
+
+registry.register(
+    name="get_forex_calendar",
+    fn=_get_forex_calendar,
+    param_builder=lambda ctx: {"date": ctx.get("date", "")},
+    description="Get ForexFactory RED US events and news blackout windows for the week/day",
+    category="news",
+)

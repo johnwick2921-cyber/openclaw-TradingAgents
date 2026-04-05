@@ -46,7 +46,7 @@ SCHEMA_DEFAULTS: Dict[str, Any] = {
     "analysis": {
         "max_debate_rounds": 1,
         "max_risk_discuss_rounds": 1,
-        "analysts": ["market", "social", "news", "fundamentals"],
+        "analysts": ["market", "news"],
         "agent_timeout_seconds": 300,
     },
 
@@ -61,7 +61,7 @@ SCHEMA_DEFAULTS: Dict[str, Any] = {
     "jadecap": {
         "active_instrument": "NQ",
         "prop_firm": "apex",
-        "hard_close_time": "15:45",
+        "hard_close_time": "16:00",
         "atr_stop_multiplier": 1.5,
         "t1_close_pct": 0.5,
         "sessions": {

@@ -77,6 +77,23 @@ SHORT SETUP ANALYST FULL ARGUMENT:
 FULL DEBATE HISTORY:
 {history}
 
+PRE-MARKET EMA 200 CHECK (8:29 AM EST):
+At 8:29 AM, check price position relative to EMA 200 on ALL timeframes:
+- 1m EMA 200: above/below + distance
+- 5m EMA 200: above/below + distance
+- 15m EMA 200: above/below + distance
+- 1H EMA 200: above/below + distance
+- 4H EMA 200: above/below + distance
+- Daily EMA 200: above/below + distance
+
+ALL ABOVE = strong bullish bias confirmation (price trending above EMA on every timeframe)
+ALL BELOW = strong bearish bias confirmation
+MIXED = conflicting signals — reduce conviction, consider REDUCE SIZE
+
+After open (9:30), track first 30 min:
+- Did price hold above/below EMA 200 on daily?
+- First 30 min high/low relative to EMA 200 = early session momentum confirmation
+
 ══════════════════════════════════════════════════════════════════
 STEP 2: WHICH SIDE HAS STRONGER ICT EVIDENCE?
 ══════════════════════════════════════════════════════════════════
@@ -125,9 +142,11 @@ Target: {BEAR_SETUP['target']}
 Stop: {BEAR_SETUP['stop']}
 
 State PASS or FAIL for each requirement with evidence.
-If ANY requirement FAILS -> the winning side is INVALID.
-Then check if the OTHER side passes all requirements.
-If NEITHER passes -> output NO TRADE.
+Missing requirements reduce conviction — they do NOT automatically invalidate.
+If sweep + displacement + FVG are all present → setup is VALID regardless of other items.
+If NO sweep AND no displacement → WAITING.
+Sweep + displacement + FVG = standard size.
+OB entry WITHOUT sweep is valid at HALF SIZE — displacement alone confirms institutional footprint.
 
 ══════════════════════════════════════════════════════════════════
 BIAS ALIGNMENT CHECK
@@ -152,8 +171,11 @@ Active Kill Zones:
 - Are we currently inside a Kill Zone? State which one.
 - If outside Kill Zone -> NO TRADE regardless of setup quality.
 - Was the displacement candle INSIDE the Kill Zone? If not -> NO TRADE.
-- Was the liquidity sweep BEFORE the displacement? (correct sequence)
-- Is there a valid FVG or OB to enter on? State exact price range.
+- Was the liquidity sweep BEFORE the displacement? (correct sequence: sweep → displacement → FVG → retrace)
+- Was the FVG CREATED BY the displacement candle? (The FVG must be the gap left by the displacement, not a pre-existing gap. Check timestamps — FVG should form on the same candle or immediately after the displacement.)
+- Is there a valid FVG to enter on? State exact CE price (50% midpoint of gap).
+- Entry = limit order at FVG CE. Stop = behind candle 1 of FVG (structural).
+- Exception for Entry 0 (SFP): stop goes BEYOND the SFP candle wick extreme (the sweep low for longs, sweep high for shorts), NOT behind FVG candle 1.
 
 ══════════════════════════════════════════════════════════════════
 STEP 5: PRE-TRADE CHECKLIST — ALL MUST PASS
@@ -162,7 +184,8 @@ STEP 5: PRE-TRADE CHECKLIST — ALL MUST PASS
 {checklist_str}
 
 State PASS or FAIL for each item with one-line evidence.
-If ANY item FAILS -> output NO TRADE.
+Failed absolute rules (kill zone, max loss, hard close) → NO TRADE.
+Other failures reduce conviction and size — they do not block the trade.
 
 ══════════════════════════════════════════════════════════════════
 STEP 6: ADVANCED CONFLUENCE CHECKS
@@ -172,46 +195,40 @@ a) STACKED FVGs: Is there a 4H FVG AND 1H FVG at the same price level?
    - If YES = HIGHEST CONFLUENCE — flag clearly.
    - If NO = proceed with single-TF FVG (lower confidence).
 
-b) ADX FILTER: What is ADX on 1H?
-   - ADX > 25 = STRONG trend = full contracts.
-   - ADX 20-25 = BORDERLINE = reduce to 50% contracts.
-   - ADX < 20 = CHOPPY = NO TRADE.
-
-c) SILVER BULLET FVG: Did a FVG form during Silver Bullet window?
+b) SILVER BULLET FVG: Did a FVG form during Silver Bullet window?
    - Silver Bullet 1: 10:00-11:00 AM EST
    - Silver Bullet 2: 2:00-3:00 PM EST
    - If YES = SILVER BULLET FVG CONFIRMED — highest probability.
    - If NO = standard FVG still valid, lower probability.
 
-d) MULTI-TIMEFRAME CONFLUENCE:
-   - 4H bias: BULLISH / BEARISH
-   - 1H order flow: BULLISH / BEARISH
-   - 15m entry: BULLISH / BEARISH
-   - All 3 agree = FULL CONFLUENCE = full contracts.
-   - 2 of 3 agree = PARTIAL CONFLUENCE = 50% contracts.
-   - 1 of 3 = NO CONFLUENCE = NO TRADE.
+c) MULTI-TIMEFRAME CONFLUENCE:
+   - Daily bias drives direction. If daily bias is clear and setup confirms = trade.
+   - Multi-timeframe stacking (4H FVG + 1H FVG at same level) is BONUS confluence for journaling, not a gate.
 
 ══════════════════════════════════════════════════════════════════
 STEP 7: CALCULATE ENTRY, STOP, TARGET, CONTRACTS
 ══════════════════════════════════════════════════════════════════
 
 - Entry: [exact price — FVG midpoint, OB body, or Breaker level]
-- Stop Loss: [exact price — behind candle 1 of FVG or OB body]
+- Stop Loss: [exact price — behind candle 1 of FVG or OB body. Exception for Entry 0 (SFP): stop goes BEYOND the SFP candle wick extreme (the sweep low for longs, sweep high for shorts), NOT behind FVG candle 1.]
 - Stop Distance: [X] points
 - Contracts: {max_loss} / (stop_points x ${point_value}) = [X]
-  - Adjust for ADX filter and multi-TF confluence if needed.
-- Target 1: [exact price — first liquidity pool] — close 50%
-- Target 2: [exact price — PDH or PDL] — move stop to BE
+  - {firm_scaling_description}
+- Target 1: [exact price — first liquidity pool (BSL for shorts, SSL for longs)] — close 50%. Move stop to breakeven after T1 hit.
+- Target 2: {firm_runner_description}
 - R:R Ratio: must be minimum {min_rr}:1
 - If R:R < {min_rr}:1 -> NO TRADE regardless of setup quality.
 
 ══════════════════════════════════════════════════════════════════
-STEP 8: HARD RULES — FINAL GATE
+STEP 8: RULES CHECK — HARD + SCORED
 ══════════════════════════════════════════════════════════════════
 
 {hard_rules_str}
 
-If ANY hard rule is violated -> output NO TRADE.
+ABSOLUTE hard rules (kill zone, max loss, hard close) → violated = NO TRADE.
+SCORED rules (HTF alignment, zone, sweep, SFP) → use 3-tier decision:
+  TAKE IT (sweep + displacement + FVG) / REDUCE SIZE (missing one confirmation or OB without sweep) / NO TRADE (no setup or absolute rule failure).
+  A+ score is retained as a CONTEXT metric for journaling, not a gate for trade decisions.
 
 ══════════════════════════════════════════════════════════════════
 STEP 9: IF NEITHER VALID -> NO TRADE

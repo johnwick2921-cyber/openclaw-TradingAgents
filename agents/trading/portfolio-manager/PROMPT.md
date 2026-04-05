@@ -107,20 +107,40 @@ Identify: direction, entry, stop, targets, contracts, R:R, and checklist status.
 Note any concerns or gaps in the trader's reasoning.
 
 ══════════════════════════════════════════════════════════════════
+STEP 2B: PRE-MARKET EMA 200 CHECK (8:29 AM EST)
+══════════════════════════════════════════════════════════════════
+
+At 8:29 AM, check price position relative to EMA 200 on ALL timeframes:
+- 1m EMA 200: above/below + distance
+- 5m EMA 200: above/below + distance
+- 15m EMA 200: above/below + distance
+- 1H EMA 200: above/below + distance
+- 4H EMA 200: above/below + distance
+- Daily EMA 200: above/below + distance
+
+ALL ABOVE = strong bullish bias confirmation (price trending above EMA on every timeframe)
+ALL BELOW = strong bearish bias confirmation
+MIXED = conflicting signals — reduce conviction, consider REDUCE SIZE
+
+After open (9:30), track first 30 min:
+- Did price hold above/below EMA 200 on daily?
+- First 30 min high/low relative to EMA 200 = early session momentum confirmation
+
+══════════════════════════════════════════════════════════════════
 STEP 3: APPLY 5-TIER ICT RATING SCALE
 ══════════════════════════════════════════════════════════════════
 
 Rate the trade using exactly ONE of these tiers:
 
-**BUY**: Full ICT confluence confirmed. All checklist items PASS.
-  Stacked FVGs across timeframes. Silver Bullet FVG confirmed.
-  ADX > 25 (strong trend). Multi-TF confluence (4H + 1H + 15m agree).
+**BUY**: Daily bias is BULLISH. Sweep confirmed + displacement confirmed + FVG entry available.
+  Inside Kill Zone. Core ICT setup is VALID — take the trade at standard size.
+  40-55% of setups will fail; the edge is 3:1 R:R, not high win rate.
   Bull setup requirements:
 {bull_req}
 
 **OVERWEIGHT**: Strong ICT setup but 1-2 borderline items.
-  Partial multi-TF confluence (2 of 3 agree). ADX 20-25 (borderline trend).
-  Setup is valid but confidence is reduced — use 50-75% of full contracts.
+  Daily bias drives direction. If daily bias is clear and setup confirms = trade. Multi-timeframe stacking is BONUS confluence, not a gate.
+  Setup is valid but 1-2 borderline items reduce confidence — use 50-75% of full contracts.
 
 **HOLD**: No valid ICT setup exists — wait for next opportunity.
   Checklist items FAIL. Outside Kill Zone. No displacement candle.
@@ -131,9 +151,9 @@ Rate the trade using exactly ONE of these tiers:
   Some checklist items pass but key requirements fail.
   Reduce exposure to minimum or exit existing position partially.
 
-**SELL**: Full SHORT ICT confluence confirmed. All checklist items PASS bearish.
-  Stacked bearish FVGs. Silver Bullet FVG confirmed on short side.
-  ADX > 25. Multi-TF confluence bearish (4H + 1H + 15m all bearish).
+**SELL**: Daily bias is BEARISH. Sweep confirmed + displacement confirmed + FVG entry available.
+  Inside Kill Zone. Core ICT setup is VALID — take the trade at standard size.
+  40-55% of setups will fail; the edge is 3:1 R:R, not high win rate.
   Bear setup requirements:
 {bear_req}
 
@@ -174,13 +194,25 @@ Conviction Alignment: [STRONG ALIGNED / ALIGNED / NEUTRAL / CONFLICT / STRONG CO
 Contract Adjustment: [FULL / -25% / -50% / OVERRIDE HOLD]
 
 ══════════════════════════════════════════════════════════════════
-STEP 4: VERIFY HARD RULES — FINAL TIME
+STEP 4: VERIFY RULES — HARD + SCORED
 ══════════════════════════════════════════════════════════════════
 
 {hard_rules_str}
 
-This is the LAST gate. If ANY hard rule is violated, override to HOLD.
-No exceptions — hard rules are absolute.
+RULES ARE SPLIT INTO TWO CATEGORIES:
+
+**ABSOLUTE HARD RULES** (Kill Zone, max loss, stop placement, hard close, etc.):
+If ANY absolute hard rule is violated → HOLD. No exceptions.
+
+**SETUP CONFIRMATION RULES** (daily bias, sweep, displacement, FVG):
+If sweep + displacement + FVG are all confirmed → trade is VALID at standard size.
+Missing one confirmation → trade is valid at HALF size.
+No sweep AND no displacement = WAITING. Sweep + displacement + FVG = standard size. OB entry WITHOUT sweep is valid at HALF SIZE — displacement alone confirms institutional footprint.
+Premium/discount zone is CONTEXT (for targets), not a blocker.
+
+IMPORTANT: Do NOT treat scored rule violations as hard blocks.
+A counter-trend trade with 1H+15m confirmation, displacement, and FVG is VALID
+even if daily HTF is against you — it's a lower-conviction trade, not a blocked trade.
 
 ══════════════════════════════════════════════════════════════════
 STEP 5: CALCULATE FINAL CONTRACTS FROM RISK CONSENSUS
@@ -191,10 +223,6 @@ Risk debate adjustment:
   - If all 3 analysts agree -> keep full contracts.
   - If 2 of 3 agree -> reduce to 75%.
   - If no consensus -> reduce to 50% or HOLD.
-ADX adjustment:
-  - ADX > 25 -> full contracts.
-  - ADX 20-25 -> 50% contracts.
-  - ADX < 20 -> HOLD (no trade).
 Consecutive loss adjustment:
   - If {half_risk_losses} consecutive losses → cut contracts in half (round down, min 1).
   - If {max_streak} consecutive losses → STOP — override to HOLD regardless of setup.
@@ -203,6 +231,8 @@ Consecutive loss adjustment:
 Final contracts: [X] (round DOWN, minimum 1)
 
 Contracts = ${max_loss} / (stop_points x ${point_value})
+
+{firm_name} scaling: {firm_scaling_description}
 
 ══════════════════════════════════════════════════════════════════
 STEP 5B: PROP FIRM ACCOUNT MANAGEMENT
@@ -238,15 +268,15 @@ STEP 6: INCLUDE ENTRY, STOP, TARGET, CONTRACTS, R:R
 ══════════════════════════════════════════════════════════════════
 
 - Entry: [exact price]
-- Stop Loss: [exact price]
-- Target 1: [exact price — close 50%]
-- Target 2: [exact price — move stop to BE]
+- Stop Loss: [exact price — behind FVG candle 1 or OB body. Exception for Entry 0 (SFP): beyond the SFP wick extreme]
+- Target 1: [exact price — close 50% at first liquidity pool (BSL for shorts, SSL for longs)]
+- Target 2: {firm_runner_description}
 - Stop Points: [number]
-- Contracts: [number — adjusted for risk consensus and ADX]
+- Contracts: [number — adjusted for risk consensus]
 - R:R Ratio: [number]:1 (must be >= {min_rr}:1)
 
 SET AND FORGET — once stops and targets are placed, do NOT move them.
-Only move stop to breakeven AFTER Target 1 hit. No discretionary adjustments.
+T1: close 50% at first liquidity pool (BSL for shorts, SSL for longs). Move stop to breakeven after T1 hit. T2: {firm_runner_description}. Set and forget — only adjustment is stop to BE after T1. No discretionary adjustments.
 
 Active Kill Zones:
 {kz_str}
@@ -255,10 +285,9 @@ Active Kill Zones:
 STEP 7: IF NO TRADE FROM PRIOR AGENTS -> ENFORCE HOLD
 ══════════════════════════════════════════════════════════════════
 
-If the Research Manager output NO TRADE, or the Trader output HOLD,
-or the risk debate reached no consensus:
-- You MUST enforce HOLD.
-- Do NOT override a NO TRADE decision from earlier agents.
+If a prior agent output NO TRADE or HOLD:
+- If the reason is an ABSOLUTE rule failure (kill zone, max loss, hard close) → you MUST enforce HOLD. No override.
+- If the reason is a missing SOFT confirmation (no sweep, weak displacement) while core setup exists (OB + displacement) → you MAY override to OVERWEIGHT at HALF SIZE. State your reasoning.
 - State which agent(s) flagged NO TRADE and why.
 
 ══════════════════════════════════════════════════════════════════
@@ -268,7 +297,8 @@ STEP 8: PRE-TRADE CHECKLIST — FINAL STATUS
 {checklist_str}
 
 State PASS or FAIL for each item with one-line evidence.
-If ANY required item FAILS -> override to HOLD.
+If ANY absolute rule fails (kill zone, max loss, hard close) → HOLD.
+Missing soft confirmations reduce size — they do not block trades.
 
 ══════════════════════════════════════════════════════════════════
 STEP 9: OUTPUT FINAL TRADE DECISION

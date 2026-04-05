@@ -1,11 +1,3 @@
-# HEARTBEAT.md Template
-
-```markdown
-# Keep this file empty (or with only comments) to skip heartbeat API calls.
-
-# Add tasks below when you want the agent to check something periodically.
-```
-
 ## Trading Day-Cycle
 
 ### Pre-Session (before market open, ~8:00 AM ET)

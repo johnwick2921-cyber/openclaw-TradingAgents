@@ -65,12 +65,15 @@ logger = logging.getLogger(__name__)
 STOCKSTATS_INDICATORS = {
     # Moving averages
     "close_50_sma", "close_200_sma", "close_10_ema",
+    "close_9_ema", "close_50_ema", "close_200_ema",
     # MACD
     "macd", "macds", "macdh",
     # Momentum
     "rsi", "mfi",
     # Volatility
     "boll", "boll_ub", "boll_lb", "atr",
+    # Trend strength
+    "adx",
     # Volume
     "vwma",
 }
@@ -1166,8 +1169,12 @@ def get_fib_ote(df: pd.DataFrame, timeframe: str) -> str:
 
     midpoint = swing_low + fib_range * 0.5
     zone = "premium" if current_price > midpoint else "discount"
-    ote_top = swing_high - fib_range * ote_low
-    ote_bottom = swing_high - fib_range * ote_high
+    if current_price < midpoint:  # Bullish (discount)
+        ote_top = swing_low + fib_range * ote_high
+        ote_bottom = swing_low + fib_range * ote_low
+    else:  # Bearish (premium)
+        ote_top = swing_high - fib_range * ote_low
+        ote_bottom = swing_high - fib_range * ote_high
     in_ote = ote_bottom <= current_price <= ote_top
 
     lines.append(f"  Swing High: {_fmt(swing_high)}")
@@ -1494,6 +1501,8 @@ def calc_sfp_detection(df: pd.DataFrame) -> dict:
     - latest_sfp: the most recent SFP or None
     - status: "sfp_confirmed" / "no_sfp" / "watching"
     """
+    MIN_SFP_PENETRATION = 3.0
+
     df = _to_smc_format(df)
     if df.empty or len(df) < 5:
         return {
@@ -1547,7 +1556,7 @@ def calc_sfp_detection(df: pd.DataFrame) -> dict:
             candle_high = float(df.iloc[j]["high"])
             candle_close = float(df.iloc[j]["close"])
             # Bearish SFP: high sweeps above swing high but close stays below
-            if candle_high > sh_price and candle_close < sh_price:
+            if candle_high > sh_price and (candle_high - sh_price) >= MIN_SFP_PENETRATION and candle_close < sh_price:
                 bearish_sfps.append({
                     "swept_level": sh_price,
                     "sweep_price": candle_high,
@@ -1565,7 +1574,7 @@ def calc_sfp_detection(df: pd.DataFrame) -> dict:
             candle_low = float(df.iloc[j]["low"])
             candle_close = float(df.iloc[j]["close"])
             # Bullish SFP: low sweeps below swing low but close stays above
-            if candle_low < sl_price and candle_close > sl_price:
+            if candle_low < sl_price and (sl_price - candle_low) >= MIN_SFP_PENETRATION and candle_close > sl_price:
                 bullish_sfps.append({
                     "swept_level": sl_price,
                     "sweep_price": candle_low,
@@ -1781,7 +1790,7 @@ def calc_amd_phase():
     # Daily maintenance: 5-6PM Mon-Thu
     if 17*60 <= t < 18*60:
         return {"phase": "closed", "session": "maintenance", "action": "Futures closed (daily maintenance 5-6PM EST). Review and prepare."}
-    elif t >= 18*60 or t < 0:  # 6PM-midnight
+    elif t >= 18*60:  # 6PM-midnight
         return {"phase": "accumulation", "session": "asia", "action": "DO NOT TRADE. Mark Asia range H/L."}
     elif 0 <= t < 2*60:  # midnight-2AM
         return {"phase": "accumulation", "session": "asia_late", "action": "Mark overnight levels. Range building."}
@@ -1868,6 +1877,16 @@ def get_full_ict_report(dataframes: dict, trade_date: str) -> str:
     Returns:
         Single formatted string containing every ICT indicator section.
     """
+    # Normalize dataframe keys so both "1h"/"1H", "5m"/"5M" etc. are found
+    normalized = {}
+    for k, v in dataframes.items():
+        normalized[k] = v
+        if k != k.upper():
+            normalized[k.upper()] = v
+        if k != k.lower():
+            normalized[k.lower()] = v
+    dataframes = normalized
+
     sections = [
         f"\n{'='*60}",
         f"  FULL ICT REPORT | {trade_date}",

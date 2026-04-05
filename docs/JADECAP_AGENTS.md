@@ -70,7 +70,7 @@
 | Step | Name | What It Does |
 |------|------|-------------|
 | 0 | SFP Detection | Maps 1H swing points, checks for breach + close-back-inside = SFP confirmed |
-| 1 | HTF Bias | 4H + Daily structure, 200 EMA, unmitigated FVGs, Supertrend, ADX |
+| 1 | HTF Bias | 4H + Daily structure, 200 EMA, unmitigated FVGs, Supertrend |
 | 2 | London Analysis | Did London raid Asian H/L? Sets NY bias direction |
 | 3 | Daily Context | Midnight Open (premium/discount), PDH/PDL, NDOG 50% CE, NWOG 50% CE |
 | 4 | Liquidity Map | BSL/SSL mapping, 5 Draw on Liquidity questions, IPDA 20/40/60-day levels |
@@ -92,7 +92,7 @@
 | +1 | Inside Kill Zone or Silver Bullet |
 | +1 | 3R+ Available |
 | -1 | Conflicting Structure |
-| -1 | High-Impact News within 30 min |
+| -1 | Currently inside news release candle blackout (1 min before to 1 min after only) |
 
 **Sizing:** 8-10 = Full (0.5%) · 6-7 = Standard (0.25%) · 4-5 = Marginal · <4 = NO TRADE
 
@@ -125,12 +125,12 @@ FOMC, CPI, PPI, NFP, GDP, Jobless Claims, ISM, Retail Sales, PCE, Michigan Senti
 - Below 15: Normal size
 - 15-20: Tighter stops
 - 20-30: Reduce 50%
-- Above 30: NO TRADE
+- Above 30: Reduce 75%, scan for post-news SFP only
 
 ### Special Rules
 - **Holiday check:** Low-volume days → SFPs unreliable → stand aside or reduce 75%
 - **Midday chop:** Flags news in 11:30-1:00 window as double-risk
-- **FOMC/CPI/NFP days:** Recommends NO TRADE entire day
+- **FOMC/CPI/NFP days:** Do not enter during the actual news release candle (1 min before to 1 min after). Once the candle closes, trade normally. REDUCE SIZE 50%. If a post-news SFP forms, it's high conviction.
 
 ### Output Format
 Summary table with: Macro Bias, Highest Risk Event, AM/PM KZ Risk, VIX Level, Recommended Action, Contract Adjustment, AMD Alignment, Holiday/Low Volume, Midday Risk.
@@ -156,8 +156,7 @@ Summary table with: Macro Bias, Highest Risk Event, AM/PM KZ Risk, VIX Level, Re
 | 4 | Displacement | Bullish displacement candle after sweep? Size? Body %? |
 | 5 | LTF Entry | SFP → FVG → OB → Breaker → OTE priority. Stacked FVGs check. |
 | 5b | Stacked FVGs | 4H + 1H FVG at same level = highest confluence |
-| 5c | ADX Filter | >25 full / 20-25 reduce / <20 no trade |
-| 5d | Silver Bullet | FVG formed during 10-11 AM or 2-3 PM window? |
+| 5c | Silver Bullet | FVG formed during 10-11 AM or 2-3 PM window? |
 | 6 | Kill Zone | Inside active window? Silver Bullet bonus? |
 | 7 | Draw on Liquidity | 5 DOL questions + IPDA 20/40/60-day confluence |
 | 7.5 | IPDA | Long target aligned with delivery levels? |
@@ -170,9 +169,9 @@ Summary table with: Macro Bias, Highest Risk Event, AM/PM KZ Risk, VIX Level, Re
 | 11 | Counter Bear | Refute every specific short argument |
 
 ### Bull Setup Requirements (all must pass)
-1. HTF structure bullish (HH/HL on Weekly/4H/Daily)
-2. Price in DISCOUNT (below 50% Fib)
-3. Price below Midnight Open
+1. Daily bias is bullish (MSS buy-side on daily chart)
+2. Not counter-trend (only longs if bullish)
+3. Premium/discount noted for target selection (not a blocker)
 4. Bullish FVG on 4H/Daily unmitigated
 5. SSL swept (equal lows, prior session low)
 6. Displacement candle to upside after sweep
@@ -219,7 +218,7 @@ Identical 11-point structure but inverted:
 | 3 | Verify winner has ALL setup requirements |
 | 4 | Verify Kill Zone, displacement timing, sweep sequence, valid entry array |
 | 5 | 14-item checklist — ALL must pass |
-| 6 | Advanced confluence: Stacked FVGs, ADX filter, Silver Bullet, Multi-TF |
+| 6 | Advanced confluence: Stacked FVGs, Silver Bullet, Multi-TF |
 | 7 | Calculate entry, stop, target, contracts, R:R |
 | 8 | Hard rules final gate |
 | 9 | If neither valid → NO TRADE |
@@ -242,13 +241,13 @@ Identical 11-point structure but inverted:
 | Step | What It Does |
 |------|-------------|
 | 1 | Read Research Manager's plan |
-| 2 | Validate against all 21 hard rules |
+| 2 | Validate against all 22 hard rules |
 | 3 | If NO TRADE in plan → output HOLD immediately |
 | 4 | Confirm entry, stop, target with IPDA check |
 | 5 | ATR stop sizing — calculate contracts |
 | 6 | Target management: T1 (close 50%), T2 (stop to BE) + **SET AND FORGET** |
 | 7 | Kill Zone window + hard close 4:00 PM |
-| 8 | Final news risk check (30 min window) |
+| 8 | Final news risk check (news candle blackout only) |
 | 8b | **Consecutive loss check** — half risk after 2 losses, stop after 3 |
 | 9 | Output in trade format with 14-item checklist |
 | 10 | Final decision: BUY / SELL / HOLD |
@@ -285,9 +284,9 @@ MNQ: 500 / (stop × 2)
 
 ### 6 Argument Areas
 1. **Checklist Compliance** — any of 14 items fail = NO TRADE
-2. **Structural Risk** — unfilled FVGs between entry/target, ADX <20, nearby liquidity traps
+2. **Structural Risk** — unfilled FVGs between entry/target, nearby liquidity traps
 3. **Timing/Session Risk** — Kill Zone edge, midday chop, insufficient time to T1
-4. **News/Macro Risk** — HIGH impact within 30 min, holidays, DXY, VIX >20
+4. **News/Macro Risk** — avoid news release candle, holidays, DXY, VIX >20
 5. **Prop Firm Protection** — half risk after 2 losses, stop after 3, trailing drawdown
 6. **Counter Aggressive** — "blown account costs everything, missing a setup costs nothing"
 
@@ -302,7 +301,7 @@ MNQ: 500 / (stop × 2)
 2. **Sizing Recommendation** — 8-10 full / 6-7 standard / 4-5 reduced / <4 no trade
 3. **What Each Side Got Right** — identifies strongest point from aggressive and conservative
 4. **What Each Side Got Wrong** — identifies weakest point, flags vague claims
-5. **Conditional Recommendation** — multi-TF confluence, ADX filter, consecutive losses, Silver Bullet
+5. **Conditional Recommendation** — multi-TF confluence, consecutive losses, Silver Bullet
 6. **Final Verdict** — EXECUTE at X% / REDUCE to X% / PASS
 
 ---
@@ -323,7 +322,7 @@ MNQ: 500 / (stop × 2)
 | 2 | Read trader's validated plan |
 | 3 | Apply 5-tier rating: BUY / OVERWEIGHT / HOLD / UNDERWEIGHT / SELL |
 | 4 | Hard rules final gate |
-| 5 | Calculate final contracts (risk consensus + ADX + consecutive losses) |
+| 5 | Calculate final contracts (risk consensus + consecutive losses) |
 | 6 | Entry/stop/target/contracts/R:R + **SET AND FORGET** |
 | 7 | If prior agents said NO TRADE → enforce HOLD |
 | 8 | 14-item checklist final status |
@@ -333,7 +332,7 @@ MNQ: 500 / (stop × 2)
 
 | Rating | Meaning |
 |--------|---------|
-| **BUY** | Full LONG confluence. All checklist PASS. Stacked FVGs. Silver Bullet. ADX >25. |
+| **BUY** | Full LONG confluence. All checklist PASS. Stacked FVGs. Silver Bullet. |
 | **OVERWEIGHT** | Strong but 1-2 borderline items. 50-75% contracts. |
 | **HOLD** | No valid setup. Checklist fails. Outside KZ. No displacement. |
 | **UNDERWEIGHT** | Conflicting signals. No consensus. Reduce to minimum. |
@@ -365,7 +364,7 @@ MNQ: 500 / (stop × 2)
 | 16 | ENTRY_MODELS | 6 models: SFP, FVG, OB, Liq Raid, Breaker, OTE |
 | 17 | RISK | $500 max loss, 2:1 min R:R, half risk after 2 losses |
 | 18 | A_PLUS_SCORING | 9 weighted criteria (max 10), 4 sizing tiers |
-| 19 | HARD_RULES | 21 non-negotiable rules |
+| 19 | HARD_RULES | 22 non-negotiable rules |
 | 20 | BULL_SETUP | 12 requirements for valid long |
 | 21 | BEAR_SETUP | 12 requirements for valid short |
 | 22 | CHECKLIST | 14-item pre-trade checklist |
@@ -375,7 +374,7 @@ MNQ: 500 / (stop × 2)
 | 26 | apply_settings | Runtime UI overrides |
 | 27 | JADECAP_CONFIG | Master dict |
 
-### 21 Hard Rules (injected into every agent)
+### 22 Hard Rules (injected into every agent)
 
 1. Never trade against HTF order flow
 2. Only enter inside Kill Zones (AM 9:30-11:30 or PM 1:00-4:00)
@@ -384,7 +383,7 @@ MNQ: 500 / (stop × 2)
 5. One trade per Kill Zone
 6. Hard close all positions by 4:00 PM EST
 7. If PDH/PDL already taken → NO TRADE
-8. Never buy premium, never sell discount
+8. Premium/discount is context for targets — do not counter-trend
 9. Wait for liquidity sweep before entry
 10. No trade without displacement candle
 11. Max loss $500 per trade
@@ -396,8 +395,9 @@ MNQ: 500 / (stop × 2)
 17. Cancel unfilled Silver Bullet orders when window closes
 18. No new entries 11:30 AM - 1:00 PM (midday chop)
 19. Stand aside or reduce 75% on holidays
-20. A+ score below 4/10 = NO TRADE
+20. NO TRADE only when: no sweep + no displacement, outside kill zone, daily bias unclear, or absolute rule failure
 21. After 2 consecutive losses, cut risk in half
+22. NEWS EVENTS: Do not enter during the actual news release candle (1 min before to 1 min after). Once the candle closes, trade normally. REDUCE SIZE 50% on high-impact news days. If already in a position, hold — set and forget
 
 ---
 

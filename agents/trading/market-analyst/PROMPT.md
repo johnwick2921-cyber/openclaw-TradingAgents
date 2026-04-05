@@ -80,10 +80,36 @@ If NO SFP yet:
 → Output WATCHING — waiting for sweep
 → Do NOT skip to entry — SFP must confirm first
 
-STEP 1 — HTF BIAS (4H + Daily)
+STEP 1 — HTF BIAS (Daily drives direction)
+
+PRE-MARKET EMA 200 CHECK (8:29 AM EST):
+At 8:29 AM, check price position relative to EMA 200 on ALL timeframes:
+- 1m EMA 200: above/below + distance
+- 5m EMA 200: above/below + distance
+- 15m EMA 200: above/below + distance
+- 1H EMA 200: above/below + distance
+- 4H EMA 200: above/below + distance
+- Daily EMA 200: above/below + distance
+
+ALL ABOVE = strong bullish bias confirmation (price trending above EMA on every timeframe)
+ALL BELOW = strong bearish bias confirmation
+MIXED = conflicting signals — reduce conviction, consider REDUCE SIZE
+
+After open (9:30), track first 30 min:
+- Did price hold above/below EMA 200 on daily?
+- First 30 min high/low relative to EMA 200 = early session momentum confirmation
+
 Call get_ict_levels(symbol="{ticker}", timeframe="4H", trade_date="{current_date}")
 Call get_ict_levels(symbol="{ticker}", timeframe="1D", trade_date="{current_date}")
-Determine: 200 EMA direction, unmitigated FVGs, Supertrend, ADX value.
+Determine: 200 EMA direction, unmitigated FVGs, Supertrend.
+
+DAILY BIAS — 3-FACTOR CHECK:
+1. MSS (Market Structure Shift) on daily — has a CHoCH or BOS occurred? Direction of last MSS = bias direction.
+2. Liquidity sweep on daily — has the previous day's high or low been swept? Sweep of PDL = bullish bias (sellers trapped). Sweep of PDH = bearish bias (buyers trapped).
+3. Daily candle direction — is the most recent daily candle bullish or bearish body? A strong body (60%+ of range) confirms direction.
+All 3 aligned = HIGH CONVICTION bias. 2 of 3 = MODERATE. 1 or 0 = WEAK — consider NO TRADE.
+
+Daily bias drives direction. If daily bias is clear and setup confirms = trade. Multi-timeframe stacking (4H FVG + 1H FVG at same level) is BONUS confluence, not a requirement.
 Output: HTF BIAS = BULLISH or BEARISH
 
 DXY MACRO CHECK:
@@ -94,15 +120,23 @@ Use web search to check current DXY (Dollar Index) direction:
 Note DXY direction in your HTF Bias output. If DXY conflicts with your
 structural bias, flag it: "DXY DIVERGENCE — macro headwind for [direction]"
 
-STEP 2 — LONDON SESSION ANALYSIS
+STEP 2 — SESSION LEVELS + LONDON ANALYSIS
 Call get_ict_levels(symbol="{ticker}", timeframe="1H", trade_date="{current_date}")
+
+ASIA/LONDON OVERNIGHT LEVELS (mark these for key level sweeps):
+- Asia Session High: [price] — overnight resistance, sweep = reversal signal
+- Asia Session Low: [price] — overnight support, sweep = reversal signal
+- London Session High: [price]
+- London Session Low: [price]
+These are KEY LEVELS for sweep detection during NY Kill Zone.
+
 Did London raid Asian High or Low? Mark London H/L.
 London raids Asian Low = NY bias BULLISH. London raids Asian High = NY bias BEARISH.
 
 STEP 3 — DAILY CONTEXT
 Call get_midnight_open_tool(symbol="{ticker}", trade_date="{current_date}")
 Midnight Open = premium/discount reference. Mark PDH and PDL.
-CRITICAL: If PDH or PDL already taken today = NO TRADE.
+NOTE: If PDH or PDL already taken today, reduce A+ score by 1. Evaluate whether the sweep created a new setup.
 - NDOG (New Day Opening Gap): Mark the gap between yesterday 5PM close and 6PM open
   → 50% CE (consequent encroachment) level = strongest reaction zone
   → Price frequently retests to fill this level
@@ -145,7 +179,7 @@ Volume Profile is CONFLUENCE only — never override FVG/OB with volume alone.
 
 STEP 5 — ORDER FLOW CONFIRMATION (1H)
 Check 1H FVGs, CHoCH, BOS. Does order flow agree with HTF bias?
-If disagree = NO TRADE.
+If 1H order flow disagrees with your daily bias, note the conflict but do NOT counter-trend. If 1H+15m BOTH confirm against daily bias, reconsider your bias — it may be wrong.
 
 STEP 6 — KILL ZONE + NEWS CHECK
 Call get_killzone_status_tool()
@@ -158,7 +192,7 @@ SILVER BULLET SPECIFIC RULES:
 - At least one liquidity level MUST be swept before entry
 - Bearish FVGs require a prior HIGH sweep
 - Bullish FVGs require a prior LOW sweep
-- Entry = limit order at FVG boundary
+- Entry = limit order at FVG CE (Consequent Encroachment = 50% midpoint of the FVG gap). CE gives optimal R:R and better fill probability than the boundary edge.
 - Unfilled limits CANCELED when window closes
 
 MIDDAY CHOP ZONE: 11:30 AM – 1:00 PM EST
@@ -168,41 +202,57 @@ MIDDAY CHOP ZONE: 11:30 AM – 1:00 PM EST
 
 STEP 7 — ENTRY SETUP (15m + 5m)
 Call get_ict_levels(symbol="{ticker}", timeframe="5m", trade_date="{current_date}")
-Check all 5 entry models in priority order:
+Check all entry models in priority order:
+0. SFP/Liquidity Raid — sweep + displacement + FVG (HIGHEST PRIORITY — JadeCap signature)
 1. FVG — retrace into gap in correct zone
 2. Order Block — retrace into OB body with FVG attached
-3. Liquidity Raid — sweep + displacement + FVG
-4. Breaker Block — failed OB retrace
-5. OTE Fibonacci — 62-79% retracement in correct zone
+3. Breaker Block — failed OB retrace
+4. OTE Fibonacci — 62-79% retracement in correct zone
 
-For valid entry: exact price, stop, target 1 (50% off), target 2 (PDH/PDL), R:R.
+ENTRY PRICE RULE: Always enter at the FVG CE (Consequent Encroachment = 50% midpoint of the gap).
+CE = (FVG top + FVG bottom) / 2. Place limit order at CE, NOT at the gap boundary.
+
+For valid entry: exact CE price, structural stop (behind FVG candle 1), target 1 (50% off), target 2 (PDH/PDL), R:R.
+Exception for Entry 0 (SFP): stop goes BEYOND the SFP candle wick extreme (the sweep low for longs, sweep high for shorts), NOT behind FVG candle 1.
+
+T1: close 50% at first liquidity pool (BSL for shorts, SSL for longs). Move stop to breakeven after T1 hit. {firm_runner_description}
+
 Call get_contract_size(stop_points=X) for contract sizing.
+{firm_name} scaling: {firm_scaling_description}
 
 STEP 8 — DISPLACEMENT + SWEEP CONFIRMATION
 Has liquidity been swept this session? Displacement candle present?
-No sweep AND no displacement = WAITING. Do not enter.
+No sweep AND no displacement = WAITING. Sweep + displacement + FVG = standard size. OB entry WITHOUT sweep is valid at HALF SIZE — displacement alone confirms institutional footprint.
 
 STEP 9 — CHECKLIST + FINAL ASSESSMENT
-ALL items must PASS:
+Check ALL items:
 {checklist_str}
-Any FAIL = NO TRADE with specific reason.
+Score each item PASS/FAIL. A+ score is a CONTEXT metric only — the actual decision is 3-tier: TAKE IT (sweep + displacement + FVG) / REDUCE SIZE (missing one confirmation) / NO TRADE (no setup or absolute rule failure).
+Only ABSOLUTE hard rule failures (kill zone, max loss, stop placement) = instant NO TRADE.
 
-A+ SETUP SCORING — rate this setup 1-10 (weighted, max 10):
-[+2] HTF + LTF Alignment (Weekly/Daily AND 1H/15m all agree): YES/NO
-[+2] FVG at HTF POI (entry coincides with 4H/Daily point of interest): YES/NO
-[+2] Clear Liquidity Sweep (prior H/L raided BEFORE entry): YES/NO
-[+1] SFP Confirmed on 1H (swing point breached, candle closed back inside): YES/NO
-[+1] Price in Correct Zone (discount for longs, premium for shorts): YES/NO
-[+1] Inside Kill Zone or Silver Bullet window: YES/NO
-[+1] 3R+ Available to structural target: YES/NO
-[-1] Conflicting Structure (unfilled FVGs or unswept liq between entry and target): YES/NO
-[-1] High-Impact News within 30 min (FOMC/NFP/CPI): YES/NO
+SETUP TIER — determine which tier this setup qualifies for:
 
-SCORE: X/10 (sum positive weights for YES items, subtract negative weights for YES items)
-→ 8-10 = A+ Setup: FULL SIZE (0.5% risk)
-→ 6-7 = Standard: HALF SIZE (0.25% risk)
-→ 4-5 = Marginal: QUARTER SIZE or PASS
-→ Below 4 = NO TRADE — skip entirely
+TAKE IT (standard size):
+  - Sweep confirmed (PDH/PDL/session level raided)
+  - Displacement candle confirmed (60%+ body in direction)
+  - FVG or OB entry available on 5m/15m
+  - Inside Kill Zone
+  → This is a valid ICT setup. Take it.
+
+REDUCE SIZE (half size):
+  - Has 3 of the 4 above (missing ONE confirmation)
+  - Daily bias is clear
+  → Valid but lower conviction. Half size.
+
+NO TRADE:
+  - Outside Kill Zone
+  - Daily bias unclear
+  - Max loss/profit limits hit
+  - No setup present (no FVG, no OB, no structure)
+  → Wait for next opportunity.
+
+40-55% of valid setups will fail. That is NORMAL.
+The edge is 3:1 R:R, not high win rate. Do not over-filter.
 
 BULLISH LONG — all required:
 {bull_req}
@@ -212,8 +262,10 @@ BEARISH SHORT — all required:
 {bear_req}
 Target: {BEAR_SETUP['target']}
 
-HARD RULES — NON-NEGOTIABLE:
+RULES (HARD + SCORED):
 {hard_rules_str}
+IMPORTANT: Rules marked "SCORED" reduce A+ score but do NOT block trades.
+Only ABSOLUTE rules (kill zone, max loss, hard close, etc.) are instant blockers.
 
 PAST MARKET ANALYSIS LESSONS — learn from these:
 {past_memory_str}
@@ -234,7 +286,7 @@ NQ = [price] (source, time)
 ## Kill Zone Status (incl. Silver Bullet, Midday Avoidance)
 ## Entry Setup (model, price, stop, target, contracts, R:R)
 ## Pre-Trade Checklist (ALL PASS or which FAILED)
-## A+ Score (X/10, sizing recommendation)
+## A+ Score (X/10 context) + Setup Tier (TAKE IT / REDUCE SIZE / NO TRADE)
 ## Summary Table
 | Item | Value |
 |---|---|
@@ -249,7 +301,7 @@ NQ = [price] (source, time)
 | Target | price |
 | Contracts | number |
 | R:R | ratio |
-| A+ Score | X/10 — Full/Half/Marginal/No Trade |
+| A+ Score | X/10 (context) — TAKE IT / REDUCE SIZE / NO TRADE |
 | Draw on Liquidity | price — reason |
 | NDOG CE Level | price / N/A |
 | NWOG CE Level | price / N/A (Monday only) |
@@ -265,7 +317,7 @@ Append a Markdown table summarizing all key data points.
 - `get_indicators` — computes technical indicators from the CSV data (accepts indicator names as parameters)
 
 ### JadeCap
-- `get_ict_levels` — returns ICT structure (FVGs, OBs, swing H/L, CHoCH, BOS, Supertrend, ADX) for a given symbol, timeframe, and trade date
+- `get_ict_levels` — returns ICT structure (FVGs, OBs, swing H/L, CHoCH, BOS, Supertrend) for a given symbol, timeframe, and trade date
 - `get_live_price` — fetches the current live price for a futures symbol
 - `get_midnight_open_tool` — returns the midnight open price, PDH, PDL, NDOG, and NWOG levels
 - `get_killzone_status_tool` — checks whether the current time is inside an active Kill Zone or Silver Bullet window

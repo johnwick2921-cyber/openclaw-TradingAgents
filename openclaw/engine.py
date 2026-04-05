@@ -8,7 +8,6 @@ Features:
 - Config bridge: set_dataflow_config() at start of run()
 """
 
-import json
 import logging
 import os
 import re
@@ -54,8 +53,6 @@ class RunEngine:
         self.memories = {
             "market-analyst": FinancialSituationMemory("market-analyst"),
             "news-analyst": FinancialSituationMemory("news-analyst"),
-            "social-analyst": FinancialSituationMemory("social-analyst"),
-            "fundamentals-analyst": FinancialSituationMemory("fundamentals-analyst"),
             "bull-researcher": FinancialSituationMemory("bull-researcher"),
             "bear-researcher": FinancialSituationMemory("bear-researcher"),
             "research-manager": FinancialSituationMemory("research-manager"),
@@ -94,6 +91,7 @@ class RunEngine:
         dispatch_fn: Optional[Callable] = None,
         dispatch_parallel_fn: Optional[Callable] = None,
         callbacks: Optional[list] = None,
+        run_id: Optional[str] = None,
     ) -> RunResult:
         from openclaw.dataflows.config import set_config as set_dataflow_config
         set_dataflow_config(self.config)
@@ -108,7 +106,7 @@ class RunEngine:
         self._running = True
         start_time = datetime.now()
 
-        run_id = str(uuid.uuid4())[:8]
+        run_id = run_id or str(uuid.uuid4())[:8]
         db_path = self._resolve_path(self.config["paths"]["database"])
         init_db(db_path)
         now = datetime.now(timezone.utc).isoformat()
@@ -152,7 +150,8 @@ class RunEngine:
 
             try:
                 investment_plan, trader_plan, risk_debate = self._run_judge_trader_risk(
-                    agents_dir, strategy, ticker, date, reports, debate, dispatch, callbacks
+                    agents_dir, strategy, ticker, date, reports, debate, dispatch, callbacks,
+                    dispatch_parallel_fn=dispatch_parallel_fn,
                 )
                 self._persist_debate(db_path, run_id, "risk", risk_debate,
                                      judge_decision=investment_plan)
@@ -217,9 +216,8 @@ class RunEngine:
                 cb.on_run_complete(result)
             return result
 
-        except Exception as e:
-            for cb in callbacks:
-                cb.on_error(e)
+        except Exception:
+            # on_error already fired in the tier's inner except
             raise
         finally:
             self._running = False
@@ -228,9 +226,7 @@ class RunEngine:
         reports = {}
         analyst_map = {
             "market": ("market-analyst", "market_report"),
-            "social": ("social-analyst", "sentiment_report"),
             "news": ("news-analyst", "news_report"),
-            "fundamentals": ("fundamentals-analyst", "fundamentals_report"),
         }
         selected = self.config["analysis"]["analysts"]
         tasks = []
@@ -298,7 +294,7 @@ class RunEngine:
                 cb.on_agent_status("bear-researcher", "completed")
         return debate
 
-    def _run_judge_trader_risk(self, agents_dir, strategy, ticker, date, reports, debate, dispatch, callbacks):
+    def _run_judge_trader_risk(self, agents_dir, strategy, ticker, date, reports, debate, dispatch, callbacks, dispatch_parallel_fn=None):
         reports_context = self._format_reports(reports)
         manager_prompt = self._build_prompt_with_context(
             agents_dir, "research-manager", strategy,
@@ -345,7 +341,10 @@ class RunEngine:
         max_risk_rounds = self.config["analysis"]["max_risk_discuss_rounds"]
         risk_debate = {"history": "", "aggressive_history": "", "conservative_history": "", "neutral_history": "", "count": 0}
         risk_agents = [("aggressive-risk", "aggressive_history"), ("conservative-risk", "conservative_history"), ("neutral-risk", "neutral_history")]
-        for _ in range(max_risk_rounds):
+
+        for round_num in range(max_risk_rounds):
+            # Build prompts for all 3 risk agents
+            risk_tasks = []
             for agent_name, history_key in risk_agents:
                 prompt = self._build_prompt_with_context(
                     agents_dir, agent_name, strategy,
@@ -366,9 +365,21 @@ class RunEngine:
                 )
                 fm = self._parse_frontmatter(os.path.join(agents_dir, agent_name, "PROMPT.md"))
                 model = get_model_for_agent(self.config, agent_name, fm.get("tier", "quick") or "quick")
+                risk_tasks.append((agent_name, history_key, prompt, model))
+
+            # Dispatch all 3 in PARALLEL
+            for agent_name, _, _, _ in risk_tasks:
                 for cb in callbacks:
                     cb.on_agent_status(agent_name, "running")
-                response = self._dispatch_with_timeout(dispatch, agent_name, prompt, model)
+
+            parallel_args = [(t[0], t[2], t[3]) for t in risk_tasks]
+            if dispatch_parallel_fn and len(parallel_args) > 1:
+                responses = dispatch_parallel_fn(parallel_args)
+            else:
+                responses = [self._dispatch_with_timeout(dispatch, a, p, m) for a, p, m in parallel_args]
+
+            # Collect results
+            for (agent_name, history_key, _, _), response in zip(risk_tasks, responses):
                 risk_debate[history_key] += f"\n{response}"
                 risk_debate["history"] += f"\n{agent_name}: {response}"
                 risk_debate[f"last_{history_key.replace('_history', '')}"] = response
@@ -376,6 +387,7 @@ class RunEngine:
                 for cb in callbacks:
                     cb.on_debate_turn(agent_name, response)
                     cb.on_agent_status(agent_name, "completed")
+
         return investment_plan, trader_plan, risk_debate
 
     def _run_portfolio_manager(self, agents_dir, strategy, ticker, date, reports, debate, investment_plan, trader_plan, risk_debate, dispatch, callbacks):
@@ -412,15 +424,28 @@ class RunEngine:
     def _extract_signal(self, final_decision: str) -> str:
         signals = ["BUY", "OVERWEIGHT", "HOLD", "UNDERWEIGHT", "SELL"]
         text_upper = final_decision.upper()
+
+        # Pattern 1: PM format — "Rating: BUY" or "RATING: **BUY**"
+        for signal in signals:
+            if f"RATING: {signal}" in text_upper or f"RATING: **{signal}**" in text_upper:
+                return signal
+
+        # Pattern 2: Trader format — "FINAL TRANSACTION PROPOSAL: **BUY**"
         for signal in signals:
             if f"FINAL TRANSACTION PROPOSAL: **{signal}**" in text_upper:
                 return signal
-            if f"RATING: {signal}" in text_upper:
-                return signal
+
+        # Pattern 3: Common PM output — "NO TRADE" maps to HOLD
+        if "NO TRADE" in text_upper or "NO_TRADE" in text_upper:
+            return "HOLD"
+
+        # Pattern 4: Look for signal in last 500 chars only (avoids boilerplate)
+        # The actual decision is always at the end of the response
+        tail = text_upper[-500:]
         last_pos = -1
         last_signal = "HOLD"
         for signal in signals:
-            pos = text_upper.rfind(signal)
+            pos = tail.rfind(signal)
             if pos > last_pos:
                 last_pos = pos
                 last_signal = signal
@@ -509,7 +534,7 @@ class RunEngine:
         reason = bias.get("reason", "")
         if direction == "neutral" and not reason:
             return ""
-        parts = [f"\nTrader's Pre-Session Bias: {direction.upper()} (confidence: {confidence})"]
+        parts = [f"\nTrader's Daily Bias: {direction.upper()} (confidence: {confidence})"]
         if reason:
             parts.append(f"Reason: {reason}")
         return "\n".join(parts) + "\n"
@@ -527,7 +552,7 @@ class RunEngine:
 
         parts = []
         parts.append("\n══ BIAS & CONFLUENCE CONTEXT ══")
-        parts.append(f"Trader's Pre-Session Bias: {direction.upper()} (confidence: {confidence})")
+        parts.append(f"Trader's Daily Bias: {direction.upper()} (confidence: {confidence})")
         if reason:
             parts.append(f"Bias Reason: {reason}")
 
@@ -550,6 +575,59 @@ class RunEngine:
 
         parts.append("══════════════════════════════\n")
         return "\n".join(parts)
+
+    def _get_ema200_context(self, ticker: str) -> str:
+        """Compute EMA 200 on multiple timeframes and format as context."""
+        try:
+            from openclaw.indicators import _fetch_ohlcv_df
+            import pandas as pd
+
+            timeframes = ["1D", "4H", "1H", "30m", "15m", "5m"]
+            parts = ["\n══ EMA 200 PRE-MARKET CHECK (all timeframes) ══"]
+            above_count = 0
+            total = 0
+
+            for tf in timeframes:
+                try:
+                    df = _fetch_ohlcv_df(ticker, tf, "")
+                    if df is None or isinstance(df, str) or df.empty:
+                        continue
+                    # Normalize column names
+                    col_map = {}
+                    for c in df.columns:
+                        col_map[c] = c.lower()
+                    df = df.rename(columns=col_map)
+                    if "close" not in df.columns:
+                        continue
+                    close = df["close"].astype(float)
+                    span = min(200, len(close))
+                    if span < 20:
+                        continue
+                    ema = close.ewm(span=span, adjust=False).mean()
+                    ema_val = float(ema.iloc[-1])
+                    price = float(close.iloc[-1])
+                    above = price > ema_val
+                    dist = round(price - ema_val, 2)
+                    label = f"EMA {span}" if span < 200 else "EMA 200"
+                    parts.append(f"  {tf:6s} {label}: {ema_val:.2f} | Price: {price:.2f} | {'ABOVE' if above else 'BELOW'} ({dist:+.2f})")
+                    if above:
+                        above_count += 1
+                    total += 1
+                except Exception:
+                    continue
+
+            if total > 0:
+                if above_count == total:
+                    parts.append(f"  Alignment: ALL ABOVE ({total}/{total} TF) — strong bullish")
+                elif above_count == 0:
+                    parts.append(f"  Alignment: ALL BELOW ({total}/{total} TF) — strong bearish")
+                else:
+                    parts.append(f"  Alignment: MIXED ({above_count} above, {total - above_count} below) — reduce conviction")
+
+            parts.append("══════════════════════════════\n")
+            return "\n".join(parts) if total > 0 else ""
+        except Exception:
+            return ""
 
     def _build_analyst_prompt(self, agents_dir, agent_name, strategy, ticker, date):
         md_path = os.path.join(agents_dir, agent_name, "PROMPT.md")
@@ -581,9 +659,11 @@ class RunEngine:
             data_sections += f"\n\n=== PAST ANALYSIS MEMORY ===\n{memory_str}\n"
 
         user_bias = self._get_user_bias_context()
+        ema200_context = self._get_ema200_context(ticker)
 
         return f"""Analyze {ticker} for trade date {date}.
 {user_bias}
+{ema200_context}
 {prompt_text}
 
 Company/Instrument: {ticker}
@@ -599,15 +679,22 @@ Trade Date: {date}
         frontmatter = self._parse_frontmatter(md_path)
         memory_name = agent_name  # Each agent has its own memory store now
         past_memory_str = self._get_memory_context(memory_name, ticker, date)
+
+        # Bear researcher optimization: for jadecap, only send the two reports
+        # that matter for NQ futures (skip social media + balance sheet data).
+        is_bear_jadecap = (side == "bear" and strategy == "jadecap")
+        sentiment_report_val = "" if is_bear_jadecap else reports.get("sentiment_report", "")
+        fundamentals_report_val = "" if is_bear_jadecap else reports.get("fundamentals_report", "")
+
         context = {
             "ticker": ticker,
             "current_date": date,
             "company_name": ticker,
             "market_research_report": reports.get("market_report", ""),
             "market_report": reports.get("market_report", ""),
-            "sentiment_report": reports.get("sentiment_report", ""),
+            "sentiment_report": sentiment_report_val,
             "news_report": reports.get("news_report", ""),
-            "fundamentals_report": reports.get("fundamentals_report", ""),
+            "fundamentals_report": fundamentals_report_val,
             "history": debate.get("history", ""),
             "current_response": opponent_history[-2000:] if opponent_history else "",
             "past_memory_str": past_memory_str,
@@ -617,20 +704,32 @@ Trade Date: {date}
         prompt_text = self._substitute_placeholders(prompt_text, context)
         user_bias = self._get_user_bias_context()
         confluence = self._get_confluence_context()
+        ema200_context = self._get_ema200_context(ticker)
+
+        # Bear researcher optimization: trim opponent arg and debate history
+        # to reduce input tokens (bull goes first and gets the full context).
+        if is_bear_jadecap:
+            opponent_snippet = opponent_history[-1500:] if opponent_history else "No argument yet — you go first."
+            debate_history = debate.get("history", "")
+            debate_history_trimmed = debate_history[-3000:] if len(debate_history) > 3000 else debate_history
+        else:
+            opponent_snippet = opponent_history[-2000:] if opponent_history else "No argument yet — you go first."
+            debate_history_trimmed = debate.get("history", "")
 
         return f"""{prompt_text}
 {user_bias}
 {confluence}
+{ema200_context}
 Company/Instrument: {ticker}
 Trade Date: {date}
 
 {reports_context}
 
 Debate History:
-{debate['history']}
+{debate_history_trimmed}
 
 Opponent's Last Argument:
-{opponent_history[-2000:] if opponent_history else 'No argument yet — you go first.'}
+{opponent_snippet}
 """
 
     def _build_prompt_with_context(self, agents_dir, agent_name, strategy, **context):
@@ -639,6 +738,7 @@ Opponent's Last Argument:
         base_context = context.copy()
         base_context["user_bias_context"] = self._get_user_bias_context()
         base_context["confluence_context"] = self._get_confluence_context()
+        base_context["ema200_context"] = self._get_ema200_context(context.get("ticker", ""))
         base_context["past_memory_str"] = self._get_memory_context(
             agent_name,
             str(context.get("ticker") or context.get("company_name") or ""),
@@ -745,13 +845,39 @@ Opponent's Last Argument:
             "RISK_max_loss_per_trade": risk_dict.get("max_loss_per_trade", max_loss),
             "RISK_daily_profit_target": risk_dict.get("daily_profit_target", 1000),
         }
+
+        # Inject prop firm-specific rules (scaling, runner, cashout)
+        from openclaw.jadecap_config import PROP_FIRMS
+        firm_cfg = PROP_FIRMS.get(active_firm, {})
+        context["firm_name"] = firm_cfg.get("name", active_firm)
+        context["firm_account_size"] = firm_cfg.get("account_size", 50000)
+        context["firm_trailing_dd"] = firm_cfg.get("trailing_drawdown", 2000)
+        context["firm_safety_net"] = firm_cfg.get("safety_net", 52100)
+        context["firm_max_contracts_mnq"] = firm_cfg.get("max_contracts_mnq", 40)
+        context["firm_base_contracts"] = firm_cfg.get("base_contracts_mnq", 5)
+        context["firm_scaling_step"] = firm_cfg.get("scaling_step", 2500)
+        context["firm_scaling_description"] = firm_cfg.get("scaling_description", "")
+        context["firm_runner_description"] = firm_cfg.get("runner_description", "")
+        context["firm_runner_exit"] = firm_cfg.get("runner_exit", "EOD")
+        context["firm_consistency_rule"] = firm_cfg.get("consistency_rule", 0.50)
+
         return context
 
+    _live_price_cache: dict = {}  # symbol -> (timestamp, result)
+
     def _safe_live_price(self, symbol: str) -> str:
+        """Fetch live price with 30s cache to avoid repeated WebSocket connections."""
+        import time
+        now = time.time()
+        cached = self._live_price_cache.get(symbol)
+        if cached and (now - cached[0]) < 30:
+            return cached[1]
         try:
             import openclaw.tools  # ensure registration/import side effects
             from openclaw.indicators import fetch_live_price
-            return fetch_live_price(symbol)
+            result = fetch_live_price(symbol)
+            self._live_price_cache[symbol] = (now, result)
+            return result
         except Exception as exc:
             return f"CURRENT PRICE: {symbol} = unavailable ({exc})"
 
@@ -763,7 +889,29 @@ Opponent's Last Argument:
             start = data.get("start", "?")
             end = data.get("end", "?")
             active = data.get("active", True)
+            note = data.get("note", "")
             lines.append(f"- {label}: {start}-{end} EST ({'active' if active else 'disabled'})")
+            if note:
+                lines.append(f"  Note: {note}")
+            # Include Silver Bullet rules if present
+            sb_rules = data.get("silver_bullet_rules")
+            if sb_rules:
+                lines.append("  Silver Bullet Rules:")
+                if sb_rules.get("first_fvg_only"):
+                    lines.append("    - Only the FIRST valid FVG in this window qualifies")
+                if sb_rules.get("sweep_required_before_entry"):
+                    lines.append("    - Liquidity sweep required before entry")
+                if sb_rules.get("bearish_fvg_requires_high_sweep"):
+                    lines.append("    - Bearish FVG requires a prior HIGH to be swept")
+                if sb_rules.get("bullish_fvg_requires_low_sweep"):
+                    lines.append("    - Bullish FVG requires a prior LOW to be swept")
+                entry_type = sb_rules.get("entry_type", "")
+                if entry_type:
+                    lines.append(f"    - Entry type: {entry_type.replace('_', ' ')}")
+                if sb_rules.get("cancel_unfilled_at_window_close"):
+                    lines.append("    - Cancel unfilled orders when window closes")
+                if sb_rules.get("one_trade_per_window"):
+                    lines.append("    - One trade per window maximum")
         return "\n".join(lines)
 
     @staticmethod
@@ -1003,10 +1151,10 @@ Opponent's Last Argument:
                     pass
 
             # Also add to BM25 for runtime retrieval
-            self.memories[agent_name].add_situations([{
-                "situation": f"Outcome: {ticker} {date}, signal={signal}, change={actual_change_pct:.2f}%",
-                "recommendation": f"Signal {signal} was {'correct' if correct else 'wrong' if correct is False else 'neutral'}. Actual change: {actual_change_pct:.2f}%.",
-            }])
+            self.memories[agent_name].add_situations([
+                (f"Outcome: {ticker} {date}, signal={signal}, change={actual_change_pct:.2f}%",
+                 f"Signal {signal} was {'correct' if correct else 'wrong' if correct is False else 'neutral'}. Actual change: {actual_change_pct:.2f}%.")
+            ])
 
         return {
             "ticker": ticker,

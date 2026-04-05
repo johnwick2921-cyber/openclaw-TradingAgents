@@ -1,13 +1,3 @@
-# TOOLS.md - OpenClaw Tools & Environment
-
-## Infrastructure
-
-| Service | Port | Managed By |
-|---------|------|-----------|
-| OpenClaw Gateway | 18789 | systemctl --user (openclaw-gateway) |
-| 9router AI Router | 20128 | systemctl --user (9router) |
-| Control UI | 18789 | Same as gateway |
-
 ## Trading Module
 
 Config: `trading-config.json`
@@ -62,11 +52,6 @@ Agents declare tools in frontmatter. RunEngine prefetches data before sending pr
 **stockstats (13):** rsi, macd, macdh, macds, boll, boll_ub, boll_lb, close_5_sma, close_20_sma, close_50_sma, close_5_ema, close_20_ema, atr
 
 **smartmoneyconcepts (17):** fvg, ob, bos, choch, liquidity, swing_highs_lows, premium_discount, session_highs_lows, retracements, displacement, market_structure, order_flow, breaker_blocks, mitigation_blocks, equal_highs_lows, previous_day_levels, volume_profile
-
-### Gateway Handlers (16)
-
-**Read:** `trading.status`, `trading.models`, `trading.runs`, `trading.run.get`
-**Write:** `trading.setBias`, `trading.setHalt`, `trading.updateWatchlist`, `trading.setRisk`, `trading.setLlm`, `trading.setAnalysis`, `trading.setJadecap`, `trading.setStrategy`, `trading.run`, `trading.run.cancel`, `trading.run.delete`, `trading.run.reflect`
 
 ### Config Quick Reference
 

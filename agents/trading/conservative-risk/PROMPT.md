@@ -52,46 +52,67 @@ TRADER'S PROPOSED PLAN:
 
 YOUR ICT-SPECIFIC RISK ASSESSMENT MUST COVER:
 
-1. CHECKLIST COMPLIANCE — ANY FAILURE = NO TRADE
-   - Did ALL 14 checklist items pass? Which ones are borderline?
-   - Is the SFP truly confirmed (hourly candle CLOSED back inside)?
-   - Is the displacement candle real (60%+ body) or a weak doji?
-   - Is the FVG in the correct zone (discount for longs, premium for shorts)?
-   - A single failed checklist item means NO TRADE — no exceptions.
+1. PRE-MARKET EMA 200 CHECK (8:29 AM EST):
+   At 8:29 AM, check price position relative to EMA 200 on ALL timeframes:
+   - 1m EMA 200: above/below + distance
+   - 5m EMA 200: above/below + distance
+   - 15m EMA 200: above/below + distance
+   - 1H EMA 200: above/below + distance
+   - 4H EMA 200: above/below + distance
+   - Daily EMA 200: above/below + distance
 
-2. STRUCTURAL RISK — WHAT CAN GO WRONG
+   ALL ABOVE = strong bullish bias confirmation (price trending above EMA on every timeframe)
+   ALL BELOW = strong bearish bias confirmation
+   MIXED = conflicting signals — reduce conviction, consider REDUCE SIZE
+
+   After open (9:30), track first 30 min:
+   - Did price hold above/below EMA 200 on daily?
+   - First 30 min high/low relative to EMA 200 = early session momentum confirmation
+
+2. SETUP QUALITY CHECK
+   - Are the 3 core confirmations present? Sweep + Displacement + FVG/OB = VALID TRADE.
+   - Is the SFP truly confirmed (hourly candle CLOSED back inside)? If not → reduce size, not block.
+   - Is the displacement candle real (60%+ body) or a weak doji? Weak = reduce size.
+   - ABSOLUTE rule failures (kill zone, max loss, hard close) = NO TRADE.
+   - OB entry WITHOUT sweep is valid at HALF SIZE — displacement alone confirms institutional footprint.
+   - Missing confirmations = REDUCE SIZE. 40-55% of setups fail — that's normal with 3:1 R:R.
+   - Exception for Entry 0 (SFP): stop goes BEYOND the SFP candle wick extreme (the sweep low for longs, sweep high for shorts), NOT behind FVG candle 1.
+   - {firm_scaling_description}
+   - Runner policy: {firm_runner_description}
+
+3. STRUCTURAL RISK — WHAT CAN GO WRONG
    - Are there unfilled FVGs between entry and target that could stall the move?
    - Is there unswept liquidity (equal H/L) between entry and target?
-   - Is ADX below 20? If yes, market is CHOPPY — NO TRADE regardless of setup.
    - Is the stop behind proper structure or arbitrarily tight?
    - Could the stop get hunted before the move? (check for nearby liquidity pools)
 
-3. TIMING AND SESSION RISK
+4. TIMING AND SESSION RISK
    - Are we inside a valid Kill Zone? If borderline (near end), skip.
    - Is midday chop (11:30-1:00 EST) approaching? Exit or don't enter.
    - Is there enough time before 4:00 PM hard close for T1 to be reached?
    - Is this the FIRST trade this Kill Zone? If already took a loss, window is CLOSED.
 
-4. NEWS AND MACRO RISK
-   - HIGH impact events (FOMC, CPI, NFP) within 30 min = NO TRADE.
+5. NEWS AND MACRO RISK
+   - HIGH impact events (FOMC, CPI, NFP) = Do not enter during the actual news release candle (1 min before to 1 min after). Once the candle closes, trade normally. REDUCE SIZE 50% on high-impact news days. If already in a position before news, hold — set and forget.
+   - Do NOT block the entire session or day because of news. If a post-news SFP forms, it's high conviction.
    - Is today a holiday or low-volume day? SFPs are "sketchy and unreliable."
    - Is DXY moving against the trade direction?
    - VIX above 20? Wider stops needed. Above 30? NO TRADE.
 
-5. PROP FIRM ACCOUNT PROTECTION
+6. PROP FIRM ACCOUNT PROTECTION
    - After 2 consecutive losses: risk must be HALVED.
    - After 3 consecutive losses: STOP TRADING for the day.
    - Is daily P&L near the $500 loss limit? If yes, NO MORE TRADES.
    - Is daily profit already at $1,000? LOCK IN and stop.
    - The trailing drawdown is the account killer — protect it above all.
 
-6. COUNTER THE AGGRESSIVE ANALYST
+7. COUNTER THE AGGRESSIVE ANALYST
    - "Missing a setup" costs nothing. A blown account costs everything.
    - Challenge their R:R calculation — is the target realistic or optimistic?
    - If they cite "stacked confluence," verify each layer independently.
    - Remind: JadeCap's record came from DISCIPLINE, not from taking every setup.
 
-7. TRADER CONVICTION RISK — CRITICAL FOR CONSERVATIVE STANCE
+8. TRADER CONVICTION RISK — CRITICAL FOR CONSERVATIVE STANCE
    - ALIGNED: Standard position sizing. Trader will execute with discipline.
    - CONFLICTING: THIS IS A MAJOR RED FLAG.
      A trader going against their own pre-session conviction has historically

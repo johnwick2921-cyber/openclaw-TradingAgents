@@ -61,8 +61,9 @@ STEP 2: VALIDATE AGAINST HARD RULES ONE MORE TIME
 
 {hard_rules_str}
 
-Check EVERY hard rule against the proposed plan.
-If ANY rule is violated -> override to HOLD immediately.
+Check absolute hard rules (kill zone, max loss, stop placement, hard close) against the proposed plan.
+If ANY absolute hard rule violated → override to HOLD immediately.
+For other rules: if sweep + displacement + FVG are confirmed → trade is VALID. Adjust size based on conviction tier (TAKE IT / REDUCE SIZE).
 
 ══════════════════════════════════════════════════════════════════
 STEP 3: IF NO TRADE IN PLAN -> OUTPUT HOLD IMMEDIATELY
@@ -73,15 +74,33 @@ If the Research Manager's plan says NO TRADE or the evidence is insufficient:
 - Output HOLD with a brief explanation of why no setup qualifies.
 - Skip to FINAL TRANSACTION PROPOSAL: **HOLD**
 
+PRE-MARKET EMA 200 CHECK (8:29 AM EST):
+At 8:29 AM, check price position relative to EMA 200 on ALL timeframes:
+- 1m EMA 200: above/below + distance
+- 5m EMA 200: above/below + distance
+- 15m EMA 200: above/below + distance
+- 1H EMA 200: above/below + distance
+- 4H EMA 200: above/below + distance
+- Daily EMA 200: above/below + distance
+
+ALL ABOVE = strong bullish bias confirmation (price trending above EMA on every timeframe)
+ALL BELOW = strong bearish bias confirmation
+MIXED = conflicting signals — reduce conviction, consider REDUCE SIZE
+
+After open (9:30), track first 30 min:
+- Did price hold above/below EMA 200 on daily?
+- First 30 min high/low relative to EMA 200 = early session momentum confirmation
+
 ══════════════════════════════════════════════════════════════════
 STEP 4: CONFIRM ENTRY, STOP, AND TARGET FROM PLAN
 ══════════════════════════════════════════════════════════════════
 
 - Entry Price: [exact price from plan — FVG midpoint, OB body, or Breaker level]
 - Stop Loss Price: [exact price — behind candle 1 of FVG or OB body]
-- Target 1: [first liquidity pool]
-- Target 2: [PDH or PDL]
-- Verify the stop is placed correctly per ICT rules (behind FVG candle 1 or OB body).
+  Exception for Entry 0 (SFP): stop goes BEYOND the SFP candle wick extreme (the sweep low for longs, sweep high for shorts), NOT behind FVG candle 1.
+- Target 1: [first liquidity pool (BSL for shorts, SSL for longs)]
+- Target 2: {firm_runner_description}
+- Verify the stop is placed correctly per ICT rules (behind FVG candle 1 or OB body; SFP exception: beyond wick extreme).
 - Verify entry is at a valid PD array (FVG, OB, Breaker Block, OTE).
 
 IPDA CHECK:
@@ -90,17 +109,20 @@ IPDA CHECK:
 - If target is within 20-day range, note as conservative
 
 ══════════════════════════════════════════════════════════════════
-STEP 5: ATR STOP SIZING — CALCULATE CONTRACTS
+STEP 5: CONTRACT SIZING FROM STRUCTURAL STOP
 ══════════════════════════════════════════════════════════════════
 
-ATR Stop Multiplier: {atr_mult}
-Stop Points = |Entry - Stop Loss|
+Stop placement is STRUCTURAL — behind candle 1 of the FVG or OB body. NOT ATR-based.
+Exception for Entry 0 (SFP): stop goes BEYOND the SFP candle wick extreme (the sweep low for longs, sweep high for shorts), NOT behind FVG candle 1.
+Stop Points = |Entry Price - Structural Stop Level|
 Contracts = max_loss / (stop_points x point_value)
           = ${max_loss} / (stop_points x ${point_value})
 
 - Round DOWN to whole contracts.
 - Minimum 1 contract.
 - If stop is too wide for even 1 contract at ${max_loss} risk -> NO TRADE.
+- NEVER use ATR to calculate stop placement. ATR is only used for volatility context.
+- {firm_scaling_description}
 
 ══════════════════════════════════════════════════════════════════
 STEP 6: TARGET MANAGEMENT — T1 AND T2
@@ -108,8 +130,9 @@ STEP 6: TARGET MANAGEMENT — T1 AND T2
 
 Target 1: First liquidity pool (BSL for shorts, SSL for longs)
   - Close {int(t1_pct * 100)}% of position at T1.
-Target 2: PDH (longs) or PDL (shorts)
-  - Move stop to Break Even after T1 hit.
+  - Move stop to breakeven after T1 hit.
+Target 2: {firm_runner_description}
+  - Runner. Set and forget — only adjustment is stop to BE after T1.
 
 If T1 distance < minimum for {min_rr}:1 R:R -> NO TRADE.
 
@@ -134,9 +157,9 @@ Active Kill Zones:
 STEP 8: FINAL NEWS RISK CHECK
 ══════════════════════════════════════════════════════════════════
 
-- Check for high-impact news events in the next 30 minutes.
-- FOMC, CPI, NFP, GDP = NO TRADE within 30 min of release.
-- If news risk is elevated, reduce contracts by 50% or HOLD entirely.
+- Check for high-impact news events releasing imminently.
+- FOMC, CPI, NFP, GDP = Do not enter during the actual news release candle (1 min before to 1 min after). Once the candle closes, trade normally. REDUCE SIZE 50% on high-impact news days. If already in a position before news, hold — set and forget.
+- Do NOT block the entire session or day because of news. If a post-news SFP forms, it's high conviction.
 
 ══════════════════════════════════════════════════════════════════
 STEP 8b: CONSECUTIVE LOSS CHECK
@@ -210,7 +233,8 @@ TRADE JOURNAL:
 - Date: {current_date}
 - Instrument: {active}
 - Setup Type: [SFP / Silver Bullet FVG / OB Retest / Breaker / OTE]
-- A+ Score: [X/10]
+- A+ Score: [X/10 — context metric for journaling, not a trade gate]
+- Decision Tier: [TAKE IT / REDUCE SIZE / NO TRADE]
 - Direction: [LONG / SHORT / NO TRADE]
 - Entry Model: [which of the 5 models triggered]
 - Kill Zone: [AM / PM / Silver Bullet 1 / Silver Bullet 2]

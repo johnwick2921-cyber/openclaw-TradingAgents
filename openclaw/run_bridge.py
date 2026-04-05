@@ -44,8 +44,6 @@ def _get_gateway_auth() -> tuple[int, str]:
 AGENT_ROLES = {
     "market-analyst": "Primary ICT analysis engine. Runs the full 10-step JadeCap playbook. Produces the market report all other agents depend on.",
     "news-analyst": "Macro news researcher. Pulls multi-source headlines (Brave + yfinance), assesses Kill Zone risk, determines risk-on/risk-off macro bias.",
-    "social-analyst": "Social media and retail sentiment researcher. Searches Reddit, Twitter/X for sentiment data.",
-    "fundamentals-analyst": "Financial fundamentals researcher. Earnings, balance sheets, cash flow.",
     "bull-researcher": "Bull case advocate. Builds strongest LONG argument using ICT evidence. Has BM25 memory of past bullish analyses.",
     "bear-researcher": "Bear case advocate. Builds strongest SHORT argument. Counters bull points. Has BM25 memory of past bearish analyses.",
     "research-manager": "Investment judge. Evaluates bull/bear debate, resolves conflicts, validates checklist, produces investment plan. Deep-think model.",
@@ -56,14 +54,28 @@ AGENT_ROLES = {
     "portfolio-manager": "Final decision authority. Applies 5-tier ICT rating, verifies hard rules, outputs BUY/OVERWEIGHT/HOLD/UNDERWEIGHT/SELL. Deep-think model.",
 }
 
-# Cache for system prompts — built once per run
-_system_prompt_cache: dict = {}
+# Cache for static agent files (identity, soul, etc.) — rebuilt once per run
+_static_file_cache: dict = {}  # key: filepath, value: content
+
+# Approximate token usage stats accumulated across all dispatch calls in a run
+_dispatch_stats: list = []
+
+
+def clear_dispatch_stats() -> None:
+    """Reset dispatch stats at the start of each run."""
+    _dispatch_stats.clear()
 
 
 def _read_file(workspace: str, filename: str) -> str:
+    path = os.path.join(workspace, filename)
+    cached = _static_file_cache.get(path)
+    if cached is not None:
+        return cached
     try:
-        with open(os.path.join(workspace, filename)) as f:
-            return f.read().strip()
+        with open(path) as f:
+            content = f.read().strip()
+        _static_file_cache[path] = content
+        return content
     except Exception:
         return ""
 
@@ -211,13 +223,23 @@ def openclaw_dispatch(agent_name: str, prompt: str, model: str) -> str:
     }
 
     import time as _time
+    approx_prompt_tokens = len(system_prompt + prompt) // 4
+    _t_start = _time.monotonic()
     max_retries = 3
     for attempt in range(max_retries):
         try:
             resp = requests.post(url, json=payload, headers=headers, timeout=600)
             resp.raise_for_status()
             data = resp.json()
-            return data["choices"][0]["message"]["content"]
+            response = data["choices"][0]["message"]["content"]
+            _duration = _time.monotonic() - _t_start
+            _dispatch_stats.append({
+                "agent": agent_name,
+                "prompt_tokens": approx_prompt_tokens,
+                "response_tokens": len(response) // 4,
+                "duration": _duration,
+            })
+            return response
         except requests.exceptions.ConnectionError:
             if attempt < max_retries - 1:
                 _time.sleep(5 * (attempt + 1))
@@ -256,7 +278,7 @@ def openclaw_dispatch_parallel(tasks: list) -> list:
         return openclaw_dispatch(agent_name, prompt, model)
 
     with ThreadPoolExecutor(max_workers=len(tasks)) as pool:
-        return list(pool.map(_call, tasks))
+        return list(pool.map(_call, tasks, timeout=600))
 
 
 class JsonLinesCallback:
@@ -287,6 +309,8 @@ class JsonLinesCallback:
         self._write({"event": "signal", "signal": signal})
 
     def on_run_complete(self, result):
+        if self._f.closed:
+            return
         self._write({
             "event": "complete",
             "run_id": result.run_id,
@@ -296,16 +320,21 @@ class JsonLinesCallback:
         self._f.close()
 
     def on_error(self, error):
+        if self._f.closed:
+            return
         self._write({"event": "error", "message": str(error)})
         self._f.close()
 
 
 def main():
+    clear_dispatch_stats()
+
     parser = argparse.ArgumentParser(description="Run trading analysis via RunEngine")
     parser.add_argument("--ticker", required=True, help="Ticker symbol (e.g. NVDA)")
     parser.add_argument("--date", required=True, help="Trade date YYYY-MM-DD")
     parser.add_argument("--progress-file", required=True, help="Path to JSON-lines progress file")
     parser.add_argument("--config", default=None, help="Path to trading-config.json")
+    parser.add_argument("--run-id", default=None, help="Run ID (passed from gateway)")
     args = parser.parse_args()
 
     config_path = args.config or os.path.join(
@@ -327,7 +356,21 @@ def main():
             dispatch_fn=openclaw_dispatch,
             dispatch_parallel_fn=openclaw_dispatch_parallel,
             callbacks=[jl_cb, print_cb],
+            run_id=args.run_id,
         )
+        # Print dispatch stats summary
+        if _dispatch_stats:
+            total_prompt = sum(s["prompt_tokens"] for s in _dispatch_stats)
+            total_response = sum(s["response_tokens"] for s in _dispatch_stats)
+            total_duration = sum(s["duration"] for s in _dispatch_stats)
+            print("\n=== DISPATCH STATS ===")
+            print(f"{'Agent':<25} {'Prompt':>10} {'Response':>10} {'Duration':>10}")
+            for s in _dispatch_stats:
+                print(
+                    f"{s['agent']:<25} {s['prompt_tokens']:>10,} {s['response_tokens']:>10,} {s['duration']:>9.0f}s"
+                )
+            print(f"{'TOTAL':<25} {total_prompt:>10,} {total_response:>10,} {total_duration:>9.0f}s")
+
         print(json.dumps({
             "ok": True,
             "run_id": result.run_id,

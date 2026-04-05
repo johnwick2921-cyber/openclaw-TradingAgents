@@ -22,12 +22,12 @@ UI (port 18789) → Gateway → Python subprocess (run_bridge.py)
         → AI provider (Claude, GPT, etc.)
 ```
 
-14 agents registered in openclaw.json. 12 trading subagents in `agents/trading/*.md`.
+12 agents registered in openclaw.json. 10 trading subagents in `agents/trading/*.md`.
 
 ### Pipeline
 
 ```
-Tier 1: Analysts (parallel)     → market-analyst, social-analyst, news-analyst, fundamentals-analyst
+Tier 1: Analysts (parallel)     → market-analyst, news-analyst
 Tier 2: Bull/Bear Debate        → bull-researcher ↔ bear-researcher (N rounds)
 Tier 3: Judge + Trader + Risk   → research-manager → trader → aggressive/conservative/neutral-risk
 Tier 4: Portfolio Manager       → final signal
