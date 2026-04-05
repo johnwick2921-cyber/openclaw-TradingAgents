@@ -63,7 +63,7 @@ STEP 2: VALIDATE AGAINST HARD RULES ONE MORE TIME
 
 Check absolute hard rules (kill zone, max loss, stop placement, hard close) against the proposed plan.
 If ANY absolute hard rule violated → override to HOLD immediately.
-For other rules: if sweep + displacement + FVG are confirmed → trade is VALID. Adjust size based on conviction tier (TAKE IT / REDUCE SIZE).
+For other rules: if sweep + displacement + FVG are confirmed → trade is VALID at FULL SIZE. OB entry WITHOUT sweep is VALID at FULL SIZE — lower score (4) but still tradeable. Half size ONLY applies from consecutive loss rule (2+ consecutive losses).
 
 ══════════════════════════════════════════════════════════════════
 STEP 3: IF NO TRADE IN PLAN -> OUTPUT HOLD IMMEDIATELY
@@ -71,7 +71,9 @@ STEP 3: IF NO TRADE IN PLAN -> OUTPUT HOLD IMMEDIATELY
 
 If the Research Manager's plan says NO TRADE or the evidence is insufficient:
 - Do NOT try to find a trade that doesn't exist.
+- BUT still output the BEST AVAILABLE trade plan as a STANDBY PLAN (entry, stop, target, contracts, R:R) even if you rate it HOLD. The trader needs a plan ready if conditions improve.
 - Output HOLD with a brief explanation of why no setup qualifies.
+- Include STANDBY PLAN with the closest valid setup (even if score is low)
 - Skip to FINAL TRANSACTION PROPOSAL: **HOLD**
 
 PRE-MARKET EMA 200 CHECK (8:29 AM EST):
@@ -158,7 +160,7 @@ STEP 8: FINAL NEWS RISK CHECK
 ══════════════════════════════════════════════════════════════════
 
 - Check for high-impact news events releasing imminently.
-- FOMC, CPI, NFP, GDP = Do not enter during the actual news release candle (1 min before to 1 min after). Once the candle closes, trade normally. REDUCE SIZE 50% on high-impact news days. If already in a position before news, hold — set and forget.
+- FOMC, CPI, NFP, GDP = Do not enter during the actual news release candle (1 min before to 1 min after). Once the candle closes, trade normally. If already in a position before news, hold — set and forget.
 - Do NOT block the entire session or day because of news. If a post-news SFP forms, it's high conviction.
 
 ══════════════════════════════════════════════════════════════════
@@ -179,14 +181,15 @@ CONVICTION DIRECTION CHECK
 Before finalizing, verify trade direction vs trader's pre-session bias:
 - If ALIGNED (trade direction matches bias) → proceed with full sizing
 - If CONFLICTING (e.g., plan is LONG but trader bias is BEARISH):
-  → REDUCE position size by minimum 25%
+  → Conviction is CONTEXT for journaling. It does NOT affect position sizing.
+  → Size is determined by: max_loss / (stop_points × point_value), reduced ONLY by consecutive loss rule.
   → Note: "Trade direction conflicts with trader's pre-session conviction"
-  → Trader will likely execute with less discipline on conflicting trades
+  → No sizing reduction from conviction conflict.
 - If NEUTRAL → no adjustment needed
 
 Include in output:
   Direction Match: [ALIGNED / CONFLICTING / NEUTRAL]
-  Size Adjustment: [NONE / -25% for conflict]
+  Size Adjustment: [NONE — conviction does not reduce size. Half size ONLY after 2+ consecutive losses.]
 
 ══════════════════════════════════════════════════════════════════
 STEP 9: OUTPUT IN TRADE FORMAT
@@ -199,7 +202,7 @@ PRE-TRADE CHECKLIST — final status:
 
 HOLIDAY CHECK:
 - If News Analyst flagged LOW VOLUME DAY:
-  → Reduce contracts by 75% regardless of other calculations
+  → Half size ONLY after 2+ consecutive losses. No other sizing reductions. If setup meets entry model conditions, trade at FULL SIZE.
   → Add "HOLIDAY RISK" disclaimer to output
   → SFP setups have lower reliability today
 
@@ -234,7 +237,7 @@ TRADE JOURNAL:
 - Instrument: {active}
 - Setup Type: [SFP / Silver Bullet FVG / OB Retest / Breaker / OTE]
 - A+ Score: [X/10 — context metric for journaling, not a trade gate]
-- Decision Tier: [TAKE IT / REDUCE SIZE / NO TRADE]
+- Decision Tier: [TAKE IT (score ≥ 3 → FULL SIZE) / REDUCE SIZE (ONLY consecutive losses ≥ 2 → HALF SIZE) / NO TRADE]
 - Direction: [LONG / SHORT / NO TRADE]
 - Entry Model: [which of the 5 models triggered]
 - Kill Zone: [AM / PM / Silver Bullet 1 / Silver Bullet 2]

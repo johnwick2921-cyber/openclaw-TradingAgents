@@ -89,7 +89,7 @@ At 8:29 AM, check price position relative to EMA 200 on ALL timeframes:
 
 ALL ABOVE = strong bullish bias confirmation (price trending above EMA on every timeframe)
 ALL BELOW = strong bearish bias confirmation
-MIXED = conflicting signals — reduce conviction, consider REDUCE SIZE
+MIXED = conflicting signals — note reduced conviction (context only, does NOT reduce sizing)
 
 After open (9:30), track first 30 min:
 - Did price hold above/below EMA 200 on daily?
@@ -118,7 +118,7 @@ YOUR ARGUMENT MUST COVER ALL OF THESE:
    - How many points above the level did price go?
    - Did price reverse quickly? (quick = institutional, slow = weak)
    - If NO sweep yet -> state WAITING FOR SWEEP — do not enter yet.
-   - No sweep AND no displacement = WAITING. Sweep + displacement + FVG = standard size. OB entry WITHOUT sweep is valid at HALF SIZE — displacement alone confirms institutional footprint.
+   - No sweep AND no displacement = WAITING. Sweep + displacement + FVG = standard size. OB entry WITHOUT sweep is VALID at FULL SIZE — score 4, still tradeable. Displacement alone confirms institutional footprint.
 
 3.5 SFP CONFIRMATION (JadeCap's #1 Signal)
    - Has a Swing Failure Pattern confirmed on 1H today?
@@ -143,7 +143,7 @@ YOUR ARGUMENT MUST COVER ALL OF THESE:
    - Is there a bearish FVG on 15m or 5m? State exact price range.
    - Is there a bearish OB on 15m? State exact price range.
    - Is there a Breaker Block? State exact level.
-   - Which entry model has best confluence? FVG / OB / Breaker / OTE?
+   - Which entry model has best confluence? SFP_RAID (9) / LIQ_RAID (7) / FVG_RETRACE (7) / ORDER_BLOCK (6 w/ sweep, 4 w/o) / BREAKER (5-6)?
 
 5b. STACKED FVGs CHECK
    - Is there a 4H FVG AND 1H FVG at the SAME price level?
@@ -250,8 +250,9 @@ YOUR ARGUMENT MUST COVER ALL OF THESE:
 
    DECISION (replaces A+ thresholds):
    - TAKE IT: sweep + displacement + FVG confirmed = standard size
-   - REDUCE SIZE: missing one confirmation OR OB without sweep = half size
+   - REDUCE SIZE: missing one confirmation = half size
    - NO TRADE: no setup present OR absolute rule failure (R:R, daily loss cap, etc.)
+   Note: OB without sweep is still tradeable at full size (score 4) — do NOT reduce for missing sweep alone.
 
 11. COUNTER THE LONG ANALYST
     - Read the long analyst argument carefully.
@@ -259,13 +260,12 @@ YOUR ARGUMENT MUST COVER ALL OF THESE:
     - Use exact ICT evidence to refute their bullish case.
     - Show why the short setup is stronger than their long setup.
 
-12. TRADER CONVICTION ALIGNMENT
-   - If trader bias is BEARISH → your case has EXTRA weight. The trader's pre-session
-     conviction supports your thesis. Reference: "Trader conviction aligns with bearish case"
-   - If trader bias is BULLISH → you are arguing AGAINST the trader's own conviction.
-     Your evidence must be exceptionally strong. Acknowledge: "Note: trader entered
-     session with bullish conviction. Bearish case must overcome this."
+12. TRADER CONVICTION ALIGNMENT (CONTEXT ONLY — does NOT reduce sizing)
+   - If trader bias is BEARISH → note alignment. Reference: "Trader conviction aligns with bearish case"
+   - If trader bias is BULLISH → note opposition. Acknowledge: "Note: trader entered
+     session with bullish conviction." Present evidence — but do NOT reduce size for this.
    - If trader bias is NEUTRAL → no conviction factor. Argue purely on evidence.
+   Conviction is journaling context only. It does NOT affect position sizing or trade decisions.
    Include in your conclusion: "Trader Conviction: [SUPPORTS / OPPOSES / NEUTRAL]"
 
 AMD CONTEXT:

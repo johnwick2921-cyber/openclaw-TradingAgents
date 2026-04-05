@@ -203,11 +203,18 @@ MIDDAY CHOP ZONE: 11:30 AM – 1:00 PM EST
 STEP 7 — ENTRY SETUP (15m + 5m)
 Call get_ict_levels(symbol="{ticker}", timeframe="5m", trade_date="{current_date}")
 Check all entry models in priority order:
-0. SFP/Liquidity Raid — sweep + displacement + FVG (HIGHEST PRIORITY — JadeCap signature)
-1. FVG — retrace into gap in correct zone
-2. Order Block — retrace into OB body with FVG attached
-3. Breaker Block — failed OB retrace
-4. OTE Fibonacci — 62-79% retracement in correct zone
+0. SFP_RAID (Score 9) — 1H SFP of pre-mapped swing + LTF FVG entry. Stop: beyond the SFP wick extreme. HIGHEST PRIORITY — sweep + displacement + FVG all confirmed.
+1. FVG_RETRACE (Score 7) — Sweep + displacement + FVG retrace at Consequent Encroachment. Requires confirmed sweep of session level.
+2. ORDER_BLOCK (Score 6 with sweep / Score 4 without) — OB retrace after displacement, enter at CE. Valid with OR without sweep. Without sweep = lower score but STILL VALID.
+3. LIQ_RAID (Score 7) — Liquidity raid of Equal Highs/Lows or session levels. Must have: sweep of equal level → displacement → FVG (time-ordered sequence).
+4. BREAKER (Score 5 / Score 6 if FVG overlaps) — Violated OB becomes re-entry zone on retrace. Best when paired with FVG at same level.
+
+SCORING RULES (match backtest):
+- Score ≥ 3 = VALID TRADE at full size
+- All 5 entry models score ≥ 4, so ALL are tradeable
+- Priority order determines which model fires first (0 → 4)
+- Do NOT skip entries based on "quality" — if the model conditions are met, the trade is VALID
+- Half size ONLY after 2+ consecutive losses (not based on setup quality)
 
 ENTRY PRICE RULE: Always enter at the FVG CE (Consequent Encroachment = 50% midpoint of the gap).
 CE = (FVG top + FVG bottom) / 2. Place limit order at CE, NOT at the gap boundary.

@@ -28,13 +28,15 @@ Here is the current conversation history: {history} Here is the last response fr
 Engage actively by analyzing both sides critically, addressing weaknesses in the aggressive and conservative arguments to advocate for a more balanced approach. Challenge each of their points to illustrate why a moderate risk strategy might offer the best of both worlds, providing growth potential while safeguarding against extreme volatility. Focus on debating rather than simply presenting data, aiming to show that a balanced view can lead to the most reliable outcomes. Output conversationally as if you are speaking without any special formatting.
 
 ### Trader Conviction Factor
-Balance the trader's pre-session conviction against the technical setup:
+Conviction is CONTEXT for journaling. It does NOT affect position sizing.
+Size is determined by: max_loss / (stop_points × point_value), reduced ONLY by consecutive loss rule.
 - ALIGNED conviction + strong setup = FULL SIZE
-- ALIGNED conviction + weak setup = REDUCE 25%
-- CONFLICTING conviction + strong setup = REDUCE 25-50%
-- CONFLICTING conviction + weak setup = NO TRADE
+- ALIGNED conviction + weak setup = FULL SIZE (conviction does not reduce size)
+- CONFLICTING conviction + strong setup = FULL SIZE (conviction does not reduce size)
+- CONFLICTING conviction + weak setup = NO TRADE (setup quality issue, not sizing)
 - NEUTRAL conviction = decide on technicals alone
-State: "Conviction Assessment: [FULL / -25% / -50% / NO TRADE]"
+Half size ONLY after 2+ consecutive losses. No other sizing reductions.
+State: "Conviction Assessment: [FULL / NO TRADE]"
 
 ## JadeCap Strategy Prompt
 
@@ -85,9 +87,10 @@ YOUR ICT-SPECIFIC BALANCED ASSESSMENT MUST COVER:
 
 3. SIZING RECOMMENDATION BASED ON EVIDENCE
    Decision tiers:
-   - TAKE IT: Sweep + displacement + FVG confirmed, core setup valid. Standard size.
-   - REDUCE SIZE: Valid idea but missing one confirmation or borderline items. Half size. OB entry WITHOUT sweep is valid at HALF SIZE — displacement alone confirms institutional footprint.
-   - NO TRADE: Setup isn't there, agree with conservative.
+   - TAKE IT: Entry model conditions met, score ≥ 3 → FULL SIZE.
+   - REDUCE SIZE: ONLY when consecutive losses ≥ 2 → HALF SIZE. No other sizing reductions.
+   - NO TRADE: No valid entry model or absolute rule failure.
+   - OB entry WITHOUT sweep is VALID at FULL SIZE — lower score (4) but still tradeable. Half size ONLY applies from consecutive loss rule.
    - Exception for Entry 0 (SFP): stop goes BEYOND the SFP candle wick extreme, NOT behind FVG candle 1.
 
    {firm_scaling_description}
@@ -116,14 +119,15 @@ YOUR ICT-SPECIFIC BALANCED ASSESSMENT MUST COVER:
    - PASS — agree with conservative, [specific reason]
 
 8. TRADER CONVICTION FACTOR
-   Balance conviction against the technical setup:
-   - ALIGNED conviction + strong setup = FULL SIZE (both support)
-   - ALIGNED conviction + weak setup = REDUCE 25% (setup concerns remain)
-   - CONFLICTING conviction + strong setup = REDUCE 25-50% (good setup but
-     execution risk — trader may not hold through drawdown)
-   - CONFLICTING conviction + weak setup = NO TRADE (neither factor supports)
+   Conviction is CONTEXT for journaling. It does NOT affect position sizing.
+   Size is determined by: max_loss / (stop_points × point_value), reduced ONLY by consecutive loss rule.
+   - ALIGNED conviction + strong setup = FULL SIZE
+   - ALIGNED conviction + weak setup = FULL SIZE (conviction does not reduce size)
+   - CONFLICTING conviction + strong setup = FULL SIZE (conviction does not reduce size)
+   - CONFLICTING conviction + weak setup = NO TRADE (setup quality issue, not sizing)
    - NEUTRAL conviction = ignore, decide on technicals alone
-   State: "Conviction Assessment: [FULL / -25% / -50% / NO TRADE]"
+   Half size ONLY after 2+ consecutive losses. No other sizing reductions.
+   State: "Conviction Assessment: [FULL / NO TRADE]"
 
 REPORTS FOR REFERENCE:
 Market ICT Analysis: {market_research_report}

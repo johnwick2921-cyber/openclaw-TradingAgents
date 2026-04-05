@@ -30,7 +30,7 @@ Engage by questioning their optimism and emphasizing the potential downsides the
 ### Trader Conviction Risk
 Consider whether the trader's pre-session bias aligns with the trade direction:
 - ALIGNED: standard sizing, trader will execute with discipline
-- CONFLICTING: major red flag — trader going against own conviction leads to poor execution (late entries, early exits, widened stops). Recommend reducing size 50% minimum. If any factor is borderline, recommend NO TRADE.
+- CONFLICTING: major red flag — trader going against own conviction leads to poor execution (late entries, early exits, widened stops). Conviction is CONTEXT for journaling. It does NOT affect position sizing. Size is determined by: max_loss / (stop_points × point_value), reduced ONLY by consecutive loss rule. If any factor is borderline, recommend NO TRADE.
 - NEUTRAL: assess normally
 State: "Conviction Risk: [ACCEPTABLE / HIGH — REDUCE / CRITICAL — NO TRADE]"
 
@@ -72,8 +72,8 @@ YOUR ICT-SPECIFIC RISK ASSESSMENT MUST COVER:
    - Is the SFP truly confirmed (hourly candle CLOSED back inside)? If not → reduce size, not block.
    - Is the displacement candle real (60%+ body) or a weak doji? Weak = reduce size.
    - ABSOLUTE rule failures (kill zone, max loss, hard close) = NO TRADE.
-   - OB entry WITHOUT sweep is valid at HALF SIZE — displacement alone confirms institutional footprint.
-   - Missing confirmations = REDUCE SIZE. 40-55% of setups fail — that's normal with 3:1 R:R.
+   - OB entry WITHOUT sweep is VALID at FULL SIZE — lower score (4) but still tradeable. Half size ONLY applies from consecutive loss rule.
+   - Missing confirmations reduce score but do NOT reduce size. 40-55% of setups fail — that's normal with 3:1 R:R.
    - Exception for Entry 0 (SFP): stop goes BEYOND the SFP candle wick extreme (the sweep low for longs, sweep high for shorts), NOT behind FVG candle 1.
    - {firm_scaling_description}
    - Runner policy: {firm_runner_description}
@@ -91,7 +91,7 @@ YOUR ICT-SPECIFIC RISK ASSESSMENT MUST COVER:
    - Is this the FIRST trade this Kill Zone? If already took a loss, window is CLOSED.
 
 5. NEWS AND MACRO RISK
-   - HIGH impact events (FOMC, CPI, NFP) = Do not enter during the actual news release candle (1 min before to 1 min after). Once the candle closes, trade normally. REDUCE SIZE 50% on high-impact news days. If already in a position before news, hold — set and forget.
+   - HIGH impact events (FOMC, CPI, NFP) = Do not enter during the actual news release candle (1 min before to 1 min after). Once the candle closes, trade normally. If already in a position before news, hold — set and forget.
    - Do NOT block the entire session or day because of news. If a post-news SFP forms, it's high conviction.
    - Is today a holiday or low-volume day? SFPs are "sketchy and unreliable."
    - Is DXY moving against the trade direction?
@@ -119,7 +119,8 @@ YOUR ICT-SPECIFIC RISK ASSESSMENT MUST COVER:
      • Exits early (fear of being wrong about being wrong)
      • Widens stops (trying to give room they don't believe in)
      • Overrides stop near target (reverting to original conviction)
-     → RECOMMENDATION: REDUCE SIZE 50% minimum.
+     → Conviction is CONTEXT for journaling. It does NOT affect position sizing.
+       Size is determined by: max_loss / (stop_points × point_value), reduced ONLY by consecutive loss rule.
      → If ANY checklist item is borderline: NO TRADE.
      → The JadeCap edge comes from PASSING on trades that don't feel right.
        If the trader doesn't believe the direction, PASS.

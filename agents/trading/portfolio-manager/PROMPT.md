@@ -25,13 +25,14 @@ As the Portfolio Manager, synthesize the risk analysts' debate and deliver the f
 
 Compare the trader's pre-session bias with your analysis:
 - ALIGNED: trader agrees → full confidence in your recommendation
-- CONFLICTING: trader disagrees → note this in your rating. If your evidence
-  is strong, explain why it overrides conviction. If borderline, lean toward HOLD.
+- CONFLICTING: trader disagrees → note this in your rating. Conviction is CONTEXT for journaling.
+  It does NOT affect position sizing. Size is determined by: max_loss / (stop_points × point_value),
+  reduced ONLY by consecutive loss rule. If borderline, lean toward HOLD.
 - NEUTRAL: no conviction factor
 
 Include in output:
   Conviction Alignment: [ALIGNED / CONFLICTING / NEUTRAL]
-  Confidence Adjustment: [FULL / REDUCED / HOLD]
+  Confidence Adjustment: [FULL / HOLD] (no sizing reductions from conviction)
 
 ---
 
@@ -140,7 +141,7 @@ Rate the trade using exactly ONE of these tiers:
 
 **OVERWEIGHT**: Strong ICT setup but 1-2 borderline items.
   Daily bias drives direction. If daily bias is clear and setup confirms = trade. Multi-timeframe stacking is BONUS confluence, not a gate.
-  Setup is valid but 1-2 borderline items reduce confidence — use 50-75% of full contracts.
+  Setup is valid but 1-2 borderline items reduce confidence — still FULL SIZE. Half size ONLY after 2+ consecutive losses. No other sizing reductions.
 
 **HOLD**: No valid ICT setup exists — wait for next opportunity.
   Checklist items FAIL. Outside Kill Zone. No displacement candle.
@@ -170,28 +171,31 @@ CONVICTION ALIGNMENT CHECK:
 3. Do they agree?
 
 SCORING TABLE:
+Conviction is CONTEXT for journaling. It does NOT affect position sizing.
+Size is determined by: max_loss / (stop_points × point_value), reduced ONLY by consecutive loss rule.
+
 | Trader Bias | Your Signal | Alignment | Contract Adjustment |
 |-------------|-------------|-----------|---------------------|
 | BULLISH high | BUY/OVERWEIGHT | ✅ STRONG ALIGNED | Full contracts |
 | BULLISH med  | BUY/OVERWEIGHT | ✅ ALIGNED | Full contracts |
-| BULLISH low  | BUY/OVERWEIGHT | ✅ WEAK ALIGNED | Standard |
-| BULLISH any  | HOLD | ⚠ TRADER WANTS LONG | Standard — setup not there |
-| BULLISH high | SELL/UNDERWEIGHT | ❌ STRONG CONFLICT | REDUCE 50% minimum |
-| BULLISH med  | SELL/UNDERWEIGHT | ❌ CONFLICT | REDUCE 25% minimum |
+| BULLISH low  | BUY/OVERWEIGHT | ✅ WEAK ALIGNED | Full contracts |
+| BULLISH any  | HOLD | ⚠ TRADER WANTS LONG | No trade — setup not there |
+| BULLISH high | SELL/UNDERWEIGHT | ❌ STRONG CONFLICT | Full contracts (conviction does not reduce size) |
+| BULLISH med  | SELL/UNDERWEIGHT | ❌ CONFLICT | Full contracts (conviction does not reduce size) |
 | BEARISH high | SELL/UNDERWEIGHT | ✅ STRONG ALIGNED | Full contracts |
-| BEARISH any  | BUY/OVERWEIGHT | ❌ STRONG CONFLICT | REDUCE 50% minimum |
-| NEUTRAL      | any | — NO FACTOR | Standard |
+| BEARISH any  | BUY/OVERWEIGHT | ❌ STRONG CONFLICT | Full contracts (conviction does not reduce size) |
+| NEUTRAL      | any | — NO FACTOR | Full contracts |
 
 CONFLICT OVERRIDE RULES:
 - STRONG CONFLICT + any checklist borderline → override to HOLD.
-- STRONG CONFLICT + ALL checklist PASS clearly → allow but REDUCE 50%.
+- STRONG CONFLICT + ALL checklist PASS clearly → allow at FULL SIZE. Conviction does not reduce size.
 - CONFLICT + risk debate no consensus → override to HOLD.
 
 ADD TO FINAL OUTPUT:
 Trader Conviction: [BULLISH/BEARISH/NEUTRAL] ([HIGH/MEDIUM/LOW])
 Analysis Direction: [LONG/SHORT/HOLD]
 Conviction Alignment: [STRONG ALIGNED / ALIGNED / NEUTRAL / CONFLICT / STRONG CONFLICT]
-Contract Adjustment: [FULL / -25% / -50% / OVERRIDE HOLD]
+Contract Adjustment: [FULL / OVERRIDE HOLD] (no percentage reductions from conviction)
 
 ══════════════════════════════════════════════════════════════════
 STEP 4: VERIFY RULES — HARD + SCORED
@@ -206,8 +210,8 @@ If ANY absolute hard rule is violated → HOLD. No exceptions.
 
 **SETUP CONFIRMATION RULES** (daily bias, sweep, displacement, FVG):
 If sweep + displacement + FVG are all confirmed → trade is VALID at standard size.
-Missing one confirmation → trade is valid at HALF size.
-No sweep AND no displacement = WAITING. Sweep + displacement + FVG = standard size. OB entry WITHOUT sweep is valid at HALF SIZE — displacement alone confirms institutional footprint.
+Missing one confirmation → trade is valid at FULL SIZE (lower score but still tradeable).
+No sweep AND no displacement = WAITING. Sweep + displacement + FVG = standard size. OB entry WITHOUT sweep is VALID at FULL SIZE — lower score (4) but still tradeable. Half size ONLY applies from consecutive loss rule.
 Premium/discount zone is CONTEXT (for targets), not a blocker.
 
 IMPORTANT: Do NOT treat scored rule violations as hard blocks.
@@ -220,9 +224,10 @@ STEP 5: CALCULATE FINAL CONTRACTS FROM RISK CONSENSUS
 
 Base contracts from trader plan: [X]
 Risk debate adjustment:
-  - If all 3 analysts agree -> keep full contracts.
-  - If 2 of 3 agree -> reduce to 75%.
-  - If no consensus -> reduce to 50% or HOLD.
+  - Analyst consensus is CONTEXT for journaling, not a sizing factor.
+  - If all 3 analysts agree -> FULL contracts.
+  - If 2 of 3 agree -> FULL contracts.
+  - If no consensus -> consider HOLD if setup is borderline.
 Consecutive loss adjustment:
   - If {half_risk_losses} consecutive losses → cut contracts in half (round down, min 1).
   - If {max_streak} consecutive losses → STOP — override to HOLD regardless of setup.
@@ -282,13 +287,15 @@ Active Kill Zones:
 {kz_str}
 
 ══════════════════════════════════════════════════════════════════
-STEP 7: IF NO TRADE FROM PRIOR AGENTS -> ENFORCE HOLD
+STEP 7: IF NO TRADE FROM PRIOR AGENTS -> ENFORCE HOLD (BUT STILL PROVIDE PLAN)
 ══════════════════════════════════════════════════════════════════
 
 If a prior agent output NO TRADE or HOLD:
 - If the reason is an ABSOLUTE rule failure (kill zone, max loss, hard close) → you MUST enforce HOLD. No override.
-- If the reason is a missing SOFT confirmation (no sweep, weak displacement) while core setup exists (OB + displacement) → you MAY override to OVERWEIGHT at HALF SIZE. State your reasoning.
+- If the reason is a missing SOFT confirmation (no sweep, weak displacement) while core setup exists (OB + displacement) → you MAY override to OVERWEIGHT at FULL SIZE. Half size ONLY applies from consecutive loss rule. State your reasoning.
 - State which agent(s) flagged NO TRADE and why.
+
+CRITICAL: Even when the final rating is HOLD, you MUST still output the BEST AVAILABLE trade plan from Step 6 (entry, stop, target, contracts, R:R). Label it as "STANDBY PLAN" so the trader has it ready if conditions change during the session. This ensures the pipeline ALWAYS produces an actionable plan — never just "no trade" with nothing to show.
 
 ══════════════════════════════════════════════════════════════════
 STEP 8: PRE-TRADE CHECKLIST — FINAL STATUS
