@@ -633,22 +633,21 @@ def _find_entry_realtime(kz_df: pd.DataFrame, direction: str, midnight_open: flo
                                                             "level_name": sweep_seen.get("level_name", "")}))
 
         # ════════════════════════════════════════════════════════════════
-        # Entry 2: Order Block (priority 2, score 6 with sweep, 4 without)
-        # JCAP: OB retrace after displacement, enter at CE
+        # Entry 2: Order Block WITH SWEEP (priority 2, score 6)
+        # Only fires when sweep confirmed — without sweep, falls to Entry 4
         # ════════════════════════════════════════════════════════════════
-        active_obs = [ob for ob in obs if not ob["violated"]]
-        if active_obs:
-            for ob in active_obs:
-                if direction == "long" and candle["low"] <= ob["ob_ce"]:
-                    stop = ob["ob_low"] - 2
-                    score = 6 if sweep_seen else 4
-                    return _build_entry(direction, ob["ob_ce"], ts, stop,
-                                        "ORDER_BLOCK", score, _extra({}))
-                elif direction == "short" and candle["high"] >= ob["ob_ce"]:
-                    stop = ob["ob_high"] + 2
-                    score = 6 if sweep_seen else 4
-                    return _build_entry(direction, ob["ob_ce"], ts, stop,
-                                        "ORDER_BLOCK", score, _extra({}))
+        if sweep_seen:
+            active_obs = [ob for ob in obs if not ob["violated"]]
+            if active_obs:
+                for ob in active_obs:
+                    if direction == "long" and candle["low"] <= ob["ob_ce"]:
+                        stop = ob["ob_low"] - 2
+                        return _build_entry(direction, ob["ob_ce"], ts, stop,
+                                            "ORDER_BLOCK", 6, _extra({}))
+                    elif direction == "short" and candle["high"] >= ob["ob_ce"]:
+                        stop = ob["ob_high"] + 2
+                        return _build_entry(direction, ob["ob_ce"], ts, stop,
+                                            "ORDER_BLOCK", 6, _extra({}))
 
         # ════════════════════════════════════════════════════════════════
         # Entry 3: Liquidity Raid / Turtle Soup (priority 2, score 7)
@@ -697,6 +696,23 @@ def _find_entry_realtime(kz_df: pd.DataFrame, direction: str, midnight_open: flo
                     score = 6 if has_fvg else 5
                     return _build_entry(direction, brk["ob_ce"], ts, stop,
                                         "BREAKER", score, _extra({"has_fvg": has_fvg}))
+
+        # ════════════════════════════════════════════════════════════════
+        # Entry 5: Order Block WITHOUT sweep (priority 4, score 4)
+        # Lowest priority — only fires when no higher-scoring entry matched
+        # ════════════════════════════════════════════════════════════════
+        if not sweep_seen:
+            active_obs = [ob for ob in obs if not ob["violated"]]
+            if active_obs:
+                for ob in active_obs:
+                    if direction == "long" and candle["low"] <= ob["ob_ce"]:
+                        stop = ob["ob_low"] - 2
+                        return _build_entry(direction, ob["ob_ce"], ts, stop,
+                                            "ORDER_BLOCK", 4, _extra({}))
+                    elif direction == "short" and candle["high"] >= ob["ob_ce"]:
+                        stop = ob["ob_high"] + 2
+                        return _build_entry(direction, ob["ob_ce"], ts, stop,
+                                            "ORDER_BLOCK", 4, _extra({}))
 
     return None
 
@@ -854,7 +870,8 @@ def backtest_day(ticker: str, date: str, prev_df: Optional[pd.DataFrame] = None,
             df_4h_prior = df_4h[df_4h.index < cutoff].tail(20)  # last 20 4H bars
         bias = _daily_bias(df_daily_prior, df_4h_prior) if len(df_daily_prior) >= 5 else "unclear"
     elif daily_history:
-        combined = pd.concat(daily_history + [df])
+        # Use prior days only (no today) — no look-ahead
+        combined = pd.concat(daily_history)
         df_daily_agg = _agg(combined, 1440) if len(combined) > 10 else pd.DataFrame()
         bias = _daily_bias(df_daily_agg) if len(df_daily_agg) >= 5 else "unclear"
     else:
@@ -1024,8 +1041,8 @@ def backtest_day(ticker: str, date: str, prev_df: Optional[pd.DataFrame] = None,
             # Losses reduce balance → fewer contracts automatically. No separate half-size rule.
 
             # ── Rule: PM adjusts max risk to remaining daily DD budget ──
-            # If AM had a small loss (fees, partial), PM can only risk what's left
-            if is_pm and day_result["daily_pnl"] < 0:
+            # Skip in full_send mode — max contracts regardless
+            if is_pm and day_result["daily_pnl"] < 0 and not full_send_mode:
                 remaining_budget = DAILY_LOSS_CAP - abs(day_result["daily_pnl"])
                 if remaining_budget > 0:
                     risk_per_ct = entry.get("risk_pts", 0) * POINT_VALUE
@@ -1037,7 +1054,12 @@ def backtest_day(ticker: str, date: str, prev_df: Optional[pd.DataFrame] = None,
 
             # Simulate the trade — start AFTER entry bar (no look-inside-bar bias)
             entry_time = pd.Timestamp(entry["entry_time"])
-            after_entry = df[df.index > entry_time + pd.Timedelta(minutes=4)]
+            # Match timezone between entry_time and df.index
+            if entry_time.tzinfo is not None and df.index.tz is None:
+                entry_time = entry_time.tz_localize(None)
+            elif entry_time.tzinfo is None and df.index.tz is not None:
+                entry_time = entry_time.tz_localize(df.index.tz)
+            after_entry = df[df.index > entry_time + pd.Timedelta(minutes=5)]
             hard_close_df = after_entry.between_time(kz_start, HARD_CLOSE)
             if hard_close_df.empty:
                 hard_close_df = after_entry
