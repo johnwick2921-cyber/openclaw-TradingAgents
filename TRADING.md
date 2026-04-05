@@ -8,7 +8,7 @@
 - **State:** ACTIVE
 - **Strategy:** jadecap
 - **Halt:** false
-- **Last Run:** NQ on 2026-03-31 → HOLD (13m 40s, 12 agents, full pipeline)
+- **Last Run:** NQ on 2026-03-31 → HOLD (13m 40s, 10 agents, full pipeline)
 
 ## Market Bias
 
@@ -85,7 +85,7 @@ All models route: OpenClaw (18789) → 9router (20128) → AI provider
 ## Pipeline
 
 ```
-Tier 1: Analysts (parallel)     → market, social
+Tier 1: Analysts (parallel)     → market, news
 Tier 2: Bull/Bear Debate        → 1 round
 Tier 3: Judge → Trader → Risk   → 2 risk rounds
 Tier 4: Portfolio Manager        → FINAL SIGNAL

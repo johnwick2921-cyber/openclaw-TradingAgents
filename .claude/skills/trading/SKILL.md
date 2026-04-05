@@ -11,7 +11,7 @@ You have access to OpenClaw's full trading system — 12 AI agents, 15 data tool
 
 | Command | What it does |
 |---------|-------------|
-| "analyze NQ" | Run full 12-agent pipeline for NQ futures |
+| "analyze NQ" | Run full 10-agent pipeline for NQ futures |
 | "get RSI MACD for NVDA" | Fetch specific indicators |
 | "show FVG and order blocks for NQ" | ICT indicator lookup |
 | "set bias bullish high — displacement above midnight" | Set your pre-session bias |
@@ -46,7 +46,7 @@ output = json.loads(result.stdout.strip().split('\n')[-1])
 # output = {"ok": true, "run_id": "abc123", "signal": "BUY", "duration": 142.3}
 ```
 
-The run dispatches 12 agents through OpenClaw → 9router → Claude. Takes 8-15 minutes depending on model speed.
+The run dispatches 10 agents through OpenClaw → 9router → Claude. Takes 8-15 minutes depending on model speed.
 
 ### 2. Fetch Indicators (No AI needed)
 
@@ -173,7 +173,7 @@ result = engine.reflect("NQ", "2026-03-31")
 |------|---------|
 | `trading-config.json` | All config (strategy, LLM, risk, bias, watchlist) |
 | `trading.db` | SQLite (runs, reports, debates, memories, outcomes) |
-| `agents/trading/*.md` | 12 agent prompt definitions |
+| `agents/trading/*.md` | 10 agent prompt definitions |
 | `openclaw/engine.py` | RunEngine orchestrator |
 | `openclaw/run_bridge.py` | Subprocess dispatch (OpenClaw → 9router → AI) |
 | `openclaw/indicators.py` | Unified indicator interface |

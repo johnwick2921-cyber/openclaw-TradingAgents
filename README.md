@@ -56,7 +56,7 @@ After each run:
 
 | Strategy | Instruments | Analysts | Indicators |
 |----------|------------|----------|------------|
-| `stocks` | NVDA, AAPL, etc. | market, social, news, fundamentals | 13 stockstats (RSI, MACD, Bollinger, etc.) |
+| `stocks` | NVDA, AAPL, etc. | market, news | 13 stockstats (RSI, MACD, Bollinger, etc.) |
 | `jadecap` | NQ, ES futures | market, news | 17 ICT (FVG, order blocks, market structure, etc.) |
 
 ## Quick Start
@@ -104,7 +104,7 @@ print(result.signal)  # BUY / OVERWEIGHT / HOLD / UNDERWEIGHT / SELL
 All at http://localhost:18789 → Trading tab:
 
 - **Trading Engine** — halt/resume, strategy switch (stocks/jadecap)
-- **Run Analysis** — ticker + date input, live 12-agent progress monitor
+- **Run Analysis** — ticker + date input, live 10-agent progress monitor
 - **Bias Confluence** — user bias (editable) + agent bias (auto from last run) + confluence score
 - **Run History** — paginated table with View/Reflect/Delete per run
 - **Run Detail** — tabbed: reports, debates, outcome
@@ -150,7 +150,7 @@ workspace/
 ├── trading-config.json                            ← Single config source
 ├── trading.db                                     ← SQLite (runs, reports, debates, memories, outcomes)
 ├── .env                                           ← 9router API key
-├── agents/trading/                                ← 12 agent .md definitions
+├── agents/trading/                                ← 10 agent .md definitions
 ├── openclaw/                                      ← Python package
 │   ├── engine.py                                  ← RunEngine orchestrator
 │   ├── run_bridge.py                              ← Subprocess entry point (gateway dispatch)
@@ -175,7 +175,7 @@ UI "Analyze" button
   → Gateway trading.run handler (TypeScript)
     → spawns: python3 -m openclaw.run_bridge --ticker NVDA --date 2026-03-31
       → RunEngine.run(dispatch_fn=openclaw_dispatch)
-        → For each of 12 agents:
+        → For each of 10 agents:
           → POST http://127.0.0.1:18789/v1/chat/completions (OpenClaw gateway)
             → OpenClaw routes via 9router provider config
               → 9router routes to AI provider (Claude Code, etc.)

@@ -51,9 +51,9 @@
 9. Neutral Risk Debater
 10. Portfolio Manager
 
-**2 generic agents** (unchanged — not applicable to ICT futures):
-- Social Media Analyst
-- Fundamentals Analyst
+**Deleted agents** (removed — not needed for ICT futures):
+- ~~Social Media Analyst~~ — removed
+- ~~Fundamentals Analyst~~ — removed
 
 ---
 
