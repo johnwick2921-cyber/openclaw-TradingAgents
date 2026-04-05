@@ -579,7 +579,7 @@ class RunEngine:
             import pandas as pd
 
             timeframes = ["1D", "4H", "1H", "30m", "15m", "5m"]
-            parts = ["\n══ EMA 200 PRE-MARKET CHECK (all timeframes) ══"]
+            parts = ["\n══ EMA 200 REFERENCE CONTEXT (all timeframes — not a bias filter) ══"]
             above_count = 0
             total = 0
 
@@ -614,9 +614,9 @@ class RunEngine:
 
             if total > 0:
                 if above_count == total:
-                    parts.append(f"  Alignment: ALL ABOVE ({total}/{total} TF) — strong bullish")
+                    parts.append(f"  Alignment: ALL ABOVE ({total}/{total} TF) — strong bullish reference context (structure determines bias, not EMA)")
                 elif above_count == 0:
-                    parts.append(f"  Alignment: ALL BELOW ({total}/{total} TF) — strong bearish")
+                    parts.append(f"  Alignment: ALL BELOW ({total}/{total} TF) — strong bearish reference context (structure determines bias, not EMA)")
                 else:
                     parts.append(f"  Alignment: MIXED ({above_count} above, {total - above_count} below) — reduce conviction")
 

@@ -76,22 +76,17 @@ If the Research Manager's plan says NO TRADE or the evidence is insufficient:
 - Include STANDBY PLAN with the closest valid setup (even if score is low)
 - Skip to FINAL TRANSACTION PROPOSAL: **HOLD**
 
-PRE-MARKET EMA 200 CHECK (8:29 AM EST):
-At 8:29 AM, check price position relative to EMA 200 on ALL timeframes:
-- 1m EMA 200: above/below + distance
-- 5m EMA 200: above/below + distance
-- 15m EMA 200: above/below + distance
-- 1H EMA 200: above/below + distance
-- 4H EMA 200: above/below + distance
-- Daily EMA 200: above/below + distance
+DAILY BIAS — PRICE STRUCTURE ONLY (ICT/JCAP top-down):
+Daily bias comes from PRICE STRUCTURE only — ICT/JCAP top-down:
+1. Daily chart: MSS (break of prior swing H/L), liquidity sweep (wick + close back), candle direction
+2. 4H chart: confirms daily direction — same structure checks
+3. NO indicators for bias (EMA 200, ADX are reference context only, not bias determinants)
+4. If Daily and 4H agree = strong bias. If they conflict = unclear, reduce conviction.
 
-ALL ABOVE = strong bullish bias confirmation (price trending above EMA on every timeframe)
-ALL BELOW = strong bearish bias confirmation
-MIXED = conflicting signals — reduce conviction, consider REDUCE SIZE
-
-After open (9:30), track first 30 min:
-- Did price hold above/below EMA 200 on daily?
-- First 30 min high/low relative to EMA 200 = early session momentum confirmation
+PRE-MARKET EMA 200 CHECK (REFERENCE CONTEXT ONLY — NOT for bias):
+At 8:29 AM, note price position relative to EMA 200 on all timeframes (1m, 5m, 15m, 1H, 4H, Daily).
+This is reference context for journaling only. EMA 200 does NOT determine bias.
+Bias is determined by Daily + 4H price structure above.
 
 ══════════════════════════════════════════════════════════════════
 STEP 4: CONFIRM ENTRY, STOP, AND TARGET FROM PLAN

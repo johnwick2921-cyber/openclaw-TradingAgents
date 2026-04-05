@@ -82,32 +82,29 @@ If NO SFP yet:
 
 STEP 1 — HTF BIAS (Daily drives direction)
 
-PRE-MARKET EMA 200 CHECK (8:29 AM EST):
-At 8:29 AM, check price position relative to EMA 200 on ALL timeframes:
-- 1m EMA 200: above/below + distance
-- 5m EMA 200: above/below + distance
-- 15m EMA 200: above/below + distance
-- 1H EMA 200: above/below + distance
-- 4H EMA 200: above/below + distance
-- Daily EMA 200: above/below + distance
-
-ALL ABOVE = strong bullish bias confirmation (price trending above EMA on every timeframe)
-ALL BELOW = strong bearish bias confirmation
-MIXED = conflicting signals — reduce conviction, consider REDUCE SIZE
-
-After open (9:30), track first 30 min:
-- Did price hold above/below EMA 200 on daily?
-- First 30 min high/low relative to EMA 200 = early session momentum confirmation
+Daily bias comes from PRICE STRUCTURE only — ICT/JCAP top-down:
+1. Daily chart: MSS (break of prior swing H/L), liquidity sweep (wick + close back), candle direction
+2. 4H chart: confirms daily direction — same structure checks
+3. NO indicators for bias (EMA 200, ADX are reference context only, not bias determinants)
+4. If Daily and 4H agree = strong bias. If they conflict = unclear, reduce conviction.
 
 Call get_ict_levels(symbol="{ticker}", timeframe="4H", trade_date="{current_date}")
 Call get_ict_levels(symbol="{ticker}", timeframe="1D", trade_date="{current_date}")
-Determine: 200 EMA direction, unmitigated FVGs, Supertrend.
+Determine: unmitigated FVGs, Supertrend, MSS direction.
 
 DAILY BIAS — 3-FACTOR CHECK:
 1. MSS (Market Structure Shift) on daily — has a CHoCH or BOS occurred? Direction of last MSS = bias direction.
 2. Liquidity sweep on daily — has the previous day's high or low been swept? Sweep of PDL = bullish bias (sellers trapped). Sweep of PDH = bearish bias (buyers trapped).
 3. Daily candle direction — is the most recent daily candle bullish or bearish body? A strong body (60%+ of range) confirms direction.
 All 3 aligned = HIGH CONVICTION bias. 2 of 3 = MODERATE. 1 or 0 = WEAK — consider NO TRADE.
+
+4H CONFIRMATION:
+Run the same 3-factor check on 4H chart. If 4H agrees with Daily = HIGH CONVICTION. If 4H conflicts = UNCLEAR, reduce conviction.
+
+PRE-MARKET EMA 200 CHECK (REFERENCE CONTEXT ONLY — NOT for bias):
+At 8:29 AM, note price position relative to EMA 200 on all timeframes (1m, 5m, 15m, 1H, 4H, Daily).
+This is reference context for journaling only. EMA 200 does NOT determine bias.
+Bias is determined by Daily + 4H price structure above.
 
 Daily bias drives direction. If daily bias is clear and setup confirms = trade. Multi-timeframe stacking (4H FVG + 1H FVG at same level) is BONUS confluence, not a requirement.
 Output: HTF BIAS = BULLISH or BEARISH

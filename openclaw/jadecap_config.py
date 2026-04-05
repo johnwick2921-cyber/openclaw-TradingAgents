@@ -672,15 +672,15 @@ ICT_INDICATORS = {
         "key":          "close_200_ema",
         "function":     "get_math_indicators",
         "timeframes":   ["4H", "1D", "1W"],
-        "description":  "200 EMA — HTF bias master filter",
+        "description":  "200 EMA — HTF reference context (not a bias filter)",
         "jadecap_note": (
-            "Above 200 EMA = BULLISH bias only take longs. "
-            "Below 200 EMA = BEARISH bias only take shorts. "
-            "This is non-negotiable — never fight the 200 EMA. "
-            "Weekly 200 EMA = ultimate trend direction."
+            "EMA 200 is REFERENCE CONTEXT only. Daily bias comes from price structure "
+            "(MSS, sweep, candle direction on Daily + 4H). "
+            "Note EMA position for journaling — above/below 200 EMA adds context "
+            "but does NOT determine bias or block trades."
         ),
-        "bull_signal": "Price above 200 EMA — longs only",
-        "bear_signal": "Price below 200 EMA — shorts only",
+        "bull_signal": "Price above 200 EMA — bullish context (reference only)",
+        "bear_signal": "Price below 200 EMA — bearish context (reference only)",
     },
 
     "close_50_ema": {

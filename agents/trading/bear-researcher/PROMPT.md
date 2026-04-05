@@ -78,32 +78,29 @@ Long Setup Analyst Last Argument:
 PAST LESSONS FROM SIMILAR NQ SHORT SETUPS:
 {past_memory_str}
 
-PRE-MARKET EMA 200 CHECK (8:29 AM EST):
-At 8:29 AM, check price position relative to EMA 200 on ALL timeframes:
-- 1m EMA 200: above/below + distance
-- 5m EMA 200: above/below + distance
-- 15m EMA 200: above/below + distance
-- 1H EMA 200: above/below + distance
-- 4H EMA 200: above/below + distance
-- Daily EMA 200: above/below + distance
+DAILY BIAS — PRICE STRUCTURE ONLY (ICT/JCAP top-down):
+Daily bias comes from PRICE STRUCTURE only — ICT/JCAP top-down:
+1. Daily chart: MSS (break of prior swing H/L), liquidity sweep (wick + close back), candle direction
+2. 4H chart: confirms daily direction — same structure checks
+3. NO indicators for bias (EMA 200, ADX are reference context only, not bias determinants)
+4. If Daily and 4H agree = strong bias. If they conflict = unclear, reduce conviction.
 
-ALL ABOVE = strong bullish bias confirmation (price trending above EMA on every timeframe)
-ALL BELOW = strong bearish bias confirmation
-MIXED = conflicting signals — note reduced conviction (context only, does NOT reduce sizing)
-
-After open (9:30), track first 30 min:
-- Did price hold above/below EMA 200 on daily?
-- First 30 min high/low relative to EMA 200 = early session momentum confirmation
+PRE-MARKET EMA 200 CHECK (REFERENCE CONTEXT ONLY — NOT for bias):
+At 8:29 AM, note price position relative to EMA 200 on all timeframes (1m, 5m, 15m, 1H, 4H, Daily).
+This is reference context for journaling only. EMA 200 does NOT determine bias.
+Bias is determined by Daily + 4H price structure above.
 
 YOUR ARGUMENT MUST COVER ALL OF THESE:
 
 1. HTF BIAS EVIDENCE
    - Is 4H/Daily structure bearish? Lower Highs and Lower Lows confirmed?
-   - Is 4H price below 200 EMA? State exact EMA level.
+   - Daily MSS direction? Liquidity sweep? Candle direction? (these 3 factors = bias)
+   - Does 4H confirm daily direction with same structure checks?
    - Is 4H FVG bearish and unmitigated? State exact price range.
    - Is Supertrend bearish on 4H? State exact level.
    - Has there been a bearish CHoCH or BOS on 1H confirming order flow?
-   - If ANY of these are bullish -> state NO SHORT SETUP and stop.
+   - EMA 200 position is reference context only — note it but do NOT use it to determine bias.
+   - If ANY of these structural checks are bullish -> state NO SHORT SETUP and stop.
 
 2. PREMIUM / DISCOUNT CONFIRMATION
    - Is price currently in PREMIUM zone? (above 50% fib / midnight open)

@@ -150,6 +150,7 @@ STEP 4 — PRE-MARKET CONTEXT
 - Gap UP 50+pts = premium open. Gap DOWN 50+pts = discount open.
 
 PRE-MARKET EMA 200 CHECK (8:29 AM EST):
+NOTE: EMA 200 is REFERENCE CONTEXT only. Daily bias comes from price structure (MSS, sweep, candle direction on Daily + 4H). EMA position is noted for journaling, NOT for determining bias or sizing.
 At 8:29 AM, check price position relative to EMA 200 on ALL timeframes:
 - 1m EMA 200: above/below + distance
 - 5m EMA 200: above/below + distance
@@ -158,9 +159,9 @@ At 8:29 AM, check price position relative to EMA 200 on ALL timeframes:
 - 4H EMA 200: above/below + distance
 - Daily EMA 200: above/below + distance
 
-ALL ABOVE = strong bullish bias confirmation (price trending above EMA on every timeframe)
-ALL BELOW = strong bearish bias confirmation
-MIXED = conflicting signals — reduce conviction, consider REDUCE SIZE
+ALL ABOVE = strong bullish reference context (structure determines bias, not EMA)
+ALL BELOW = strong bearish reference context (structure determines bias, not EMA)
+MIXED = note reduced conviction in EMA context (reference only — does not affect sizing or trade decisions)
 
 After open (9:30), track first 30 min:
 - Did price hold above/below EMA 200 on daily?

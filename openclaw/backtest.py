@@ -216,69 +216,78 @@ def _midnight_open(df: pd.DataFrame) -> Optional[float]:
     return float(df.iloc[0]["open"]) if not df.empty else None
 
 
-def _daily_bias(df_daily: pd.DataFrame) -> str:
-    """Determine daily bias from the daily chart — JadeCap aligned.
+def _structure_bias(df: pd.DataFrame) -> tuple:
+    """Check price structure for bias signals on any timeframe.
 
-    Checks recent daily candles for:
-    - Market Structure Shift (MSS): break of prior swing H/L
-    - Liquidity sweep: wick beyond prior level + close back inside
-    - Direction: where price is heading today
+    ICT/JCAP: bias comes from structure (swing H/L, MSS, sweeps) — no indicators.
 
-    Returns: "bullish", "bearish", or "unclear"
+    Returns: (bull_score, bear_score) where each is 0-3.
     """
-    if len(df_daily) < 5:
-        return "unclear"
-    highs = df_daily["high"].values
-    lows = df_daily["low"].values
-    closes = df_daily["close"].values
-    opens = df_daily["open"].values
+    if len(df) < 5:
+        return (0, 0)
+    highs = df["high"].values
+    lows = df["low"].values
 
     # Find recent swing points
     swing_highs = []
     swing_lows = []
-    for j in range(1, len(df_daily) - 1):
+    for j in range(1, len(df) - 1):
         if highs[j] > highs[j - 1] and highs[j] > highs[j + 1]:
             swing_highs.append(highs[j])
         if lows[j] < lows[j - 1] and lows[j] < lows[j + 1]:
             swing_lows.append(lows[j])
 
-    last = df_daily.iloc[-1]
+    last = df.iloc[-1]
 
-    # MSS check: did yesterday break a prior swing?
-    mss_bullish = False
-    mss_bearish = False
-    if swing_highs:
-        if last["high"] > swing_highs[-1] and last["close"] > swing_highs[-1]:
-            mss_bullish = True  # broke above swing high and held
-    if swing_lows:
-        if last["low"] < swing_lows[-1] and last["close"] < swing_lows[-1]:
-            mss_bearish = True  # broke below swing low and held
+    # MSS: break of prior swing and close beyond it
+    mss_bull = bool(swing_highs and last["high"] > swing_highs[-1] and last["close"] > swing_highs[-1])
+    mss_bear = bool(swing_lows and last["low"] < swing_lows[-1] and last["close"] < swing_lows[-1])
 
-    # Liquidity sweep: wick beyond level but close back inside (SFP on daily)
-    sweep_bullish = False
-    sweep_bearish = False
-    if swing_lows:
-        if last["low"] < swing_lows[-1] and last["close"] > swing_lows[-1]:
-            sweep_bullish = True  # swept lows, closed back above = bullish
-    if swing_highs:
-        if last["high"] > swing_highs[-1] and last["close"] < swing_highs[-1]:
-            sweep_bearish = True  # swept highs, closed back below = bearish
+    # Liquidity sweep: wick beyond level, close back inside (SFP)
+    sweep_bull = bool(swing_lows and last["low"] < swing_lows[-1] and last["close"] > swing_lows[-1])
+    sweep_bear = bool(swing_highs and last["high"] > swing_highs[-1] and last["close"] < swing_highs[-1])
 
-    # Candle direction: bullish or bearish close
-    bullish_candle = last["close"] > last["open"]
-    bearish_candle = last["close"] < last["open"]
+    # Candle direction
+    bull_candle = last["close"] > last["open"]
+    bear_candle = last["close"] < last["open"]
 
-    # Score it
-    bull_score = sum([mss_bullish, sweep_bullish, bullish_candle])
-    bear_score = sum([mss_bearish, sweep_bearish, bearish_candle])
+    return (sum([mss_bull, sweep_bull, bull_candle]),
+            sum([mss_bear, sweep_bear, bear_candle]))
 
-    if bull_score >= 2:
+
+def _daily_bias(df_daily: pd.DataFrame, df_4h: pd.DataFrame = None) -> str:
+    """Determine daily bias — ICT/JCAP top-down structure analysis.
+
+    ICT methodology: Daily sets the bias, 4H confirms it.
+    Pure price structure — no indicators (EMA/ADX are reference only).
+
+    Returns: "bullish", "bearish", or "unclear"
+    """
+    # Daily structure (primary bias)
+    d_bull, d_bear = _structure_bias(df_daily)
+
+    # 4H structure (confirmation)
+    h4_bull, h4_bear = _structure_bias(df_4h) if df_4h is not None and len(df_4h) >= 5 else (0, 0)
+
+    # Combined: daily is primary (weight 2), 4H confirms (weight 1)
+    total_bull = d_bull * 2 + h4_bull
+    total_bear = d_bear * 2 + h4_bear
+
+    # Need clear direction — daily must have at least 1 signal
+    if d_bull == 0 and d_bear == 0:
+        return "unclear"
+
+    if total_bull >= 3 and total_bull > total_bear:
         return "bullish"
-    elif bear_score >= 2:
+    elif total_bear >= 3 and total_bear > total_bull:
         return "bearish"
-    elif bull_score == 1 and bear_score == 0:
-        return "bullish"
-    elif bear_score == 1 and bull_score == 0:
+    elif d_bull >= 2 and d_bull > d_bear:
+        return "bullish"  # daily alone is strong enough
+    elif d_bear >= 2 and d_bear > d_bull:
+        return "bearish"
+    elif d_bull == 1 and d_bear == 0 and h4_bull > h4_bear:
+        return "bullish"  # weak daily + 4H confirms
+    elif d_bear == 1 and d_bull == 0 and h4_bear > h4_bull:
         return "bearish"
     return "unclear"
 
@@ -830,13 +839,20 @@ def backtest_day(ticker: str, date: str, prev_df: Optional[pd.DataFrame] = None,
         pdh = None
         pdl = None
 
-    # Daily bias — use pre-computed daily candles if available (bulk mode)
+    # Daily bias — ICT top-down: Daily structure + 4H confirmation
     if indicators and "1d" in indicators:
         df_daily = indicators["1d"]
-        # Get daily candles BEFORE today (no look-ahead — can't use today's candle for bias)
         today = datetime.strptime(date, "%Y-%m-%d").date()
-        df_daily_to_today = df_daily[df_daily.index.date < today]
-        bias = _daily_bias(df_daily_to_today) if len(df_daily_to_today) >= 5 else "unclear"
+        # Use candles BEFORE today only (no look-ahead)
+        df_daily_prior = df_daily[df_daily.index.date < today]
+        # 4H candles up to market open (9:30 AM = available overnight data)
+        df_4h = indicators.get("4h")
+        df_4h_prior = None
+        if df_4h is not None:
+            # Use 4H bars before today's NY session (overnight 4H bars ARE available)
+            cutoff = pd.Timestamp(f"{date} 09:30", tz=df_4h.index.tz) if df_4h.index.tz else pd.Timestamp(f"{date} 09:30")
+            df_4h_prior = df_4h[df_4h.index < cutoff].tail(20)  # last 20 4H bars
+        bias = _daily_bias(df_daily_prior, df_4h_prior) if len(df_daily_prior) >= 5 else "unclear"
     elif daily_history:
         combined = pd.concat(daily_history + [df])
         df_daily_agg = _agg(combined, 1440) if len(combined) > 10 else pd.DataFrame()
