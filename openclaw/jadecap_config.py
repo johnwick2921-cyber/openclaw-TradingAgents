@@ -137,7 +137,8 @@ PROP_FIRMS = {
         "trailing_drawdown": 2000,
         "safety_net":        52100,
         "profit_target":     3000,
-        "max_contracts_nq":  4,
+        "pre_safety_net_nq": 2,       # before safety net: max 2 NQ = 20 MNQ
+        "max_contracts_nq":  4,       # after safety net: max 4 NQ = 40 MNQ
         "max_contracts_mnq": 40,
         "base_contracts_mnq": 5,
         "scaling_step":      2500,

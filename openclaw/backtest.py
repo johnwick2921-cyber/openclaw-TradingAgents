@@ -1214,7 +1214,9 @@ class ApexSimulator:
         self.base_contracts = firm_config.get("base_contracts_mnq", 5)
         self.scaling_step = firm_config.get("scaling_step", 2500)
         self.scaling_increment = firm_config.get("scaling_increment", 5)
-        self.max_contracts = 2  # before safety net
+        # Before safety net: limited contracts (Apex: 2 NQ = 20 MNQ)
+        # All units in MNQ (multiply NQ by 10)
+        self.max_contracts = firm_config.get("pre_safety_net_nq", 2) * 10  # NQ → MNQ
         self.payout_ladder = firm_config.get("payout_ladder", [1500, 1875, 2250, 2625, 3000, 3000])
         self.consistency_rule = firm_config.get("consistency_rule", 0.50)
         self.post_ladder_floor = firm_config.get("post_ladder_floor", 20000)
@@ -1263,7 +1265,7 @@ class ApexSimulator:
         # Check safety net
         if not self.past_safety_net and self.peak_balance >= self.safety_net:
             self.past_safety_net = True
-            self.max_contracts = self.firm_config.get("max_contracts_nq", 4)
+            self.max_contracts = self.firm_config.get("max_contracts_nq", 4) * 10  # NQ → MNQ
             self.liquidation = self.starting_balance  # DD locks at starting balance
 
         # Check liquidation (bust)
@@ -1344,7 +1346,7 @@ class ApexSimulator:
         # Only reset contracts if cashout dropped below safety net
         if self.balance < self.safety_net:
             self.past_safety_net = False
-            self.max_contracts = 2  # dropped below — rebuild
+            self.max_contracts = self.firm_config.get("pre_safety_net_nq", 2) * 10  # back to pre-safety-net limit (NQ → MNQ)
         # else: stay at 4ct (cashed $2K but still above safety net)
         self.cashouts.append({
             "payout_num": self.payout_count,
