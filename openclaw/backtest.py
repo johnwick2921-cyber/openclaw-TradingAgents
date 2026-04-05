@@ -255,10 +255,11 @@ def _structure_bias(df: pd.DataFrame) -> tuple:
             sum([mss_bear, sweep_bear, bear_candle]))
 
 
-def _daily_bias(df_daily: pd.DataFrame, df_4h: pd.DataFrame = None) -> str:
+def _daily_bias(df_daily: pd.DataFrame, df_1h: pd.DataFrame = None) -> str:
     """Determine daily bias — ICT/JCAP top-down structure analysis.
 
-    ICT methodology: Daily sets the bias, 4H confirms it.
+    ICT methodology: Daily sets the bias, 1H confirms it.
+    1H gives 15 completed overnight candles (6PM-9AM) — all full OHLC, no partials.
     Pure price structure — no indicators (EMA/ADX are reference only).
 
     Returns: "bullish", "bearish", or "unclear"
@@ -266,8 +267,8 @@ def _daily_bias(df_daily: pd.DataFrame, df_4h: pd.DataFrame = None) -> str:
     # Daily structure (primary bias)
     d_bull, d_bear = _structure_bias(df_daily)
 
-    # 4H structure (confirmation)
-    h4_bull, h4_bear = _structure_bias(df_4h) if df_4h is not None and len(df_4h) >= 5 else (0, 0)
+    # 1H structure (confirmation — overnight completed candles)
+    h4_bull, h4_bear = _structure_bias(df_1h) if df_1h is not None and len(df_1h) >= 5 else (0, 0)
 
     # Combined: daily is primary (weight 2), 4H confirms (weight 1)
     total_bull = d_bull * 2 + h4_bull
@@ -855,20 +856,20 @@ def backtest_day(ticker: str, date: str, prev_df: Optional[pd.DataFrame] = None,
         pdh = None
         pdl = None
 
-    # Daily bias — ICT top-down: Daily structure + 4H confirmation
+    # Daily bias — ICT top-down: Daily structure + 1H confirmation
+    # At 9:30 AM you have 15 completed 1H candles from overnight (6PM-9AM) — all full OHLC
     if indicators and "1d" in indicators:
         df_daily = indicators["1d"]
         today = datetime.strptime(date, "%Y-%m-%d").date()
-        # Use candles BEFORE today only (no look-ahead)
+        # Daily: yesterday's completed candle only (today's close at 5PM = look-ahead)
         df_daily_prior = df_daily[df_daily.index.date < today]
-        # 4H candles up to market open (9:30 AM = available overnight data)
-        df_4h = indicators.get("4h")
-        df_4h_prior = None
-        if df_4h is not None:
-            # Use 4H bars before today's NY session (overnight 4H bars ARE available)
-            cutoff = pd.Timestamp(f"{date} 09:30", tz=df_4h.index.tz) if df_4h.index.tz else pd.Timestamp(f"{date} 09:30")
-            df_4h_prior = df_4h[df_4h.index < cutoff].tail(20)  # last 20 4H bars
-        bias = _daily_bias(df_daily_prior, df_4h_prior) if len(df_daily_prior) >= 5 else "unclear"
+        # 1H: completed overnight bars up to 9:30 AM (15 bars, all with full OHLC)
+        df_1h = indicators.get("1h")
+        df_1h_prior = None
+        if df_1h is not None:
+            cutoff = pd.Timestamp(f"{date} 09:30", tz=df_1h.index.tz) if df_1h.index.tz else pd.Timestamp(f"{date} 09:30")
+            df_1h_prior = df_1h[df_1h.index < cutoff].tail(30)  # last 30 1H bars
+        bias = _daily_bias(df_daily_prior, df_1h_prior) if len(df_daily_prior) >= 5 else "unclear"
     elif daily_history:
         # Use prior days only (no today) — no look-ahead
         combined = pd.concat(daily_history)
