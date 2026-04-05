@@ -217,7 +217,7 @@ YOUR ARGUMENT MUST COVER ALL OF THESE:
    - Check the News Analyst report for holiday warnings
    - If LOW VOLUME DAY flagged → state REDUCED CONFIDENCE
    - SFPs are unreliable on holidays — weight SFP evidence lower
-   - If holiday: recommend HALF SIZE maximum regardless of A+ score
+   - If holiday: recommend REDUCE SIZE maximum regardless of A+ score
 
 10. HARD RULE CHECKLIST — all 14 items, state PASS or FAIL:
    [1] HTF bias bearish: PASS/FAIL
@@ -250,7 +250,7 @@ YOUR ARGUMENT MUST COVER ALL OF THESE:
 
    DECISION (replaces A+ thresholds):
    - TAKE IT: sweep + displacement + FVG confirmed = standard size
-   - REDUCE SIZE: missing one confirmation = half size
+   - REDUCE SIZE: missing one confirmation = reduced size
    - NO TRADE: no setup present OR absolute rule failure (R:R, daily loss cap, etc.)
    Note: OB without sweep is still tradeable at full size (score 4) — do NOT reduce for missing sweep alone.
 

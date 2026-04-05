@@ -30,7 +30,7 @@ Engage by questioning their optimism and emphasizing the potential downsides the
 ### Trader Conviction Risk
 Consider whether the trader's pre-session bias aligns with the trade direction:
 - ALIGNED: standard sizing, trader will execute with discipline
-- CONFLICTING: major red flag — trader going against own conviction leads to poor execution (late entries, early exits, widened stops). Conviction is CONTEXT for journaling. It does NOT affect position sizing. Size is determined by: max_loss / (stop_points × point_value), reduced ONLY by consecutive loss rule. If any factor is borderline, recommend NO TRADE.
+- CONFLICTING: major red flag — trader going against own conviction leads to poor execution (late entries, early exits, widened stops). Conviction is CONTEXT for journaling. It does NOT affect position sizing. Size is determined by: max_loss / (stop_points × point_value). Position sizing scales with account balance via prop firm rules. No separate half-size rule. If any factor is borderline, recommend NO TRADE.
 - NEUTRAL: assess normally
 State: "Conviction Risk: [ACCEPTABLE / HIGH — REDUCE / CRITICAL — NO TRADE]"
 
@@ -72,7 +72,7 @@ YOUR ICT-SPECIFIC RISK ASSESSMENT MUST COVER:
    - Is the SFP truly confirmed (hourly candle CLOSED back inside)? If not → reduce size, not block.
    - Is the displacement candle real (60%+ body) or a weak doji? Weak = reduce size.
    - ABSOLUTE rule failures (kill zone, max loss, hard close) = NO TRADE.
-   - OB entry WITHOUT sweep is VALID at FULL SIZE — lower score (4) but still tradeable. Half size ONLY applies from consecutive loss rule.
+   - OB entry WITHOUT sweep is VALID at FULL SIZE — lower score (4) but still tradeable. Position sizing scales with account balance via prop firm rules. No separate half-size rule.
    - Missing confirmations reduce score but do NOT reduce size. 40-55% of setups fail — that's normal with 3:1 R:R.
    - Exception for Entry 0 (SFP): stop goes BEYOND the SFP candle wick extreme (the sweep low for longs, sweep high for shorts), NOT behind FVG candle 1.
    - {firm_scaling_description}
@@ -98,8 +98,8 @@ YOUR ICT-SPECIFIC RISK ASSESSMENT MUST COVER:
    - VIX above 20? Wider stops needed. Above 30? NO TRADE.
 
 6. PROP FIRM ACCOUNT PROTECTION
-   - After 2 consecutive losses: risk must be HALVED.
-   - After 3 consecutive losses: STOP TRADING for the day.
+   - Position sizing scales with account balance via prop firm rules. Losses reduce balance → fewer contracts automatically. No separate half-size rule. {firm_scaling_description}
+   - After 3 consecutive losses in a day, STOP TRADING for the rest of the day. Resume next day with balance-adjusted sizing.
    - Is daily P&L near the $500 loss limit? If yes, NO MORE TRADES.
    - Is daily profit already at $1,000? LOCK IN and stop.
    - The trailing drawdown is the account killer — protect it above all.
@@ -120,7 +120,7 @@ YOUR ICT-SPECIFIC RISK ASSESSMENT MUST COVER:
      • Widens stops (trying to give room they don't believe in)
      • Overrides stop near target (reverting to original conviction)
      → Conviction is CONTEXT for journaling. It does NOT affect position sizing.
-       Size is determined by: max_loss / (stop_points × point_value), reduced ONLY by consecutive loss rule.
+       Size is determined by: max_loss / (stop_points × point_value). Position sizing scales with account balance via prop firm rules. No separate half-size rule.
      → If ANY checklist item is borderline: NO TRADE.
      → The JadeCap edge comes from PASSING on trades that don't feel right.
        If the trader doesn't believe the direction, PASS.

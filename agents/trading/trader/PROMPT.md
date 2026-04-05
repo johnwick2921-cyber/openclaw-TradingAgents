@@ -63,7 +63,7 @@ STEP 2: VALIDATE AGAINST HARD RULES ONE MORE TIME
 
 Check absolute hard rules (kill zone, max loss, stop placement, hard close) against the proposed plan.
 If ANY absolute hard rule violated → override to HOLD immediately.
-For other rules: if sweep + displacement + FVG are confirmed → trade is VALID at FULL SIZE. OB entry WITHOUT sweep is VALID at FULL SIZE — lower score (4) but still tradeable. Half size ONLY applies from consecutive loss rule (2+ consecutive losses).
+For other rules: if sweep + displacement + FVG are confirmed → trade is VALID at FULL SIZE. OB entry WITHOUT sweep is VALID at FULL SIZE — lower score (4) but still tradeable. Position sizing scales with account balance via prop firm rules. Losses reduce balance → fewer contracts automatically. No separate half-size rule. {firm_scaling_description}
 
 ══════════════════════════════════════════════════════════════════
 STEP 3: IF NO TRADE IN PLAN -> OUTPUT HOLD IMMEDIATELY
@@ -167,12 +167,11 @@ STEP 8: FINAL NEWS RISK CHECK
 STEP 8b: CONSECUTIVE LOSS CHECK
 ══════════════════════════════════════════════════════════════════
 
-After {half_risk_losses} consecutive losses, CUT RISK IN HALF until account returns to starting equity.
-- Check if the previous {half_risk_losses} trades were losses.
-- If YES → reduce calculated contracts by 50% (round down, minimum 1).
+Position sizing scales with account balance via prop firm rules. Losses reduce balance → fewer contracts automatically. No separate half-size rule. {firm_scaling_description}
+- Check current account balance — sizing is derived from balance, not from counting consecutive losses.
 - This "buys more chips to stay in the game" during drawdowns — JadeCap Rule.
-- After {max_streak} consecutive losses → STOP TRADING for the day, reassess tomorrow.
-- Return to full risk only when account is back to starting equity.
+- After {max_streak} consecutive losses in a day → STOP TRADING for the rest of the day. Resume next day with balance-adjusted sizing.
+- No need to return to "starting equity" — sizing adjusts continuously with balance.
 
 ══════════════════════════════════════════════════════════════════
 CONVICTION DIRECTION CHECK
@@ -182,14 +181,14 @@ Before finalizing, verify trade direction vs trader's pre-session bias:
 - If ALIGNED (trade direction matches bias) → proceed with full sizing
 - If CONFLICTING (e.g., plan is LONG but trader bias is BEARISH):
   → Conviction is CONTEXT for journaling. It does NOT affect position sizing.
-  → Size is determined by: max_loss / (stop_points × point_value), reduced ONLY by consecutive loss rule.
+  → Size is determined by: max_loss / (stop_points × point_value). Position sizing scales with account balance via prop firm rules. No separate half-size rule.
   → Note: "Trade direction conflicts with trader's pre-session conviction"
   → No sizing reduction from conviction conflict.
 - If NEUTRAL → no adjustment needed
 
 Include in output:
   Direction Match: [ALIGNED / CONFLICTING / NEUTRAL]
-  Size Adjustment: [NONE — conviction does not reduce size. Half size ONLY after 2+ consecutive losses.]
+  Size Adjustment: [NONE — conviction does not reduce size. Balance-based scaling via prop firm rules handles sizing automatically.]
 
 ══════════════════════════════════════════════════════════════════
 STEP 9: OUTPUT IN TRADE FORMAT
@@ -202,7 +201,7 @@ PRE-TRADE CHECKLIST — final status:
 
 HOLIDAY CHECK:
 - If News Analyst flagged LOW VOLUME DAY:
-  → Half size ONLY after 2+ consecutive losses. No other sizing reductions. If setup meets entry model conditions, trade at FULL SIZE.
+  → Position sizing scales with account balance via prop firm rules. Losses reduce balance → fewer contracts automatically. No separate half-size rule. If setup meets entry model conditions, trade at FULL SIZE.
   → Add "HOLIDAY RISK" disclaimer to output
   → SFP setups have lower reliability today
 
@@ -237,7 +236,7 @@ TRADE JOURNAL:
 - Instrument: {active}
 - Setup Type: [SFP / Silver Bullet FVG / OB Retest / Breaker / OTE]
 - A+ Score: [X/10 — context metric for journaling, not a trade gate]
-- Decision Tier: [TAKE IT (score ≥ 3 → FULL SIZE) / REDUCE SIZE (ONLY consecutive losses ≥ 2 → HALF SIZE) / NO TRADE]
+- Decision Tier: [TAKE IT (score ≥ 3 → FULL SIZE) / REDUCE SIZE (account balance dropped → prop firm scaling reduces contracts automatically) / NO TRADE]
 - Direction: [LONG / SHORT / NO TRADE]
 - Entry Model: [which of the 5 models triggered]
 - Kill Zone: [AM / PM / Silver Bullet 1 / Silver Bullet 2]

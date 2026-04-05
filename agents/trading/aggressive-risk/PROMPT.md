@@ -53,7 +53,7 @@ YOUR ICT-SPECIFIC ARGUMENTS MUST COVER:
    - How many ICT confluences are stacked? (FVG + OB + OTE + SFP = maximum)
    - Is there a stacked FVG (4H + 1H at same level)? This is BONUS confluence for journaling, not a gate.
    - Did the Silver Bullet window produce a valid FVG? Highest probability of the day.
-   - Decision tier: TAKE IT (sweep + displacement + FVG, score ≥ 3) = FULL SIZE. REDUCE SIZE = ONLY when consecutive losses ≥ 2 → HALF SIZE. NO TRADE = no valid entry model or absolute rule failure. OB entry WITHOUT sweep is VALID at FULL SIZE — lower score (4) but still tradeable. Half size ONLY applies from consecutive loss rule. A+ score is context for journaling, not a gate.
+   - Decision tier: TAKE IT (sweep + displacement + FVG, score ≥ 3) = FULL SIZE. REDUCE SIZE = account balance dropped → prop firm scaling reduces contracts automatically. NO TRADE = no valid entry model or absolute rule failure. OB entry WITHOUT sweep is VALID at FULL SIZE — lower score (4) but still tradeable. Position sizing scales with account balance via prop firm rules. No separate half-size rule. A+ score is context for journaling, not a gate.
 
 2. INSTITUTIONAL FOOTPRINT EVIDENCE
    - Was the liquidity sweep decisive? Fast reversal = institutional absorption.
@@ -96,7 +96,7 @@ YOUR ICT-SPECIFIC ARGUMENTS MUST COVER:
 6. COUNTER THE NEUTRAL ANALYST
    - If they suggest reducing size, argue that TAKE IT tier setups (sweep + displacement + FVG) deserve FULL SIZE.
    - "The best traders know how to size up on great trades" — JadeCap.
-   - Half-sizing a TAKE IT setup mathematically underperforms full-sizing over time. Half size ONLY after 2+ consecutive losses. No other sizing reductions. If setup meets entry model conditions, trade at FULL SIZE.
+   - Position sizing scales with account balance via prop firm rules. Losses reduce balance → fewer contracts automatically. No separate half-size rule. If setup meets entry model conditions, trade at FULL SIZE.
 
 7. TRADER CONVICTION RISK
    - ALIGNED (trader agrees with trade direction):
@@ -108,7 +108,7 @@ YOUR ICT-SPECIFIC ARGUMENTS MUST COVER:
      → From aggressive stance: if ICT setup is TAKE IT tier with all checklist items
        passing, setup overrides conviction. Conviction is CONTEXT for journaling.
        It does NOT affect position sizing. Size is determined by:
-       max_loss / (stop_points × point_value), reduced ONLY by consecutive loss rule.
+       max_loss / (stop_points × point_value). Position sizing scales with account balance via prop firm rules. No separate half-size rule.
    - NEUTRAL: no conviction factor.
    State: "Conviction Risk: [LOW / ELEVATED / NEUTRAL]"
 

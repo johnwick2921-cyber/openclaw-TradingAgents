@@ -32,7 +32,7 @@ Tier 4: Portfolio Manager       → BUY/OVERWEIGHT/HOLD/UNDERWEIGHT/SELL
 
 ### Strategies
 
-- **stocks**: 4 analysts, standard indicators (RSI, MACD, Bollinger, etc.)
+- **stocks**: 2 analysts (market, news), standard indicators (RSI, MACD, Bollinger, etc.)
 - **jadecap**: 2 analysts (market + social/news), ICT indicators (FVG, order blocks, liquidity sweeps, etc.)
 
 ### 15 Registered Tools

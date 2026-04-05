@@ -29,13 +29,12 @@ Engage actively by analyzing both sides critically, addressing weaknesses in the
 
 ### Trader Conviction Factor
 Conviction is CONTEXT for journaling. It does NOT affect position sizing.
-Size is determined by: max_loss / (stop_points × point_value), reduced ONLY by consecutive loss rule.
+Size is determined by: max_loss / (stop_points × point_value). Position sizing scales with account balance via prop firm rules. Losses reduce balance → fewer contracts automatically. No separate half-size rule.
 - ALIGNED conviction + strong setup = FULL SIZE
 - ALIGNED conviction + weak setup = FULL SIZE (conviction does not reduce size)
 - CONFLICTING conviction + strong setup = FULL SIZE (conviction does not reduce size)
 - CONFLICTING conviction + weak setup = NO TRADE (setup quality issue, not sizing)
 - NEUTRAL conviction = decide on technicals alone
-Half size ONLY after 2+ consecutive losses. No other sizing reductions.
 State: "Conviction Assessment: [FULL / NO TRADE]"
 
 ## JadeCap Strategy Prompt
@@ -88,9 +87,9 @@ YOUR ICT-SPECIFIC BALANCED ASSESSMENT MUST COVER:
 3. SIZING RECOMMENDATION BASED ON EVIDENCE
    Decision tiers:
    - TAKE IT: Entry model conditions met, score ≥ 3 → FULL SIZE.
-   - REDUCE SIZE: ONLY when consecutive losses ≥ 2 → HALF SIZE. No other sizing reductions.
+   - REDUCE SIZE: account balance dropped → prop firm scaling reduces contracts automatically.
    - NO TRADE: No valid entry model or absolute rule failure.
-   - OB entry WITHOUT sweep is VALID at FULL SIZE — lower score (4) but still tradeable. Half size ONLY applies from consecutive loss rule.
+   - OB entry WITHOUT sweep is VALID at FULL SIZE — lower score (4) but still tradeable. Position sizing scales with account balance via prop firm rules. No separate half-size rule.
    - Exception for Entry 0 (SFP): stop goes BEYOND the SFP candle wick extreme, NOT behind FVG candle 1.
 
    {firm_scaling_description}
@@ -109,7 +108,7 @@ YOUR ICT-SPECIFIC BALANCED ASSESSMENT MUST COVER:
 6. CONDITIONAL RECOMMENDATION
    If the decision is TAKE IT or REDUCE SIZE, recommend execution with size adjustments:
    - Daily bias drives direction. If daily bias is clear and setup confirms = trade. Multi-timeframe stacking is BONUS confluence, not a gate.
-   - Consecutive losses: 0-1 normal / 2+ halve risk / 3+ stop trading
+   - Consecutive losses: after 3 consecutive losses in a day, STOP TRADING for the rest of the day. Resume next day with balance-adjusted sizing.
    - Silver Bullet FVG confirmed? If yes, upgrade confidence.
 
 7. FINAL VERDICT
@@ -120,13 +119,12 @@ YOUR ICT-SPECIFIC BALANCED ASSESSMENT MUST COVER:
 
 8. TRADER CONVICTION FACTOR
    Conviction is CONTEXT for journaling. It does NOT affect position sizing.
-   Size is determined by: max_loss / (stop_points × point_value), reduced ONLY by consecutive loss rule.
+   Size is determined by: max_loss / (stop_points × point_value). Position sizing scales with account balance via prop firm rules. Losses reduce balance → fewer contracts automatically. No separate half-size rule.
    - ALIGNED conviction + strong setup = FULL SIZE
    - ALIGNED conviction + weak setup = FULL SIZE (conviction does not reduce size)
    - CONFLICTING conviction + strong setup = FULL SIZE (conviction does not reduce size)
    - CONFLICTING conviction + weak setup = NO TRADE (setup quality issue, not sizing)
    - NEUTRAL conviction = ignore, decide on technicals alone
-   Half size ONLY after 2+ consecutive losses. No other sizing reductions.
    State: "Conviction Assessment: [FULL / NO TRADE]"
 
 REPORTS FOR REFERENCE:

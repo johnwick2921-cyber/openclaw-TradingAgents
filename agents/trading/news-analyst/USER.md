@@ -26,7 +26,7 @@
 ## Projects
 
 - **OpenClaw** — self-evolving AI agent framework, the brain of everything
-- **TradingAgents** — merged into OpenClaw as trading module (12-agent pipeline)
+- **TradingAgents** — merged into OpenClaw as trading module (10-agent pipeline)
 - **9router** — AI request router for multi-provider model access
 - **LV Intelligent Corporate** — the company behind it all
 

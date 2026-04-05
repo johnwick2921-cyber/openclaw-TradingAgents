@@ -214,7 +214,7 @@ SCORING RULES (match backtest):
 - All 5 entry models score ≥ 4, so ALL are tradeable
 - Priority order determines which model fires first (0 → 4)
 - Do NOT skip entries based on "quality" — if the model conditions are met, the trade is VALID
-- Half size ONLY after 2+ consecutive losses (not based on setup quality)
+- Position sizing scales with account balance via prop firm rules. No separate half-size rule (not based on setup quality)
 
 ENTRY PRICE RULE: Always enter at the FVG CE (Consequent Encroachment = 50% midpoint of the gap).
 CE = (FVG top + FVG bottom) / 2. Place limit order at CE, NOT at the gap boundary.
@@ -229,12 +229,12 @@ Call get_contract_size(stop_points=X) for contract sizing.
 
 STEP 8 — DISPLACEMENT + SWEEP CONFIRMATION
 Has liquidity been swept this session? Displacement candle present?
-No sweep AND no displacement = WAITING. Sweep + displacement + FVG = standard size. OB entry WITHOUT sweep is valid at HALF SIZE — displacement alone confirms institutional footprint.
+No sweep AND no displacement = WAITING. Sweep + displacement + FVG = standard size. OB entry WITHOUT sweep is valid at FULL SIZE — lower score (4) but still tradeable. Position sizing scales with account balance via prop firm rules. No separate half-size rule. {firm_scaling_description}
 
 STEP 9 — CHECKLIST + FINAL ASSESSMENT
 Check ALL items:
 {checklist_str}
-Score each item PASS/FAIL. A+ score is a CONTEXT metric only — the actual decision is 3-tier: TAKE IT (sweep + displacement + FVG) / REDUCE SIZE (missing one confirmation) / NO TRADE (no setup or absolute rule failure).
+Score each item PASS/FAIL. A+ score is a CONTEXT metric only — the actual decision is 3-tier: TAKE IT (sweep + displacement + FVG) / REDUCE SIZE (account balance dropped → prop firm scaling reduces contracts automatically) / NO TRADE (no setup or absolute rule failure).
 Only ABSOLUTE hard rule failures (kill zone, max loss, stop placement) = instant NO TRADE.
 
 SETUP TIER — determine which tier this setup qualifies for:
@@ -246,10 +246,10 @@ TAKE IT (standard size):
   - Inside Kill Zone
   → This is a valid ICT setup. Take it.
 
-REDUCE SIZE (half size):
+REDUCE SIZE (balance-based):
   - Has 3 of the 4 above (missing ONE confirmation)
   - Daily bias is clear
-  → Valid but lower conviction. Half size.
+  → Valid but lower conviction. Prop firm scaling reduces contracts automatically based on account balance.
 
 NO TRADE:
   - Outside Kill Zone

@@ -930,11 +930,9 @@ def backtest_day(ticker: str, date: str, prev_df: Optional[pd.DataFrame] = None,
 
     # Try each kill zone — ONE trade per KZ, up to 2 per day (AM + PM)
     # PM gets fresh pre-KZ analysis from the AM session (like running pipeline at 12:30)
-    # If AM trade failed → PM reviews, enters half size (cautious after loss)
+    # AM loss ($500) = daily cap hit = no PM. AM BE = 12:30 review = PM at full size.
     day_result["trades"] = []
     day_result["daily_pnl"] = 0
-    am_failed = False
-    am_loss_review = None  # "bias_wrong" / "stop_hunted_then_reversed" / "stop_hunted_then_target_hit"
 
     for kz_name, (kz_start, kz_end) in KILL_ZONES.items():
         kz_df = df.between_time(kz_start, kz_end)
@@ -982,62 +980,9 @@ def backtest_day(ticker: str, date: str, prev_df: Optional[pd.DataFrame] = None,
             if am_data.empty:
                 am_data = df.between_time("08:00", "11:30")
 
-            if am_failed and not am_data.empty:
-                # ── TWO-STEP REVIEW after AM loss ──
-                # Review 1 (immediate): already done — am_loss_review tells us what happened
-                # Review 2 (12:30 PM): check full AM session + daily DD budget
-
-                am_close = float(am_data.iloc[-1]["close"])
-                am_open = float(am_data.iloc[0]["open"])
-                am_high = float(am_data["high"].max())
-                am_low = float(am_data["low"].min())
-                am_range = am_high - am_low if am_high > am_low else 1
-
-                session_bearish = (am_open - am_close) > am_range * 0.6
-                session_bullish = (am_close - am_open) > am_range * 0.6
-
-                # ── DD budget check: how much daily loss can PM afford? ──
-                am_loss_amount = abs(day_result["daily_pnl"])
-                dd_remaining = DAILY_LOSS_CAP - am_loss_amount
-                if dd_remaining <= 0:
-                    # Already hit daily loss cap — NO PM TRADE
-                    day_result.setdefault("pm_review", []).append(
-                        f"daily_dd_exhausted: lost ${am_loss_amount:.0f}, cap=${DAILY_LOSS_CAP}")
-                    continue
-                # If AM loss used >60% of daily DD budget → skip PM (not enough room)
-                if dd_remaining < DAILY_LOSS_CAP * 0.4:
-                    day_result.setdefault("pm_review", []).append(
-                        f"dd_budget_tight: lost ${am_loss_amount:.0f}, only ${dd_remaining:.0f} left, skip")
-                    continue
-
-                skip_pm = False
-
-                # ── Bias review: was the direction wrong? ──
-                if am_loss_review == "bias_wrong":
-                    # Immediate review said bias was wrong — check if AM session confirms
-                    if direction == "long" and session_bearish:
-                        skip_pm = True  # Both reviews agree: bias wrong
-                    elif direction == "short" and session_bullish:
-                        skip_pm = True
-                    day_result.setdefault("pm_review", []).append(
-                        f"immediate=bias_wrong, session={'confirms_skip' if skip_pm else 'mixed_allow_half'}, "
-                        f"am_loss=${am_loss_amount:.0f}, dd_left=${dd_remaining:.0f}")
-                elif am_loss_review in ("stop_hunted_then_reversed", "stop_hunted_then_target_hit"):
-                    # Stop was hunted but bias was RIGHT — PM OK at half size
-                    day_result.setdefault("pm_review", []).append(
-                        f"immediate={am_loss_review}, bias_valid=true, pm=half_size, "
-                        f"am_loss=${am_loss_amount:.0f}, dd_left=${dd_remaining:.0f}")
-                else:
-                    # Unknown cause — check session direction
-                    if (direction == "long" and session_bearish) or (direction == "short" and session_bullish):
-                        skip_pm = True
-                    day_result.setdefault("pm_review", []).append(
-                        f"immediate={am_loss_review}, session={'against_skip' if skip_pm else 'ok_half'}, "
-                        f"am_loss=${am_loss_amount:.0f}, dd_left=${dd_remaining:.0f}")
-
-                if skip_pm:
-                    day_result.setdefault("pm_review", []).append("DECISION: skip_pm")
-                    continue
+            # AM loss ($500) already blocked by daily_pnl check above.
+            # If we're here, AM was either BE, WIN (runner exited early), or no trade.
+            # 12:30 review: use AM session data for fresh PM analysis, trade at FULL SIZE.
 
             # PM prep: use today's full morning session as pre-KZ data
             # This simulates running a fresh pipeline analysis at 12:30
@@ -1060,12 +1005,20 @@ def backtest_day(ticker: str, date: str, prev_df: Optional[pd.DataFrame] = None,
                                      pre_kz_df=pre_kz,
                                      session_high=s_high, session_low=s_low)
         if entry and entry["score"] >= 3:
-            # ── Rule: Half size after AM loss or consecutive losses (disabled in full send) ──
-            # AM loss but bias still valid = trade PM at half size (cautious)
-            if not full_send_mode and (consecutive_losses >= 2 or (is_pm and am_failed)):
-                entry["contracts"] = max(1, entry["contracts"] // 2)
-                entry["half_size"] = True
-                entry["pm_after_am_loss"] = True
+            # Sizing is handled by ApexSimulator.get_contracts() which scales by balance.
+            # Losses reduce balance → fewer contracts automatically. No separate half-size rule.
+
+            # ── Rule: PM adjusts max risk to remaining daily DD budget ──
+            # If AM had a small loss (fees, partial), PM can only risk what's left
+            if is_pm and day_result["daily_pnl"] < 0:
+                remaining_budget = DAILY_LOSS_CAP - abs(day_result["daily_pnl"])
+                if remaining_budget > 0:
+                    risk_per_ct = entry.get("risk_pts", 0) * POINT_VALUE
+                    if risk_per_ct > 0:
+                        max_ct_by_budget = max(1, int(remaining_budget / risk_per_ct))
+                        if max_ct_by_budget < entry["contracts"]:
+                            entry["contracts"] = max_ct_by_budget
+                            entry["size_adjusted"] = f"pm_dd_budget_${remaining_budget:.0f}"
 
             # Simulate the trade — start AFTER entry bar (no look-inside-bar bias)
             entry_time = pd.Timestamp(entry["entry_time"])
@@ -1089,17 +1042,11 @@ def backtest_day(ticker: str, date: str, prev_df: Optional[pd.DataFrame] = None,
             day_result["trades"].append(entry)
             day_result["daily_pnl"] += entry["pnl"]
 
-            # ── IMMEDIATE POST-LOSS REVIEW ──
-            # Only review REAL losses — BE (T1 hit, runner stopped at entry) is NOT a failure
-            # BE result = "T1_WIN" with small pnl (possibly negative after fees)
-            is_real_loss = entry["result"] == "LOSS"  # full stop-out, no T1 hit
-
-            if is_real_loss:
+            # ── POST-LOSS REVIEW (journaling context) ──
+            # Track what happened after stop-out for learning/stats
+            if entry["result"] == "LOSS":
                 loss_entry = entry["entry"]
                 loss_dir = entry["direction"]
-
-                # Check: after stop-out, what did price do for the NEXT 60 MINUTES?
-                # This is what a trader sees right after getting stopped — did it go my way?
                 exit_time = pd.Timestamp(entry.get("exit_time", entry["entry_time"]))
                 review_end = exit_time + pd.Timedelta(minutes=60)
                 after_loss = df[(df.index > exit_time) & (df.index <= review_end)]
@@ -1125,10 +1072,6 @@ def backtest_day(ticker: str, date: str, prev_df: Optional[pd.DataFrame] = None,
                             entry["loss_review"] = "bias_wrong"
                 else:
                     entry["loss_review"] = "no_data_after"
-
-                if not is_pm:
-                    am_failed = True
-                    am_loss_review = entry.get("loss_review", "unknown")
 
     # Backward compat: set "trade" to first trade (or None)
     day_result["trade"] = day_result["trades"][0] if day_result["trades"] else None

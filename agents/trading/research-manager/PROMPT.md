@@ -146,7 +146,7 @@ Missing requirements reduce conviction — they do NOT automatically invalidate.
 If sweep + displacement + FVG are all present → setup is VALID regardless of other items.
 If NO sweep AND no displacement → WAITING.
 Sweep + displacement + FVG = standard size.
-OB entry WITHOUT sweep is VALID at FULL SIZE — lower score (4) but still tradeable. Half size ONLY applies from consecutive loss rule.
+OB entry WITHOUT sweep is VALID at FULL SIZE — lower score (4) but still tradeable. Position sizing scales with account balance via prop firm rules. Losses reduce balance → fewer contracts automatically. No separate half-size rule. {firm_scaling_description}
 
 ══════════════════════════════════════════════════════════════════
 BIAS ALIGNMENT CHECK
@@ -227,7 +227,7 @@ STEP 8: RULES CHECK — HARD + SCORED
 
 ABSOLUTE hard rules (kill zone, max loss, hard close) → violated = NO TRADE.
 SCORED rules (HTF alignment, zone, sweep, SFP) → use 3-tier decision:
-  TAKE IT (entry model conditions met, score ≥ 3 → FULL SIZE) / REDUCE SIZE (ONLY when consecutive losses ≥ 2 → HALF SIZE) / NO TRADE (no valid entry model or absolute rule failure).
+  TAKE IT (entry model conditions met, score ≥ 3 → FULL SIZE) / REDUCE SIZE (account balance dropped → prop firm scaling reduces contracts automatically) / NO TRADE (no valid entry model or absolute rule failure).
   A+ score is retained as a CONTEXT metric for journaling, not a gate for trade decisions.
 
 ══════════════════════════════════════════════════════════════════
