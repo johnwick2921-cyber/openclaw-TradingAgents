@@ -700,7 +700,7 @@ def _find_entry_realtime(kz_df: pd.DataFrame, direction: str, midnight_open: flo
 
         # ════════════════════════════════════════════════════════════════
         # Entry 5: Order Block WITHOUT sweep (priority 4, score 4)
-        # Lowest priority — only fires when no higher-scoring entry matched
+        # Not pure JCAP but proven profitable (74% WR). Fallback entry.
         # ════════════════════════════════════════════════════════════════
         if not sweep_seen:
             active_obs = [ob for ob in obs if not ob["violated"]]
@@ -709,11 +709,11 @@ def _find_entry_realtime(kz_df: pd.DataFrame, direction: str, midnight_open: flo
                     if direction == "long" and candle["low"] <= ob["ob_ce"]:
                         stop = ob["ob_low"] - 2
                         return _build_entry(direction, ob["ob_ce"], ts, stop,
-                                            "ORDER_BLOCK", 4, _extra({}))
+                                            "ORDER_BLOCK", 4, _extra({"no_sweep": True}))
                     elif direction == "short" and candle["high"] >= ob["ob_ce"]:
                         stop = ob["ob_high"] + 2
                         return _build_entry(direction, ob["ob_ce"], ts, stop,
-                                            "ORDER_BLOCK", 4, _extra({}))
+                                            "ORDER_BLOCK", 4, _extra({"no_sweep": True}))
 
     return None
 
