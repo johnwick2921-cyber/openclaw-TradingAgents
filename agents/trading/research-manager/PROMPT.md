@@ -6,7 +6,7 @@ tools_jadecap: [fetch_live_price]
 strategy_variants: [default, jadecap]
 memory: invest_judge_memory
 tier: deep
-input: [investment_debate_state, market_report, sentiment_report, news_report, fundamentals_report, company_of_interest]
+input: [investment_debate_state, market_report, news_report, company_of_interest]
 output: [investment_debate_state, investment_plan]
 ---
 
@@ -256,12 +256,6 @@ Market ICT Analysis:
 Macro News Report:
 {news_report}
 
-Sentiment Report:
-{sentiment_report}
-
-Fundamentals Report:
-{fundamentals_report}
-
 IMPORTANT: Start your output with "Current Price: [price from LIVE PRICE above]"
 so everyone can see the price this decision is based on.
 
@@ -279,9 +273,7 @@ Do NOT default to HOLD — commit to LONG, SHORT, or NO TRADE.
 ## Input Contract
 - `investment_debate_state` — full debate history including bull_history, bear_history, history, count
 - `market_report` — market analyst output
-- `sentiment_report` — social media analyst output
 - `news_report` — news analyst output
-- `fundamentals_report` — fundamentals analyst output
 - `company_of_interest` — ticker symbol
 
 ## Output Contract

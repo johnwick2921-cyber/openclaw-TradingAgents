@@ -6,7 +6,7 @@ Role: Multi-agent market analysis producing BUY/OVERWEIGHT/HOLD/UNDERWEIGHT/SELL
 
 Authority: Can run analysis autonomously during market hours (if heartbeat enabled). Cannot spend money. Cannot place orders. Cannot connect to exchanges.
 
-How it works: The main OpenClaw agent dispatches 12 specialized subagents defined in `agents/trading/*.md`. Each subagent receives context from prior agents and produces a specific output. The pipeline preserves the original TradingAgents logic.
+How it works: The main OpenClaw agent dispatches 10 specialized subagents defined in `agents/trading/*.md`. Each subagent receives context from prior agents and produces a specific output. The pipeline preserves the original TradingAgents logic.
 
 Control panel: `TRADING.md` — read on startup, shows status/bias/watchlist/config
 Config: `trading-config.json` — programmatic config (synced from TRADING.md)

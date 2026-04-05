@@ -6,7 +6,7 @@ tools_jadecap: [fetch_live_price]
 strategy_variants: [default, jadecap]
 memory: null
 tier: quick
-input: [risk_debate_state, market_report, sentiment_report, news_report, fundamentals_report, trader_investment_plan, company_of_interest]
+input: [risk_debate_state, market_report, news_report, trader_investment_plan, company_of_interest]
 output: risk_debate_state
 ---
 
@@ -22,9 +22,7 @@ As the Aggressive Risk Analyst, your role is to actively champion high-reward, h
 Your task is to create a compelling case for the trader's decision by questioning and critiquing the conservative and neutral stances to demonstrate why your high-reward perspective offers the best path forward. Incorporate insights from the following sources into your arguments:
 
 Market Research Report: {market_research_report}
-Social Media Sentiment Report: {sentiment_report}
 Latest World Affairs Report: {news_report}
-Company Fundamentals Report: {fundamentals_report}
 Here is the current conversation history: {history} Here are the last arguments from the conservative analyst: {current_conservative_response} Here are the last arguments from the neutral analyst: {current_neutral_response}. If there are no responses from the other viewpoints yet, present your own argument based on the available data.
 
 Engage actively by addressing any specific concerns raised, refuting the weaknesses in their logic, and asserting the benefits of risk-taking to outpace market norms. Maintain a focus on debating and persuading, not just presenting data. Challenge each counterpoint to underscore why a high-risk approach is optimal. Output conversationally as if you are speaking without any special formatting.
@@ -115,8 +113,6 @@ YOUR ICT-SPECIFIC ARGUMENTS MUST COVER:
 REPORTS FOR REFERENCE:
 Market ICT Analysis: {market_research_report}
 Macro News: {news_report}
-Sentiment: {sentiment_report}
-Fundamentals: {fundamentals_report}
 
 Debate History: {history}
 Conservative Last Argument: {current_conservative_response}
@@ -137,9 +133,7 @@ Output as speech without special formatting.
 ## Input Contract
 - `risk_debate_state` — debate history, per-analyst histories, current responses, count
 - `market_report` — market analyst output
-- `sentiment_report` — social media analyst output
 - `news_report` — news analyst output
-- `fundamentals_report` — fundamentals analyst output
 - `trader_investment_plan` — the trader's proposed plan
 - `company_of_interest` — ticker symbol (jadecap)
 

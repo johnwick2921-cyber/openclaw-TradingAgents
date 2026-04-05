@@ -40,21 +40,23 @@
 - **`dispatch_fn(agent_name, prompt, model) -> str`** is the critical hook. The RunEngine orchestrates the pipeline but does NOT call LLMs directly. The caller provides their own AI dispatch mechanism (Claude Code Agent tool, direct API, etc.).
 - **`dispatch_parallel_fn`** for Tier 1 analysts (4 at once). Everything else is sequential — pipeline order enforced.
 
-### Pipeline (preserved from original TradingAgents)
+### Pipeline (current — 10 agents)
 
 ```
-Tier 1: 4 Analysts → PARALLEL (market, social, news, fundamentals)
+Tier 1: 2 Analysts → PARALLEL (market, news)
 Tier 2: Bull/Bear Debate → SEQUENTIAL (N rounds, each counters the prior)
 Tier 3: Research Manager → Trader → Risk Debate (aggressive → conservative → neutral) → SEQUENTIAL
 Tier 4: Portfolio Manager → FINAL SIGNAL (BUY/OVERWEIGHT/HOLD/UNDERWEIGHT/SELL)
 ```
+
+Deleted agents: social-analyst, fundamentals-analyst (removed — not needed for ICT futures)
 
 ### Config
 
 - **Single source:** `trading-config.json` (replaces default_config.py, jadecap_config.py, WebUI SQLite settings)
 - **Schema defaults** in `openclaw/config.py` — user only specifies overrides
 - **Per-agent model:** `llm.per_agent.bull-researcher: "claude-sonnet-4-6"` overrides the default model for that agent
-- **Strategies:** `"default"` (stocks, 4 analysts) or `"jadecap"` (ICT futures, 2 analysts, 23 indicators)
+- **Strategies:** `"default"` (stocks, 2 analysts) or `"jadecap"` (ICT futures, 2 analysts, 5 entry models)
 
 ### Market Hours
 
@@ -101,7 +103,9 @@ openclaw/              ← THE Python package (everything)
 ├── dataflows/         ← data vendor integrations (15 files)
 └── tools/             ← plain Python tool functions (5 files, auto-registered)
 
-agents/trading/        ← 12 subagent .md definitions
+├── backtest.py        ← JadeCap backtester (AM/PM dual session, Apex sim, post-loss review)
+├── tools/forex_calendar.py ← ForexFactory RED events (1-min blackout)
+agents/trading/        ← 10 subagent .md definitions
 dashboard/terminal/    ← Rich monitor + analysis viewer
 dashboard/web/         ← React + FastAPI web dashboard
 ```
@@ -131,7 +135,6 @@ Each phase has a **verification gate** — must pass before proceeding to next p
 - `dataflows/config.py` has a thread-safe singleton (`get_config()`/`set_config()`) — RunEngine must call `set_config()` at start of `run()` to bridge new config into old dataflow code
 - `dataflows/interface.py` `route_to_vendor()` has a fallback chain — catches ALL exceptions now (was only AlphaVantageRateLimitError)
 - JadeCap prompts use runtime variables (`{bull_req}`, `{hard_rules_str}`, `{kz_str}`, etc.) — RunEngine must inject these from jadecap config section
-- `fundamentals_analyst.py` has a bug: system_message is a tuple `(string,)` — extract the string when creating .md file
 - Agent .md files have YAML frontmatter — `model: null` means use config default, set specific model ID to override
 - `tier: deep` in frontmatter = use `llm.deep_think` model (research-manager, portfolio-manager)
 - BOOTSTRAP.md still exists — merge doesn't trigger it, leave for OpenClaw lifecycle
@@ -140,15 +143,31 @@ Each phase has a **verification gate** — must pass before proceeding to next p
 
 ## Subprojects
 
-- **TradingAgents/** — **DEPRECATED. Being merged into OpenClaw.** See merge plan above. After merge, this directory will be deleted.
+- **TradingAgents/** — **DELETED.** Fully merged into `openclaw/`. Directory no longer exists.
 
 ## Indicator Standards (ICT/JCAP)
 
 - EMA: standard `ewm(adjust=True)` — NOT Wilder (`adjust=False`)
 - ATR: Wilder exponential `ewm(alpha=1/period, adjust=False)` — NOT simple rolling mean
-- ADX: Wilder smoothing — same as ATR
+- ADX: REMOVED from entire system — not part of ICT methodology. Was causing false skips.
 - SFP: minimum 3-point penetration past swing level on NQ
-- When changing indicator calculations, update BOTH `backtest.py` AND `indicators.py` — they must compute identically
+- EMA 200: reference context only (6 TF pre-market check), NOT a trade filter
+- Both `backtest.py` and `indicators.py` use stockstats directly — no manual indicator math
+
+## Backtest Architecture
+
+- **5 ICT entry models:** SFP_RAID, FVG_RETRACE, ORDER_BLOCK, LIQ_RAID, BREAKER (priority order 0→4)
+- **AM + PM dual session:** up to 2 trades/day, each KZ gets independent analysis
+- **PM gets fresh analysis** from AM session data (simulates pipeline run at 12:30 PM)
+- **AM runner holding to EOD blocks PM** — can't be in 2 positions simultaneously
+- **BE (T1_WIN) is NOT a loss** — no review triggered, PM trades full size
+- **Post-loss review (2 steps):** immediate (60 min after stop) checks if stop hunted or bias wrong, then 12:30 session review checks DD budget + session direction
+- **DD budget:** if AM loss used >60% of daily cap ($500) → skip PM
+- **`--kz` flag:** `830` (8:30-11:30), `930` (9:30-11:30), `full` (6:00-16:00)
+- **`--apex`** simulates prop firm with cashout ladder + full send mode
+- **Best config:** 9:30 KZ, $175K/yr, PF 4.37, no bust (vs 8:30 KZ $147K)
+- Databento timestamps are tz-aware — strip with `.tz_localize(None)` before comparing to naive timestamps
+- Bulk fetch: 500-day lookback for indicator warmup (EMA 200 needs 200+ trading days)
 
 ## Common Pitfalls
 
@@ -156,8 +175,11 @@ Each phase has a **verification gate** — must pass before proceeding to next p
 - After deleting agents: clean up config.py SCHEMA_DEFAULTS, engine.py memories dict, engine.py analyst_map, run_bridge.py, trading-integrator.md
 - Engine `_get_ema200_context` must use `_fetch_ohlcv_df` directly — no `get_multi_tf_indicators` function exists
 - Apex 2026 rules: $2K trailing DD (not $2.5K), 6-step payout ladder, 50% consistency rule
-- Bulk fetch: use `_fetch_bulk` with 365-day lookback for proper indicator warmup (EMA 200 needs 200+ daily bars)
 - Prop firm config: PROP_FIRMS in jadecap_config.py is source of truth, injected via `{firm_*}` template vars — never hardcode firm values in prompts
+- When rerunning backtests: `pkill` FIRST, THEN start new processes — pkill kills ALL matching processes including just-started ones
+- News = 1-min blackout only (not 30 min). ForexFactory RED events via `openclaw/tools/forex_calendar.py`
+- 3-tier decision in all agent prompts: TAKE IT / REDUCE SIZE / NO TRADE (not binary)
+- OB without sweep = valid at HALF SIZE (not blocked). SFP stop = wick extreme (not FVG c1)
 
 ## Key Rules
 

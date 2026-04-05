@@ -19,16 +19,14 @@ AI Providers (Claude, GPT, Gemini, DeepSeek, etc.)
 
 OpenClaw is the **brain** — all AI dispatch, auth, model routing, and session management go through its gateway. 9router handles multi-provider routing and failover.
 
-## 14 Registered Agents
+## 12 Registered Agents
 
 | Agent | Role | Tier |
 |-------|------|------|
 | `main` | General-purpose OpenClaw agent | - |
 | `trading-monitor` | Orchestrates trading analysis | - |
 | `market-analyst` | Technical analysis, price action, ICT levels | T1 |
-| `social-analyst` | Social media sentiment analysis | T1 |
 | `news-analyst` | News analysis, macro bias | T1 |
-| `fundamentals-analyst` | Financial statements, ratios | T1 |
 | `bull-researcher` | Bullish case with BM25 memory | T2 |
 | `bear-researcher` | Bearish case with BM25 memory | T2 |
 | `research-manager` | Judges debate, creates investment plan | T3 (deep) |
@@ -43,7 +41,7 @@ OpenClaw is the **brain** — all AI dispatch, auth, model routing, and session 
 Analysis-only — no order execution, no broker connection.
 
 ```
-Tier 1: Analysts (parallel)     → market, social, news, fundamentals reports
+Tier 1: Analysts (parallel)     → market, news reports
 Tier 2: Bull/Bear Debate        → N rounds of argument/counter-argument
 Tier 3: Judge + Trader + Risk   → investment plan, trade sizing, risk assessment
 Tier 4: Portfolio Manager       → final signal (BUY/OVERWEIGHT/HOLD/UNDERWEIGHT/SELL)

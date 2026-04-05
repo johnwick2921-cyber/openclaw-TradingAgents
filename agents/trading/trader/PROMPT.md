@@ -6,7 +6,7 @@ tools_jadecap: [fetch_live_price]
 strategy_variants: [default, jadecap]
 memory: trader_memory
 tier: quick
-input: [company_of_interest, investment_plan, market_report, sentiment_report, news_report, fundamentals_report]
+input: [company_of_interest, investment_plan, market_report, news_report]
 output: [trader_investment_plan, sender]
 ---
 
@@ -266,12 +266,6 @@ Market ICT Analysis:
 Macro News Report:
 {news_report}
 
-Sentiment Report:
-{sentiment_report}
-
-Fundamentals Report:
-{fundamentals_report}
-
 Execute all steps below and output a final trade plan.
 
 ## Tools
@@ -286,9 +280,7 @@ Execute all steps below and output a final trade plan.
 - `company_of_interest` — ticker symbol or futures contract
 - `investment_plan` — the research manager's investment plan
 - `market_report` — market analyst output
-- `sentiment_report` — social media analyst output
 - `news_report` — news analyst output
-- `fundamentals_report` — fundamentals analyst output
 
 ## Output Contract
 - `trader_investment_plan` — the trader's validated plan with final BUY/HOLD/SELL decision

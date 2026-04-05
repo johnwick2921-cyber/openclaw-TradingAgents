@@ -31,9 +31,7 @@ class RunResult:
     date: str = ""
     signal: str = ""  # BUY/OVERWEIGHT/HOLD/UNDERWEIGHT/SELL
     market_report: str = ""
-    sentiment_report: str = ""
     news_report: str = ""
-    fundamentals_report: str = ""
     investment_debate: dict = field(default_factory=dict)
     risk_debate: dict = field(default_factory=dict)
     trader_plan: str = ""
@@ -191,9 +189,7 @@ class RunEngine:
                 date=date,
                 signal=signal,
                 market_report=reports.get("market_report", ""),
-                sentiment_report=reports.get("sentiment_report", ""),
                 news_report=reports.get("news_report", ""),
-                fundamentals_report=reports.get("fundamentals_report", ""),
                 investment_debate=debate,
                 risk_debate=risk_debate,
                 trader_plan=trader_plan,
@@ -301,9 +297,9 @@ class RunEngine:
             ticker=ticker, date=date,
             reports=reports_context,
             market_report=reports.get("market_report", ""),
-            sentiment_report=reports.get("sentiment_report", ""),
+            sentiment_report="N/A — analyst not active",
             news_report=reports.get("news_report", ""),
-            fundamentals_report=reports.get("fundamentals_report", ""),
+            fundamentals_report="N/A — analyst not active",
             debate_history=debate["history"],
             history=debate["history"],
             bull_history=debate["bull_history"],
@@ -324,9 +320,9 @@ class RunEngine:
             reports=reports_context,
             market_research_report=reports.get("market_report", ""),
             market_report=reports.get("market_report", ""),
-            sentiment_report=reports.get("sentiment_report", ""),
+            sentiment_report="N/A — analyst not active",
             news_report=reports.get("news_report", ""),
-            fundamentals_report=reports.get("fundamentals_report", ""),
+            fundamentals_report="N/A — analyst not active",
             investment_plan=investment_plan,
             past_memory_str=self._get_memory_context("trader", ticker, date),
         )
@@ -352,9 +348,9 @@ class RunEngine:
                     reports=reports_context,
                     market_research_report=reports.get("market_report", ""),
                     market_report=reports.get("market_report", ""),
-                    sentiment_report=reports.get("sentiment_report", ""),
+                    sentiment_report="N/A — analyst not active",
                     news_report=reports.get("news_report", ""),
-                    fundamentals_report=reports.get("fundamentals_report", ""),
+                    fundamentals_report="N/A — analyst not active",
                     trader_decision=trader_plan,
                     trader_plan=trader_plan,
                     risk_history=risk_debate["history"],
@@ -398,9 +394,9 @@ class RunEngine:
             reports=reports_context,
             market_research_report=reports.get("market_report", ""),
             market_report=reports.get("market_report", ""),
-            sentiment_report=reports.get("sentiment_report", ""),
+            sentiment_report="N/A — analyst not active",
             news_report=reports.get("news_report", ""),
-            fundamentals_report=reports.get("fundamentals_report", ""),
+            fundamentals_report="N/A — analyst not active",
             history=risk_debate["history"],
             debate_history=debate["history"],
             investment_plan=investment_plan,
@@ -680,11 +676,7 @@ Trade Date: {date}
         memory_name = agent_name  # Each agent has its own memory store now
         past_memory_str = self._get_memory_context(memory_name, ticker, date)
 
-        # Bear researcher optimization: for jadecap, only send the two reports
-        # that matter for NQ futures (skip social media + balance sheet data).
         is_bear_jadecap = (side == "bear" and strategy == "jadecap")
-        sentiment_report_val = "" if is_bear_jadecap else reports.get("sentiment_report", "")
-        fundamentals_report_val = "" if is_bear_jadecap else reports.get("fundamentals_report", "")
 
         context = {
             "ticker": ticker,
@@ -692,9 +684,9 @@ Trade Date: {date}
             "company_name": ticker,
             "market_research_report": reports.get("market_report", ""),
             "market_report": reports.get("market_report", ""),
-            "sentiment_report": sentiment_report_val,
+            "sentiment_report": "N/A — analyst not active",
             "news_report": reports.get("news_report", ""),
-            "fundamentals_report": fundamentals_report_val,
+            "fundamentals_report": "N/A — analyst not active",
             "history": debate.get("history", ""),
             "current_response": opponent_history[-2000:] if opponent_history else "",
             "past_memory_str": past_memory_str,

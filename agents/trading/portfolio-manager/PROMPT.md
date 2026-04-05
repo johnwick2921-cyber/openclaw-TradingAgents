@@ -6,7 +6,7 @@ tools_jadecap: [fetch_live_price]
 strategy_variants: [default, jadecap]
 memory: portfolio_manager_memory
 tier: deep
-input: [risk_debate_state, market_report, sentiment_report, news_report, fundamentals_report, investment_plan, trader_investment_plan, company_of_interest]
+input: [risk_debate_state, market_report, news_report, investment_plan, trader_investment_plan, company_of_interest]
 output: [risk_debate_state, final_trade_decision]
 ---
 
@@ -320,8 +320,6 @@ Past Decision Lessons:
 Analyst Reports for Reference:
 Market ICT Analysis: {market_research_report}
 Macro News: {news_report}
-Sentiment: {sentiment_report}
-Fundamentals: {fundamentals_report}
 
 IMPORTANT: Start your output with "Current Price: [price from LIVE PRICE above]"
 so the final decision clearly shows what price it was based on.
@@ -340,9 +338,7 @@ Ground every conclusion in specific evidence from the analysts and trader.
 ## Input Contract
 - `risk_debate_state` — full risk debate history including aggressive/conservative/neutral histories and responses
 - `market_report` — market analyst output
-- `sentiment_report` — social media analyst output
 - `news_report` — news analyst output
-- `fundamentals_report` — fundamentals analyst output
 - `investment_plan` — research manager's investment plan
 - `trader_investment_plan` — trader's validated plan (jadecap)
 - `company_of_interest` — ticker symbol

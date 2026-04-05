@@ -6,7 +6,7 @@ tools_jadecap: [fetch_live_price]
 strategy_variants: [default, jadecap]
 memory: bull_memory
 tier: quick
-input: [investment_debate_state, market_report, sentiment_report, news_report, fundamentals_report, company_of_interest]
+input: [investment_debate_state, market_report, news_report, company_of_interest]
 output: investment_debate_state
 ---
 
@@ -26,9 +26,7 @@ Key points to focus on:
 
 Resources available:
 Market research report: {market_research_report}
-Social media sentiment report: {sentiment_report}
 Latest world affairs news: {news_report}
-Company fundamentals report: {fundamentals_report}
 Conversation history of the debate: {history}
 Last bear argument: {current_response}
 Reflections from similar situations and lessons learned: {past_memory_str}
@@ -304,9 +302,7 @@ and what needs to happen before a long is valid.
 ## Input Contract
 - `investment_debate_state` — debate history, bull/bear histories, current response, count
 - `market_report` — market analyst output
-- `sentiment_report` — social media analyst output
 - `news_report` — news analyst output
-- `fundamentals_report` — fundamentals analyst output
 - `company_of_interest` — ticker symbol (jadecap)
 
 ## Output Contract

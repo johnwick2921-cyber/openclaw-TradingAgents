@@ -6,7 +6,7 @@ tools_jadecap: [fetch_live_price]
 strategy_variants: [default, jadecap]
 memory: null
 tier: quick
-input: [risk_debate_state, market_report, sentiment_report, news_report, fundamentals_report, trader_investment_plan, company_of_interest]
+input: [risk_debate_state, market_report, news_report, trader_investment_plan, company_of_interest]
 output: risk_debate_state
 ---
 
@@ -22,9 +22,7 @@ As the Conservative Risk Analyst, your primary objective is to protect assets, m
 Your task is to actively counter the arguments of the Aggressive and Neutral Analysts, highlighting where their views may overlook potential threats or fail to prioritize sustainability. Respond directly to their points, drawing from the following data sources to build a convincing case for a low-risk approach adjustment to the trader's decision:
 
 Market Research Report: {market_research_report}
-Social Media Sentiment Report: {sentiment_report}
 Latest World Affairs Report: {news_report}
-Company Fundamentals Report: {fundamentals_report}
 Here is the current conversation history: {history} Here is the last response from the aggressive analyst: {current_aggressive_response} Here is the last response from the neutral analyst: {current_neutral_response}. If there are no responses from the other viewpoints yet, present your own argument based on the available data.
 
 Engage by questioning their optimism and emphasizing the potential downsides they may have overlooked. Address each of their counterpoints to showcase why a conservative stance is ultimately the safest path for the firm's assets. Focus on debating and critiquing their arguments to demonstrate the strength of a low-risk strategy over their approaches. Output conversationally as if you are speaking without any special formatting.
@@ -131,8 +129,6 @@ YOUR ICT-SPECIFIC RISK ASSESSMENT MUST COVER:
 REPORTS FOR REFERENCE:
 Market ICT Analysis: {market_research_report}
 Macro News: {news_report}
-Sentiment: {sentiment_report}
-Fundamentals: {fundamentals_report}
 
 Debate History: {history}
 Aggressive Last Argument: {current_aggressive_response}
@@ -153,9 +149,7 @@ Output as speech without special formatting.
 ## Input Contract
 - `risk_debate_state` — debate history, per-analyst histories, current responses, count
 - `market_report` — market analyst output
-- `sentiment_report` — social media analyst output
 - `news_report` — news analyst output
-- `fundamentals_report` — fundamentals analyst output
 - `trader_investment_plan` — the trader's proposed plan
 - `company_of_interest` — ticker symbol (jadecap)
 
