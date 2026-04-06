@@ -19,7 +19,7 @@ AI Providers (Claude, GPT, Gemini, DeepSeek, etc.)
 
 OpenClaw is the **brain** — all AI dispatch, auth, model routing, and session management go through its gateway. 9router handles multi-provider routing and failover.
 
-## 12 Registered Agents
+## 10 Trading Agents
 
 | Agent | Role | Tier |
 |-------|------|------|
@@ -34,7 +34,7 @@ OpenClaw is the **brain** — all AI dispatch, auth, model routing, and session 
 | `aggressive-risk` | Aggressive risk perspective | T3 |
 | `conservative-risk` | Conservative risk perspective | T3 |
 | `neutral-risk` | Balanced risk perspective | T3 |
-| `portfolio-manager` | Final BUY/OVERWEIGHT/HOLD/UNDERWEIGHT/SELL | T4 (deep) |
+| `portfolio-manager` | Final BUY/SELL/OVERWEIGHT/UNDERWEIGHT/BULLISH/BEARISH/NEUTRAL | T4 (deep) |
 
 ## Trading Pipeline
 
@@ -44,7 +44,7 @@ Analysis-only — no order execution, no broker connection.
 Tier 1: Analysts (parallel)     → market, news reports
 Tier 2: Bull/Bear Debate        → N rounds of argument/counter-argument
 Tier 3: Judge + Trader + Risk   → investment plan, trade sizing, risk assessment
-Tier 4: Portfolio Manager       → final signal (BUY/OVERWEIGHT/HOLD/UNDERWEIGHT/SELL)
+Tier 4: Portfolio Manager       → final signal (BUY/SELL/OVERWEIGHT/UNDERWEIGHT/BULLISH/BEARISH/NEUTRAL)
 ```
 
 After each run:
@@ -96,7 +96,7 @@ result = engine.run(
     dispatch_fn=openclaw_dispatch,
     dispatch_parallel_fn=openclaw_dispatch_parallel,
 )
-print(result.signal)  # BUY / OVERWEIGHT / HOLD / UNDERWEIGHT / SELL
+print(result.signal)  # BUY / SELL / BULLISH / BEARISH / NEUTRAL
 ```
 
 ## Control UI Features
