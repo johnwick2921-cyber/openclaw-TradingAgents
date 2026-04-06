@@ -89,9 +89,19 @@ AGGREGATE_FACTOR = {
 
 
 def _aggregate_ohlcv(df: pd.DataFrame, factor: int) -> pd.DataFrame:
-    """Aggregate OHLCV bars by a factor (e.g., 5x 1m bars -> 1x 5m bar)."""
+    """Aggregate OHLCV bars by time-based resampling (same as backtest._agg).
+
+    Uses pandas resample on actual timestamps — never row-based grouping,
+    which misaligns candles across session gaps (e.g., 5-6 PM maintenance).
+    """
     if factor <= 1:
         return df
+
+    # Convert Date column to DatetimeIndex for proper time-based resampling
+    if "Date" in df.columns:
+        df = df.copy()
+        df["_ts"] = pd.to_datetime(df["Date"], errors="coerce")
+        df = df.set_index("_ts").sort_index()
 
     agg = {
         "Open": "first",
@@ -100,14 +110,13 @@ def _aggregate_ohlcv(df: pd.DataFrame, factor: int) -> pd.DataFrame:
         "Close": "last",
         "Volume": "sum",
     }
-    # Group every N rows
-    groups = df.groupby(df.index // factor)
-    result = groups.agg(agg)
 
-    # Carry forward Date from last bar in each group
-    if "Date" in df.columns:
-        result["Date"] = groups["Date"].last().values
+    # Time-based resampling — same approach as backtest._agg
+    rule = f"{factor}min"
+    result = df.resample(rule).agg(agg).dropna(subset=["Close"])
 
+    # Restore Date column from index
+    result["Date"] = result.index.strftime("%Y-%m-%d %H:%M")
     return result.reset_index(drop=True)
 
 
