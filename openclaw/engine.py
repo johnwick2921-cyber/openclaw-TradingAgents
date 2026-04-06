@@ -1372,23 +1372,62 @@ Opponent's Last Argument:
         return f"[Stub response from {agent_name}]"
 
     def _write_agent_memories(self, result, agents_dir: str):
-        """Write run lessons to each agent's MEMORY.md file."""
+        """Write run lessons to each agent's MEMORY.md file.
+
+        Extracts situation from the ACTUAL run result (market report summary,
+        signal, key levels) — not from stale BM25 entries.
+        """
+        # Build situation from THIS run's actual data
+        situation = self._build_run_situation(result)
+        lesson = self._build_run_lesson(result)
+
         for agent_name, mem in self.memories.items():
-            if not mem.documents:
-                continue
             memory_file = os.path.join(agents_dir, agent_name, "MEMORY.md")
             if not os.path.exists(os.path.dirname(memory_file)):
                 continue
-            latest_situation = mem.documents[-1] if mem.documents else ""
-            latest_recommendation = mem.recommendations[-1] if mem.recommendations else ""
+
+            # Check for duplicates — don't write if same date+ticker already exists
+            try:
+                existing = open(memory_file).read() if os.path.exists(memory_file) else ""
+                header = f"### {result.date}: {result.ticker} → {result.signal}"
+                if header in existing:
+                    continue  # skip duplicate
+            except Exception:
+                pass
+
+            # Add to BM25 memory for this agent
+            mem.add_situations([(situation, lesson)])
+
             entry = f"\n### {result.date}: {result.ticker} → {result.signal}\n"
-            entry += f"- Situation: {latest_situation[:200]}\n"
-            entry += f"- Lesson: {latest_recommendation[:200]}\n\n"
+            entry += f"- Situation: {situation[:300]}\n"
+            entry += f"- Lesson: {lesson[:300]}\n\n"
             try:
                 with open(memory_file, "a") as f:
                     f.write(entry)
             except Exception as exc:
                 logger.warning("Failed to write memory for %s: %s", agent_name, exc)
+
+    def _build_run_situation(self, result) -> str:
+        """Extract situation summary from actual run results."""
+        parts = [f"{result.ticker} {result.date} — Signal: {result.signal}"]
+        # Extract key info from market report
+        if result.market_report:
+            for line in result.market_report.split("\n")[:50]:
+                s = line.strip()
+                if any(s.startswith(k) for k in ["Current Price", "Daily Bias", "SFP", "PDH", "PDL"]):
+                    parts.append(s[:100])
+                    if len(parts) >= 5:
+                        break
+        return ". ".join(parts)
+
+    def _build_run_lesson(self, result) -> str:
+        """Extract lesson from actual run results."""
+        if result.signal in ("BUY", "SELL"):
+            return f"Signal {result.signal} — trade taken. Review outcome after session close."
+        elif result.signal in ("BULLISH", "BEARISH"):
+            return f"Bias {result.signal} but setup not ready. Game plan provided for next KZ."
+        else:
+            return f"Signal {result.signal} — no clear direction. Structure was unclear or conflicting."
 
     def reflect(self, ticker: str, date: str, dispatch_fn=None, callbacks=None):
         import yfinance as yf
