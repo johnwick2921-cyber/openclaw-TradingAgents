@@ -1763,7 +1763,16 @@ HOLIDAY_RULES = {
 # =====================================================================
 
 TRADE_OUTPUT_FORMAT = """
-TRADE PLAN (fill in EVERY field — even for HOLD, output as STANDBY PLAN):
+PRIOR PLAN STATUS (check PRIOR RUNS TODAY section above — if no prior runs, write "FIRST RUN TODAY"):
+Prior Signal: [BULLISH/BEARISH/NEUTRAL or FIRST RUN TODAY]
+Prior Trade:  [STILL OPEN / HIT T1 (runner holding) / STOPPED OUT / HIT BE / CLOSED / NO TRADE TAKEN]
+Prior Entry:  [price from prior plan or N/A]
+Prior P&L:    [estimated from current price vs prior entry, or N/A]
+Action:       [KEEP HOLDING / LET STOP MANAGE / NEW PLAN BELOW / SAME PLAN STILL VALID]
+If bias CHANGED: explain WHY structure shifted since last run.
+If bias SAME: confirm setup still valid at current price — update entry/stop if levels moved.
+
+TRADE PLAN (fill in EVERY field — even if STANDBY):
 Current Price: [REQUIRED — always show the >>> CURRENT PRICE from above]
 Market Bias:  BULLISH / BEARISH / UNCLEAR — [1-sentence reason from daily+1H structure]
 Direction:    LONG / SHORT / NO TRADE
