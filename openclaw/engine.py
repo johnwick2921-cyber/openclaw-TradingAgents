@@ -623,11 +623,11 @@ class RunEngine:
                     from openclaw.indicators import calc_ndog, calc_nwog
                     col_map = {c: c.lower() for c in df_1m.columns}
                     df_1m_norm = df_1m.rename(columns=col_map)
-                    ndog = calc_ndog(df_1m_norm)
+                    ndog = calc_ndog(df_1m_norm, date)
                     if ndog and ndog.get("ndog_high"):
                         ndog_ce = (ndog["ndog_high"] + ndog["ndog_low"]) / 2
                         parts.append(f"\nNDOG: {ndog['ndog_high']:.2f} - {ndog['ndog_low']:.2f} (CE: {ndog_ce:.2f})")
-                    nwog = calc_nwog(df_1m_norm)
+                    nwog = calc_nwog(df_1m_norm, date)
                     if nwog and nwog.get("nwog_high"):
                         nwog_ce = (nwog["nwog_high"] + nwog["nwog_low"]) / 2
                         parts.append(f"NWOG: {nwog['nwog_high']:.2f} - {nwog['nwog_low']:.2f} (CE: {nwog_ce:.2f})")
@@ -778,6 +778,13 @@ class RunEngine:
             if df_1h is not None and not isinstance(df_1h, str) and not df_1h.empty:
                 parts.append(get_fvg(df_1h.tail(30), "1H"))
                 parts.append(get_order_blocks(df_1h.tail(30), "1H"))
+
+            # Market Structure (BOS/CHoCH) on 1H and 15m
+            from openclaw.indicators import get_market_structure
+            if df_1h is not None and not isinstance(df_1h, str) and not df_1h.empty:
+                parts.append(get_market_structure(df_1h, "1H"))
+            if df_15m is not None and not isinstance(df_15m, str) and not df_15m.empty:
+                parts.append(get_market_structure(df_15m, "15m"))
 
             # Contract calc for common stop distances
             parts.append("\n── CONTRACT SIZING (exact — base 5 MNQ at $50K) ──")
