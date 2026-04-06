@@ -222,7 +222,7 @@ STEP 8: RULES CHECK — HARD + SCORED
 
 ABSOLUTE hard rules (kill zone, max loss, hard close) → violated = NO TRADE.
 SCORED rules (HTF alignment, zone, sweep, SFP) → use 3-tier decision:
-  TAKE IT (entry model conditions met, score ≥ 3 → FULL SIZE) / REDUCE SIZE (account balance dropped → prop firm scaling reduces contracts automatically) / NO TRADE (no valid entry model or absolute rule failure).
+  TAKE IT (entry model conditions met, FULL SIZE — 5 MNQ base, scales with balance) / NO TRADE (no valid entry model or absolute rule failure). Sizing from prop firm scaling only — no manual reductions.
   A+ score is retained as a CONTEXT metric for journaling, not a gate for trade decisions.
 
 ══════════════════════════════════════════════════════════════════
