@@ -441,15 +441,16 @@ def _fetch_ohlcv_df(symbol: str, timeframe: str, trade_date: str):
     }
     days_back = lookback_map.get(timeframe, 600)
     start_dt = end_dt - timedelta(days=days_back)
-    # Databento Historical has ~15min delay. If trade_date is today,
-    # use "now minus 20 min" as end to include today's bars.
-    # If trade_date is in the past, add 1 day to capture full day.
+    # Databento Historical API lag: data availability varies (15min to hours).
+    # Try "now minus 20 min" first. If that fails (422), fall back to yesterday.
     from datetime import timezone as _tz
     now = datetime.now(_tz.utc).replace(tzinfo=None)
     if end_dt.date() >= now.date():
         fetch_end = (now - timedelta(minutes=20)).strftime("%Y-%m-%dT%H:%M")
+        fetch_end_fallback = end_dt.strftime("%Y-%m-%d")  # midnight today = yesterday's data
     else:
         fetch_end = (end_dt + timedelta(days=1)).strftime("%Y-%m-%d")
+        fetch_end_fallback = None
 
     try:
         # Databento supports all timeframes natively
@@ -486,11 +487,52 @@ def _fetch_ohlcv_df(symbol: str, timeframe: str, trade_date: str):
 
     if not csv_data or csv_data.startswith("No data"):
         return None
+    # Detect error strings — retry with fallback end date if available
+    if any(csv_data.startswith(prefix) for prefix in [
+        "Databento API error", "Databento authentication", "No data found",
+        "[Failed", "Error:", "error:",
+    ]):
+        if fetch_end_fallback and "422" in csv_data:
+            logger.info("Retrying %s %s with fallback end date %s", symbol, timeframe, fetch_end_fallback)
+            try:
+                if vendor == "databento":
+                    from openclaw.dataflows.databento_nq import get_databento_ohlcv
+                    csv_data = get_databento_ohlcv(
+                        symbol, start_dt.strftime("%Y-%m-%d"), fetch_end_fallback, timeframe=timeframe
+                    )
+                else:
+                    from openclaw.dataflows.interface import route_to_vendor
+                    csv_data = route_to_vendor("get_stock_data", symbol, start_dt.strftime("%Y-%m-%d"), fetch_end_fallback)
+                if csv_data and not any(csv_data.startswith(p) for p in ["Databento API error", "No data", "[Failed", "Error:"]):
+                    logger.info("Fallback succeeded for %s %s", symbol, timeframe)
+                else:
+                    logger.warning("Fallback also failed for %s %s", symbol, timeframe)
+                    return None
+            except Exception as exc:
+                logger.warning("Fallback fetch failed for %s %s: %s", symbol, timeframe, exc)
+                return None
+        else:
+            logger.warning("Data fetch error for %s %s: %s", symbol, timeframe, csv_data[:100])
+            return None
 
-    # Parse CSV
+    # Parse CSV — Databento CSV has # comment lines then headerless data rows
     lines = csv_data.split("\n")
-    data_lines = [l for l in lines if not l.startswith("#")]
-    df = pd.read_csv(StringIO("\n".join(data_lines)))
+    data_lines = [l for l in lines if l.strip() and not l.startswith("#")]
+    if not data_lines:
+        return None
+    # Check if first data line looks like a header (contains letters)
+    first = data_lines[0]
+    if any(c.isalpha() and c not in ('e', 'E') for c in first.split(",")[0]):
+        # Has header row
+        df = pd.read_csv(StringIO("\n".join(data_lines)))
+    else:
+        # No header — add column names
+        ncols = len(first.split(","))
+        if ncols >= 6:
+            headers = ["Open", "High", "Low", "Close", "Volume", "Date"][:ncols]
+        else:
+            headers = [f"col{i}" for i in range(ncols)]
+        df = pd.read_csv(StringIO("\n".join(data_lines)), header=None, names=headers)
     if df.empty:
         return None
 

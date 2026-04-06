@@ -69,26 +69,26 @@ def _databento_dataset(symbol: str) -> str:
 
 
 # Timeframe to Databento schema mapping
-# Request native schemas first — less data, no aggregation bugs, correct session boundaries
-# Fallback to ohlcv-1m + local aggregation if native schema unavailable
+# Databento supports: ohlcv-1m, ohlcv-1h, ohlcv-1d ONLY (no 5m/15m/30m)
+# Use native where available, aggregate from 1m for sub-hour timeframes
 TIMEFRAME_SCHEMAS = {
-    "1m":  "ohlcv-1m",
-    "5m":  "ohlcv-5m",
-    "15m": "ohlcv-15m",
-    "30m": "ohlcv-30m",
-    "1H":  "ohlcv-1h",
-    "4H":  "ohlcv-1h",    # 4H not native — aggregate from 1H
-    "1D":  "ohlcv-1d",
-    "1W":  "ohlcv-1d",    # 1W not native — aggregate from 1D
+    "1m":  "ohlcv-1m",     # native
+    "5m":  "ohlcv-1m",     # aggregate 5x from 1m
+    "15m": "ohlcv-1m",     # aggregate 15x from 1m
+    "30m": "ohlcv-1m",     # aggregate 30x from 1m
+    "1H":  "ohlcv-1h",     # native
+    "4H":  "ohlcv-1h",     # aggregate 4x from native 1H
+    "1D":  "ohlcv-1d",     # native
+    "1W":  "ohlcv-1d",     # aggregate 7x from native 1D
 }
 
-# Fallback schemas when native is unavailable
+# Fallback schema when native is unavailable (e.g., today's incomplete bar)
 FALLBACK_SCHEMA = "ohlcv-1m"
 
-# How many source bars to aggregate (only used for fallback or non-native TFs)
+# How many source bars to aggregate into one target bar
 AGGREGATE_FACTOR = {
-    "1m": 1, "5m": 1, "15m": 1, "30m": 1,
-    "1H": 1, "4H": 4, "1D": 1, "1W": 7,  # 4H = 4x 1H, 1W = 7x 1D
+    "1m": 1, "5m": 5, "15m": 15, "30m": 30,
+    "1H": 1, "4H": 4, "1D": 1, "1W": 7,
 }
 
 # Fallback aggregation factors when falling back to ohlcv-1m
