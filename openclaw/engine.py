@@ -615,9 +615,25 @@ class RunEngine:
             if df_1m is not None and not isinstance(df_1m, str) and not df_1m.empty:
                 parts.append(get_midnight_open(df_1m, date))
 
-            # ── PDH / PDL (from indicators.py) ──
+            # ── PDH / PDL (9:30-16:00 regular hours — same as backtest) ──
             if df_1h is not None and not isinstance(df_1h, str) and not df_1h.empty:
-                parts.append(get_prev_day_levels(df_1h))
+                df_1h_norm = df_1h.rename(columns={c: c.lower() for c in df_1h.columns})
+                today_dt = pd.Timestamp(date).date()
+                # Get yesterday's regular-hours data (9:30-16:00)
+                prev_days = df_1h_norm[df_1h_norm.index.date < today_dt]
+                if not prev_days.empty:
+                    last_date = prev_days.index.date[-1]
+                    prev_day = prev_days[prev_days.index.date == last_date]
+                    prev_session = prev_day.between_time("09:30", "16:00")
+                    if prev_session.empty:
+                        prev_session = prev_day  # fallback to full day
+                    pdh = float(prev_session["high"].max())
+                    pdl = float(prev_session["low"].min())
+                    parts.append(f"\nPDH (Previous Day High): {pdh:.2f}")
+                    parts.append(f"PDL (Previous Day Low): {pdl:.2f}")
+                    parts.append(f"PDH-PDL Range: {pdh - pdl:.2f} pts")
+                else:
+                    parts.append(get_prev_day_levels(df_1h))  # fallback to SMC
 
             # ── ASIA/LONDON SESSION LEVELS (from indicators.py) ──
             if df_15m is not None and not isinstance(df_15m, str) and not df_15m.empty:
@@ -665,44 +681,35 @@ class RunEngine:
                 else:
                     parts.append("\nDisplacement: NONE detected on 15m")
 
-            # ── DAILY BIAS (structure only — same logic as backtest._daily_bias) ──
+            # ── DAILY BIAS (uses backtest's _daily_bias — same weighted scoring) ──
             if df_daily is not None and not isinstance(df_daily, str) and not df_daily.empty:
+                from openclaw.backtest import _daily_bias, _structure_bias
                 df_d = df_daily.rename(columns={c: c.lower() for c in df_daily.columns})
                 today_dt = pd.Timestamp(date).date()
                 prior_daily = df_d[df_d.index.date < today_dt]
+
+                # Get 1H data for confirmation (same as backtest)
+                df_1h_bias = None
+                if df_1h is not None and not isinstance(df_1h, str) and not df_1h.empty:
+                    df_1h_norm = df_1h.rename(columns={c: c.lower() for c in df_1h.columns})
+                    if df_1h_norm.index.tz:
+                        cutoff = pd.Timestamp(f"{date} 09:30", tz=df_1h_norm.index.tz)
+                    else:
+                        cutoff = pd.Timestamp(f"{date} 09:30")
+                    df_1h_bias = df_1h_norm[df_1h_norm.index < cutoff].tail(30)
+
                 if len(prior_daily) >= 5:
+                    bias = _daily_bias(prior_daily, df_1h_bias)
+                    d_bull, d_bear = _structure_bias(prior_daily)
                     last_d = prior_daily.iloc[-1]
                     bull_candle = last_d["close"] > last_d["open"]
-                    dh = prior_daily["high"].values
-                    dl = prior_daily["low"].values
-                    d_sh = [float(dh[j]) for j in range(1, len(prior_daily) - 1)
-                            if dh[j] > dh[j - 1] and dh[j] > dh[j + 1]]
-                    d_sl = [float(dl[j]) for j in range(1, len(prior_daily) - 1)
-                            if dl[j] < dl[j - 1] and dl[j] < dl[j + 1]]
 
-                    mss_bull = bool(d_sh and last_d["high"] > d_sh[-1] and last_d["close"] > d_sh[-1])
-                    mss_bear = bool(d_sl and last_d["low"] < d_sl[-1] and last_d["close"] < d_sl[-1])
-                    sweep_bull = bool(d_sl and last_d["low"] < d_sl[-1] and last_d["close"] > d_sl[-1])
-                    sweep_bear = bool(d_sh and last_d["high"] > d_sh[-1] and last_d["close"] < d_sh[-1])
-
-                    b = sum([mss_bull, sweep_bull, bull_candle])
-                    s = sum([mss_bear, sweep_bear, not bull_candle])
-
-                    if b >= 2:
-                        bias = "BULLISH"
-                    elif s >= 2:
-                        bias = "BEARISH"
-                    elif b == 1 and s == 0:
-                        bias = "BULLISH (weak)"
-                    elif s == 1 and b == 0:
-                        bias = "BEARISH (weak)"
-                    else:
-                        bias = "UNCLEAR"
-
-                    parts.append(f"\nDAILY BIAS: {bias}")
+                    parts.append(f"\nDAILY BIAS: {bias.upper()}")
                     parts.append(f"  Yesterday: {'BULLISH' if bull_candle else 'BEARISH'} close")
-                    parts.append(f"  MSS: {'bull' if mss_bull else 'bear' if mss_bear else 'none'}")
-                    parts.append(f"  Sweep: {'bull' if sweep_bull else 'bear' if sweep_bear else 'none'}")
+                    parts.append(f"  Daily structure: bull={d_bull} bear={d_bear}")
+                    if df_1h_bias is not None and len(df_1h_bias) >= 5:
+                        h_bull, h_bear = _structure_bias(df_1h_bias)
+                        parts.append(f"  1H confirmation: bull={h_bull} bear={h_bear}")
 
             # ── ATR (from indicators.py math indicators) ──
             if df_daily is not None and not isinstance(df_daily, str) and not df_daily.empty:

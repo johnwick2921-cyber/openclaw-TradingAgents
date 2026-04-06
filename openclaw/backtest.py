@@ -156,61 +156,7 @@ def _agg(df: pd.DataFrame, minutes: int) -> pd.DataFrame:
 
 
 
-def _detect_1h_sfp(df_1h: pd.DataFrame, direction: str) -> Optional[dict]:
-    """Detect 1H Swing Failure Pattern — JadeCap's #1 signal.
-
-    SFP: A 1H candle sweeps a prior swing high/low and CLOSES BACK INSIDE
-    the prior range, trapping breakout traders.
-
-    Long SFP: 1H candle wicks below a prior swing low but closes above it.
-    Short SFP: 1H candle wicks above a prior swing high but closes below it.
-    """
-    if len(df_1h) < 5:
-        return None
-
-    highs = df_1h["high"].values
-    lows = df_1h["low"].values
-
-    swing_highs = []
-    swing_lows = []
-    for j in range(1, len(df_1h) - 1):
-        if highs[j] > highs[j - 1] and highs[j] > highs[j + 1]:
-            swing_highs.append((j, highs[j]))
-        if lows[j] < lows[j - 1] and lows[j] < lows[j + 1]:
-            swing_lows.append((j, lows[j]))
-
-    last_idx = len(df_1h) - 1
-    last_candle = df_1h.iloc[last_idx]
-    last_ts = df_1h.index[last_idx]
-
-    # Minimum penetration: wick must go at least 3 pts past the swing level
-    # to confirm a real liquidity sweep (not just noise)
-    MIN_SFP_PENETRATION = 3.0
-
-    if direction == "long" and swing_lows:
-        for _, sw_low in reversed(swing_lows):
-            penetration = sw_low - last_candle["low"]
-            if penetration >= MIN_SFP_PENETRATION and last_candle["close"] > sw_low:
-                return {
-                    "time": last_ts,
-                    "sfp_type": "long",
-                    "swing_level": sw_low,
-                    "sweep_price": float(last_candle["low"]),
-                    "close_price": float(last_candle["close"]),
-                }
-    elif direction == "short" and swing_highs:
-        for _, sw_high in reversed(swing_highs):
-            penetration = last_candle["high"] - sw_high
-            if penetration >= MIN_SFP_PENETRATION and last_candle["close"] < sw_high:
-                return {
-                    "time": last_ts,
-                    "sfp_type": "short",
-                    "swing_level": sw_high,
-                    "sweep_price": float(last_candle["high"]),
-                    "close_price": float(last_candle["close"]),
-                }
-
-    return None
+    # _detect_1h_sfp removed — now uses calc_sfp_detection from indicators.py (shared with pipeline)
 
 
 def _midnight_open(df: pd.DataFrame) -> Optional[float]:
@@ -393,10 +339,17 @@ def _build_trade_plan(direction: str, midnight_open: float,
                 if abs(pre_5m.iloc[j]["high"] - pre_5m.iloc[j-1]["high"]) < 2:
                     plan["key_levels_short"].append(("Equal High", float(pre_5m.iloc[j]["high"])))
 
-    # Map 1H swings for SFP (prior session)
+    # Map 1H swings for SFP (uses same calc_sfp_detection as pipeline)
+    from openclaw.indicators import calc_sfp_detection
     if pre_kz_df is not None and not pre_kz_df.empty:
         pre_1h = _agg(pre_kz_df, 60) if len(pre_kz_df) >= 60 else pd.DataFrame()
-        if len(pre_1h) >= 3:
+        if len(pre_1h) >= 5:
+            sfp_result = calc_sfp_detection(pre_1h)
+            for sh in sfp_result.get("swing_highs", []):
+                plan["mapped_sfp_levels"].append(("swing_high", float(sh["price"])))
+            for sl in sfp_result.get("swing_lows", []):
+                plan["mapped_sfp_levels"].append(("swing_low", float(sl["price"])))
+        elif len(pre_1h) >= 3:
             h = pre_1h["high"].values
             l = pre_1h["low"].values
             for j in range(1, len(pre_1h) - 1):
@@ -474,13 +427,21 @@ def _find_entry_realtime(kz_df: pd.DataFrame, direction: str, midnight_open: flo
                 if abs(pre_5m.iloc[j]["high"] - pre_5m.iloc[j-1]["high"]) < 2:
                     key_levels_short.append(("Equal High", float(pre_5m.iloc[j]["high"])))
 
-    # ── Pre-map 1H swing points for SFP (JCAP: map prior session swings at 8 AM) ──
+    # ── Pre-map 1H swing points for SFP (uses same calc_sfp_detection as pipeline) ──
+    from openclaw.indicators import calc_sfp_detection
     mapped_sfp_levels = []
     if pre_kz_df is not None and not pre_kz_df.empty:
         full_1m_for_1h = pd.concat([pre_kz_df, kz_df])
         # Map swings from pre-KZ 1H candles ONLY (prior session)
         pre_1h = _agg(pre_kz_df, 60) if len(pre_kz_df) >= 60 else pd.DataFrame()
-        if len(pre_1h) >= 3:
+        if len(pre_1h) >= 5:
+            sfp_result = calc_sfp_detection(pre_1h)
+            for sh in sfp_result.get("swing_highs", []):
+                mapped_sfp_levels.append(("swing_high", float(sh["price"])))
+            for sl in sfp_result.get("swing_lows", []):
+                mapped_sfp_levels.append(("swing_low", float(sl["price"])))
+        elif len(pre_1h) >= 3:
+            # Fallback: simple swing detection for small datasets
             h = pre_1h["high"].values
             l = pre_1h["low"].values
             for j in range(1, len(pre_1h) - 1):
