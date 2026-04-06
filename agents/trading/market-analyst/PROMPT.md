@@ -231,7 +231,7 @@ No sweep AND no displacement = WAITING. Sweep + displacement + FVG = standard si
 STEP 9 — CHECKLIST + FINAL ASSESSMENT
 Check ALL items:
 {checklist_str}
-Score each item PASS/FAIL. A+ score is a CONTEXT metric only — the actual decision is 3-tier: TAKE IT (sweep + displacement + FVG) / REDUCE SIZE (account balance dropped → prop firm scaling reduces contracts automatically) / NO TRADE (no setup or absolute rule failure).
+Score each item PASS/FAIL. A+ score is a CONTEXT metric only — the actual decision is 2-tier: TAKE IT (FULL SIZE — sweep + displacement + FVG confirmed) / NO TRADE (no setup or absolute rule failure). Sizing from prop firm scaling only.
 Only ABSOLUTE hard rule failures (kill zone, max loss, stop placement) = instant NO TRADE.
 
 SETUP TIER — determine which tier this setup qualifies for:
@@ -242,11 +242,6 @@ TAKE IT (standard size):
   - FVG or OB entry available on 5m/15m
   - Inside Kill Zone
   → This is a valid ICT setup. Take it.
-
-REDUCE SIZE (balance-based):
-  - Has 3 of the 4 above (missing ONE confirmation)
-  - Daily bias is clear
-  → Valid but lower conviction. Prop firm scaling reduces contracts automatically based on account balance.
 
 NO TRADE:
   - Outside Kill Zone
@@ -290,7 +285,7 @@ NQ = [price] (source, time)
 ## Kill Zone Status (incl. Silver Bullet, Midday Avoidance)
 ## Entry Setup (model, price, stop, target, contracts, R:R)
 ## Pre-Trade Checklist (ALL PASS or which FAILED)
-## A+ Score (X/10 context) + Setup Tier (TAKE IT / REDUCE SIZE / NO TRADE)
+## A+ Score (X/10 context) + Setup Tier (TAKE IT (FULL SIZE) / NO TRADE)
 ## Summary Table
 | Item | Value |
 |---|---|
@@ -305,7 +300,7 @@ NQ = [price] (source, time)
 | Target | price |
 | Contracts | number |
 | R:R | ratio |
-| A+ Score | X/10 (context) — TAKE IT / REDUCE SIZE / NO TRADE |
+| A+ Score | X/10 (context) — TAKE IT (FULL SIZE) / NO TRADE |
 | Draw on Liquidity | price — reason |
 | NDOG CE Level | price / N/A |
 | NWOG CE Level | price / N/A (Monday only) |
