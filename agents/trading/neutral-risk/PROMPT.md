@@ -86,9 +86,8 @@ YOUR ICT-SPECIFIC BALANCED ASSESSMENT MUST COVER:
    - First 30 min high/low relative to EMA 200 = early session momentum confirmation
 
 3. SIZING RECOMMENDATION BASED ON EVIDENCE
-   Decision tiers:
-   - TAKE IT: Entry model conditions met, score ≥ 3 → FULL SIZE.
-   - REDUCE SIZE: account balance dropped → prop firm scaling reduces contracts automatically.
+   Decision tiers (2-tier only):
+   - TAKE IT: Entry model conditions met → FULL SIZE (5 MNQ base, scales with balance).
    - NO TRADE: No valid entry model or absolute rule failure.
    - OB entry WITHOUT sweep is VALID at FULL SIZE — lower score (4) but still tradeable. Position sizing scales with account balance via prop firm rules. No separate half-size rule.
    - Exception for Entry 0 (SFP): stop goes BEYOND the SFP candle wick extreme, NOT behind FVG candle 1.
