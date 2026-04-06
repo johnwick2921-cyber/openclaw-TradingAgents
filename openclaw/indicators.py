@@ -1362,14 +1362,16 @@ def calc_ndog(df: pd.DataFrame, trade_date: str) -> dict:
             datetime.combine(target_date, time(18, 0))
         )
 
-        # Find candle closest to 5PM
+        # Find candle closest to 5PM — widen search for holidays/weekends
+        # On holidays the last close may be 2-3 days before trade_date
         best_5pm = None
         best_5pm_dist = timedelta(hours=999)
+        max_search_window = timedelta(days=4)  # covers 3-day weekends + holidays
         for candidate in [close_5pm_target, close_5pm_same]:
             diffs = abs(df_est.index - candidate)
             min_idx = diffs.argmin()
             dist = diffs[min_idx]
-            if dist < best_5pm_dist and dist < timedelta(minutes=30):
+            if dist < best_5pm_dist and dist < max_search_window:
                 best_5pm_dist = dist
                 best_5pm = min_idx
 
