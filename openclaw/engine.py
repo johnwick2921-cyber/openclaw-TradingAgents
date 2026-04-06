@@ -731,6 +731,9 @@ class RunEngine:
             # FVG on 5m and 15m
             df_5m = _fetch_ohlcv_df(ticker, "5m", date)
             if df_5m is not None and not isinstance(df_5m, str) and not df_5m.empty:
+                # Flag partial candle if present
+                if "_complete" in df_5m.columns and not df_5m.iloc[-1].get("_complete", True):
+                    parts.append(f"\n⚠ Last 5m candle ({df_5m.index[-1]}) is PARTIAL — do NOT use for FVG/OB/SFP detection. Use for price context only.")
                 parts.append(get_fvg(df_5m.tail(100), "5m"))
                 parts.append(get_order_blocks(df_5m.tail(100), "5m"))
                 parts.append(get_equal_highs_lows(df_5m.tail(100), "5m"))

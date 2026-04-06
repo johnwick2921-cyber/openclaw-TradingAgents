@@ -125,13 +125,14 @@ def _aggregate_ohlcv(df: pd.DataFrame, factor: int) -> pd.DataFrame:
     rule = f"{factor}min"
     result = df.resample(rule).agg(agg).dropna(subset=["Close"])
 
-    # Drop incomplete last candle — if it has fewer source bars than expected,
-    # the OHLC values are partial and will produce false FVG/OB/SFP signals.
+    # Mark incomplete last candle — if it has fewer source bars than expected,
+    # the OHLC values are partial. Keep it but flag it so the system knows.
+    result["_complete"] = True
     if len(result) > 1:
         last_ts = result.index[-1]
         source_bars_in_last = len(df[(df.index >= last_ts) & (df.index < last_ts + pd.Timedelta(minutes=factor))])
         if source_bars_in_last < factor:
-            result = result.iloc[:-1]  # drop incomplete candle
+            result.iloc[-1, result.columns.get_loc("_complete")] = False
 
     # Restore Date column from index
     result["Date"] = result.index.strftime("%Y-%m-%d %H:%M")
