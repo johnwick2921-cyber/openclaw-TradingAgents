@@ -69,22 +69,32 @@ def _databento_dataset(symbol: str) -> str:
 
 
 # Timeframe to Databento schema mapping
-# Databento only reliably has ohlcv-1m for NQ/ES — aggregate everything from 1m
+# Request native schemas first — less data, no aggregation bugs, correct session boundaries
+# Fallback to ohlcv-1m + local aggregation if native schema unavailable
 TIMEFRAME_SCHEMAS = {
     "1m":  "ohlcv-1m",
-    "5m":  "ohlcv-1m",   # aggregate from 1m
-    "15m": "ohlcv-1m",   # aggregate from 1m
-    "30m": "ohlcv-1m",   # aggregate from 1m
-    "1H":  "ohlcv-1m",   # aggregate 60x from 1m
-    "4H":  "ohlcv-1m",   # aggregate 240x from 1m
-    "1D":  "ohlcv-1m",   # aggregate all bars per day from 1m
-    "1W":  "ohlcv-1m",   # aggregate all bars per week from 1m
+    "5m":  "ohlcv-5m",
+    "15m": "ohlcv-15m",
+    "30m": "ohlcv-30m",
+    "1H":  "ohlcv-1h",
+    "4H":  "ohlcv-1h",    # 4H not native — aggregate from 1H
+    "1D":  "ohlcv-1d",
+    "1W":  "ohlcv-1d",    # 1W not native — aggregate from 1D
 }
 
-# How many source bars to aggregate into one target bar
+# Fallback schemas when native is unavailable
+FALLBACK_SCHEMA = "ohlcv-1m"
+
+# How many source bars to aggregate (only used for fallback or non-native TFs)
 AGGREGATE_FACTOR = {
+    "1m": 1, "5m": 1, "15m": 1, "30m": 1,
+    "1H": 1, "4H": 4, "1D": 1, "1W": 7,  # 4H = 4x 1H, 1W = 7x 1D
+}
+
+# Fallback aggregation factors when falling back to ohlcv-1m
+FALLBACK_AGG_FACTOR = {
     "1m": 1, "5m": 5, "15m": 15, "30m": 30,
-    "1H": 60, "4H": 240, "1D": 1, "1W": 1,  # 1D/1W use pandas resample
+    "1H": 60, "4H": 240, "1D": 1440, "1W": 10080,
 }
 
 
@@ -148,6 +158,7 @@ def get_databento_ohlcv(symbol: str, start_date: str, end_date: str, timeframe: 
 
     try:
         try:
+            # Try native schema first (e.g., ohlcv-5m, ohlcv-15m, ohlcv-1h)
             data = client.timeseries.get_range(
                 dataset=dataset,
                 symbols=[db_symbol],
@@ -157,24 +168,27 @@ def get_databento_ohlcv(symbol: str, start_date: str, end_date: str, timeframe: 
                 stype_in="continuous",
             )
             df = data.to_df()
+            logger.debug("Fetched %s natively for %s (%d bars)", schema, symbol, len(df))
         except Exception as schema_err:
             err_str = str(schema_err)
-            # If schema not available (e.g. ohlcv-1h/1d for current incomplete bar),
-            # fall back to ohlcv-1m and aggregate
-            if ("not_fully_available" in err_str or "end_after_available" in err_str) and schema != "ohlcv-1m":
-                logger.info("Schema %s unavailable for %s, falling back to ohlcv-1m + aggregation", schema, symbol)
-                fallback_agg = {"ohlcv-1h": 60, "ohlcv-1d": 1440}.get(schema, agg_factor)
+            # If native schema unavailable, fall back to ohlcv-1m + local aggregation
+            if schema != FALLBACK_SCHEMA and (
+                "not_fully_available" in err_str
+                or "end_after_available" in err_str
+                or "422" in err_str
+            ):
+                logger.info("Schema %s unavailable for %s, falling back to %s + aggregation", schema, symbol, FALLBACK_SCHEMA)
                 data = client.timeseries.get_range(
                     dataset=dataset,
                     symbols=[db_symbol],
-                    schema="ohlcv-1m",
+                    schema=FALLBACK_SCHEMA,
                     start=start_date,
                     end=end_date,
                     stype_in="continuous",
                 )
                 df = data.to_df()
-                schema = "ohlcv-1m"
-                agg_factor = fallback_agg * agg_factor  # compound if 4H (4 * 60 = 240)
+                schema = FALLBACK_SCHEMA
+                agg_factor = FALLBACK_AGG_FACTOR.get(timeframe, agg_factor)
             else:
                 raise
 
