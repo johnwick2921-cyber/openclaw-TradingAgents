@@ -603,7 +603,8 @@ class RunEngine:
             )
             import pandas as pd
 
-            parts = ["\n══ PRE-COMPUTED SESSION LEVELS (exact values — use these, do not recompute) ══"]
+            parts = [f"\n══ PRE-COMPUTED SESSION LEVELS (exact values — use these, do not recompute) ══"]
+            parts.append(self._get_time_context())
 
             # Fetch data via indicators engine
             df_1m = _fetch_ohlcv_df(ticker, "1m", date)
@@ -858,7 +859,9 @@ Trade Date: {date}
             opponent_snippet = opponent_history[-2000:] if opponent_history else "No argument yet — you go first."
             debate_history_trimmed = debate.get("history", "")
 
-        return f"""{prompt_text}
+        time_context = self._get_time_context()
+        return f"""{time_context}
+{prompt_text}
 {user_bias}
 {confluence}
 {ema200_context}
@@ -874,6 +877,25 @@ Opponent's Last Argument:
 {opponent_snippet}
 """
 
+    def _get_time_context(self) -> str:
+        """Return current ET time + active Kill Zone for agent prompts."""
+        from zoneinfo import ZoneInfo
+        now_et = datetime.now(ZoneInfo("America/New_York"))
+        time_str = now_et.strftime("%I:%M %p ET (%A)")
+        hour, minute = now_et.hour, now_et.minute
+        if 9 <= hour < 11 or (hour == 11 and minute <= 30):
+            active_kz = "AM Kill Zone (9:30-11:30 AM ET) — ACTIVE NOW"
+        elif 13 <= hour < 16:
+            active_kz = "PM Kill Zone (1:00-4:00 PM ET) — ACTIVE NOW"
+        elif hour < 9 or (hour == 9 and minute < 30):
+            mins_left = (9 * 60 + 30) - (hour * 60 + minute)
+            active_kz = f"PRE-MARKET — AM Kill Zone opens at 9:30 AM ET (in {mins_left} min)"
+        elif (hour == 11 and minute > 30) or hour == 12:
+            active_kz = "MIDDAY CHOP ZONE (11:30-1:00 PM) — NO TRADES. PM KZ opens at 1:00 PM ET"
+        else:
+            active_kz = "POST-MARKET — no Kill Zone active"
+        return f"\n>>> CURRENT TIME: {time_str} <<<\n>>> ACTIVE KZ: {active_kz} <<<\n"
+
     def _build_prompt_with_context(self, agents_dir, agent_name, strategy, **context):
         md_path = os.path.join(agents_dir, agent_name, "PROMPT.md")
         prompt_text = self._read_strategy_prompt(md_path, strategy)
@@ -881,6 +903,7 @@ Opponent's Last Argument:
         base_context["user_bias_context"] = self._get_user_bias_context()
         base_context["confluence_context"] = self._get_confluence_context()
         base_context["ema200_context"] = self._get_ema200_context(context.get("ticker", ""))
+        base_context["time_context"] = self._get_time_context()
         base_context["past_memory_str"] = self._get_memory_context(
             agent_name,
             str(context.get("ticker") or context.get("company_name") or ""),
@@ -896,8 +919,13 @@ Opponent's Last Argument:
             if f"{{{key}}}" in prompt_text or f"${{{key}}}" in prompt_text:
                 used_keys.add(key)
         prompt_text = self._substitute_placeholders(prompt_text, base_context)
+        # Inject time context at the top (all agents need current time)
+        time_ctx = base_context.get("time_context", "")
+        if time_ctx:
+            prompt_text = f"{time_ctx}\n{prompt_text}"
         # Only append context keys that were NOT already substituted
-        remaining = {k: v for k, v in base_context.items() if v and k not in used_keys}
+        skip_keys = used_keys | {"time_context"}
+        remaining = {k: v for k, v in base_context.items() if v and k not in skip_keys}
         if remaining:
             context_str = "\n".join(f"{k}: {v}" for k, v in remaining.items())
             return f"""{prompt_text}
