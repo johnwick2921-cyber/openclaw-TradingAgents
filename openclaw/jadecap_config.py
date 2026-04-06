@@ -1021,7 +1021,7 @@ DAILY_SWEEP = {
     ),
     "holiday_caution": (
         "During low-volume days (Thanksgiving, Black Friday) SFPs become "
-        "'sketchy and unreliable'. Stand aside or reduce size significantly."
+        "'sketchy and unreliable'. Stand aside (NO TRADE) — SFPs unreliable on holidays."
     ),
     "jadecap_quote": "Do not be the first person rushing through the door.",
 }
@@ -1352,7 +1352,7 @@ RISK = {
 # Thresholds:
 #   8-10 = A+ Setup  -> 0.50% risk (scale up, full commitment)
 #   6-7  = Standard  -> 0.25% risk (normal size)
-#   4-5  = Marginal  -> 0.125% risk (reduce size, consider passing)
+#   4-5  = Marginal  -> lower conviction (consider NO TRADE)
 #   <4   = NO TRADE  -> 0% risk (skip entirely)
 # =====================================================================
 
@@ -1435,7 +1435,7 @@ A_PLUS_SCORING = {
             "detail": (
                 "DEDUCT if FOMC, NFP, or CPI releasing during trade window. "
                 "Do not enter during the actual news release candle (1 min before to 1 min after). "
-                "Once the candle closes, trade normally. REDUCE SIZE 50% on high-impact news days. "
+                "Once the candle closes, trade normally at FULL SIZE. No manual size cuts for news. "
                 "If a post-news SFP forms, it's high conviction."
             ),
         },
@@ -1455,7 +1455,7 @@ A_PLUS_SCORING = {
         "marginal": {
             "range": "4-5",
             "risk":  "0.125%",
-            "label": "Marginal — reduce size, consider passing",
+            "label": "Marginal — low conviction, consider NO TRADE",
         },
         "no_trade": {
             "range": "below 4",
@@ -1506,7 +1506,7 @@ def calculate_contracts(stop_points: float, instrument: str = "NQ") -> int:
 #
 # Rules 1-12: Absolute hard rules (kill zones, risk limits, SB protocol, etc.).
 # Rules 13-18: Setup confirmation (daily bias, premium/discount, sweep, SFP).
-# Rules 19-21: Trade decision tiers (TAKE IT / REDUCE SIZE / NO TRADE).
+# Rules 19-21: Trade decision tiers (TAKE IT (FULL SIZE) / NO TRADE).
 # Rules 22: News events (avoid news candle only, not block).
 # Rules 23-24: Risk management (holidays, distribution phase only).
 # =====================================================================
@@ -1529,7 +1529,7 @@ HARD_RULES = [
     # ══ SETUP CONFIRMATION RULES (guide sizing, do NOT block trades) ══
     # These were previously hard blocks that caused 100% HOLD output.
     # Now they are context and confirmation rules.
-    # Sweep + displacement + FVG = TAKE IT. Missing one = REDUCE SIZE.
+    # Sweep + displacement + FVG = TAKE IT. Missing one = lower score.
     "DAILY BIAS: Establish a clear daily bias (BULLISH or BEARISH) from the daily chart — recent MSS, liquidity sweeps, inefficiencies, where price is heading. This is YOUR read for TODAY. If daily bias is unclear or choppy → NO TRADE. You do NOT need Weekly + 4H + Daily all agreeing — just a clear daily direction.",
     "PREMIUM/DISCOUNT CONTEXT: Premium (above 50% of range / above midnight open) = look for shorts. Discount (below 50% / below midnight open) = look for longs. This is CONTEXT for identifying targets and draw on liquidity — NOT a trade blocker. If your daily bias is bullish and you have sweep + FVG confirmation, you CAN buy above midnight open. Do NOT counter-trend — if daily bias is bullish, only take longs. If bearish, only shorts.",
     "PDH/PDL AWARENESS (SCORED -1): If previous day High or Low already taken before Kill Zone, reduce A+ score by 1. Not an automatic NO TRADE — evaluate whether the sweep created a new setup.",
@@ -1620,7 +1620,7 @@ BEAR_SETUP = {
 # Expanded from 10 to 14 items in v2. The 4 new items enforce:
 #   - SFP confirmation on 1H before any LTF entry
 #   - Draw on Liquidity identification (know the target)
-#   - Setup tier determination (TAKE IT / REDUCE SIZE / NO TRADE)
+#   - Setup tier determination (TAKE IT (FULL SIZE) / NO TRADE)
 #   - Midday chop zone avoidance (no entries 11:30-1:00)
 #
 # Each item has a required flag. apply_settings() can override
@@ -1704,7 +1704,7 @@ CHECKLIST = [
     {
         "id":          "setup_tier",
         "description": "Setup Tier Determined",
-        "detail":      "TAKE IT (sweep+displacement+FVG) / REDUCE SIZE (missing one) / NO TRADE (no setup)",
+        "detail":      "TAKE IT (FULL SIZE) / NO TRADE (no setup or absolute rule failure)",
         "required":    True,
     },
     {
@@ -1741,7 +1741,7 @@ HOLIDAY_RULES = {
         "MLK Day",
         "Presidents Day",
     ],
-    "action": "Stand aside completely or reduce size by 75%",
+    "action": "Stand aside completely (NO TRADE)",
     "jadecap_quote": (
         "During low-volume days SFPs become sketchy and unreliable."
     ),
