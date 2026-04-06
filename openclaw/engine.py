@@ -805,7 +805,7 @@ class RunEngine:
             logger.warning("Failed to compute session context: %s", exc)
             return ""
 
-    def _get_ema200_context(self, ticker: str) -> str:
+    def _get_ema200_context(self, ticker: str, date: str = "") -> str:
         """Compute EMA 200 on multiple timeframes and format as context."""
         try:
             from openclaw.indicators import _fetch_ohlcv_df
@@ -818,7 +818,8 @@ class RunEngine:
 
             for tf in timeframes:
                 try:
-                    df = _fetch_ohlcv_df(ticker, tf, "")
+                    fetch_date = date or datetime.now().strftime("%Y-%m-%d")
+                    df = _fetch_ohlcv_df(ticker, tf, fetch_date)
                     if df is None or isinstance(df, str) or df.empty:
                         continue
                     # Normalize column names
@@ -887,7 +888,7 @@ class RunEngine:
                 data_sections += f"\n--- {tool_name} ---\n{result}\n"
 
         user_bias = self._get_user_bias_context()
-        ema200_context = self._get_ema200_context(ticker)
+        ema200_context = self._get_ema200_context(ticker, date)
         session_context = self._get_session_context(ticker, date)
 
         return f"""Analyze {ticker} for trade date {date}.
@@ -930,7 +931,7 @@ Trade Date: {date}
         prompt_text = self._substitute_placeholders(prompt_text, context)
         user_bias = self._get_user_bias_context()
         confluence = self._get_confluence_context()
-        ema200_context = self._get_ema200_context(ticker)
+        ema200_context = self._get_ema200_context(ticker, date)
 
         # Bear researcher optimization: trim opponent arg and debate history
         # to reduce input tokens (bull goes first and gets the full context).
@@ -1030,7 +1031,7 @@ Opponent's Last Argument:
         base_context = context.copy()
         base_context["user_bias_context"] = self._get_user_bias_context()
         base_context["confluence_context"] = self._get_confluence_context()
-        base_context["ema200_context"] = self._get_ema200_context(context.get("ticker", ""))
+        base_context["ema200_context"] = self._get_ema200_context(context.get("ticker", ""), context.get("date", context.get("current_date", "")))
         base_context["time_context"] = self._get_time_context()
         base_context["past_memory_str"] = self._get_memory_context(
             agent_name,
