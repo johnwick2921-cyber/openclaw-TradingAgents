@@ -101,7 +101,7 @@ Known holidays where SFPs are unreliable:
 {holiday_list}
 If today is a holiday or low-volume day:
 → Output WARNING: LOW VOLUME DAY — SFPs unreliable
-→ Recommend: Stand aside completely OR reduce size by 75%
+→ Recommend: Stand aside completely (NO TRADE) — no manual size reductions
 → JadeCap quote: "During low-volume days SFPs become sketchy and unreliable"
 
 MIDDAY CHOP ZONE: 11:30 AM – 1:00 PM EST
