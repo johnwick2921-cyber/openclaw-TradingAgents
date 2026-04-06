@@ -122,15 +122,37 @@ def _aggregate_ohlcv(df: pd.DataFrame, factor: int) -> pd.DataFrame:
     }
 
     # Time-based resampling — same approach as backtest._agg
-    rule = f"{factor}min"
+    # factor is in source-bar units: for 1m→5m factor=5 (minutes), for 1H→4H factor=4 (hours)
+    if factor <= 60:
+        rule = f"{factor}min"
+        window = pd.Timedelta(minutes=factor)
+    elif factor <= 1440:
+        rule = f"{factor}min"
+        window = pd.Timedelta(minutes=factor)
+    else:
+        rule = f"{factor}min"
+        window = pd.Timedelta(minutes=factor)
+
+    # Detect source timeframe from index spacing to set correct resample rule
+    if len(df) >= 2:
+        median_gap = pd.Series(df.index).diff().dropna().median()
+        if median_gap >= pd.Timedelta(hours=20):  # daily source (1D→1W)
+            rule = f"{factor}D"
+            window = pd.Timedelta(days=factor)
+        elif median_gap >= pd.Timedelta(minutes=50):  # hourly source (1H→4H)
+            rule = f"{factor}h"
+            window = pd.Timedelta(hours=factor)
+        else:  # minute source (1m→5m/15m/30m)
+            rule = f"{factor}min"
+            window = pd.Timedelta(minutes=factor)
+
     result = df.resample(rule).agg(agg).dropna(subset=["Close"])
 
-    # Mark incomplete last candle — if it has fewer source bars than expected,
-    # the OHLC values are partial. Keep it but flag it so the system knows.
+    # Mark incomplete last candle
     result["_complete"] = True
     if len(result) > 1:
         last_ts = result.index[-1]
-        source_bars_in_last = len(df[(df.index >= last_ts) & (df.index < last_ts + pd.Timedelta(minutes=factor))])
+        source_bars_in_last = len(df[(df.index >= last_ts) & (df.index < last_ts + window)])
         if source_bars_in_last < factor:
             result.iloc[-1, result.columns.get_loc("_complete")] = False
 

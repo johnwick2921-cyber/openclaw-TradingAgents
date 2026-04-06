@@ -445,7 +445,6 @@ def _fetch_ohlcv_df(symbol: str, timeframe: str, trade_date: str):
     # ohlcv-1m is typically ~25 min behind live. ohlcv-1d is previous day only.
     from datetime import timezone as _tz
     now = datetime.now(_tz.utc).replace(tzinfo=None)
-    fetch_end_fallback = None
 
     if end_dt.date() >= now.date():
         # Today's data — check actual availability from Databento metadata
@@ -468,7 +467,6 @@ def _fetch_ohlcv_df(symbol: str, timeframe: str, trade_date: str):
                 fetch_end = (now - timedelta(minutes=20)).strftime("%Y-%m-%dT%H:%M")
         except Exception:
             fetch_end = (now - timedelta(minutes=30)).strftime("%Y-%m-%dT%H:%M")
-        fetch_end_fallback = end_dt.strftime("%Y-%m-%d")
     else:
         fetch_end = (end_dt + timedelta(days=1)).strftime("%Y-%m-%d")
 
