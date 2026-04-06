@@ -716,6 +716,68 @@ class RunEngine:
             if df_daily is not None and not isinstance(df_daily, str) and not df_daily.empty:
                 parts.append(f"\n{get_math_indicators(df_daily, '1D')}")
 
+            # ── PRE-COMPUTED TRADE CONTEXT (FVG, OB, Breaker, Equal H/L, Contracts) ──
+            # Agents get exact levels — no guessing
+            from openclaw.indicators import (
+                get_fvg, get_order_blocks, get_equal_highs_lows,
+                calc_breaker_block, calc_liquidity_sweep, get_contract_calc,
+            )
+
+            parts.append("\n══ PRE-COMPUTED TRADE LEVELS (exact — use these, do not recompute) ══")
+
+            # FVG on 5m and 15m
+            df_5m = _fetch_ohlcv_df(ticker, "5m", date)
+            if df_5m is not None and not isinstance(df_5m, str) and not df_5m.empty:
+                parts.append(get_fvg(df_5m.tail(100), "5m"))
+                parts.append(get_order_blocks(df_5m.tail(100), "5m"))
+                parts.append(get_equal_highs_lows(df_5m.tail(100), "5m"))
+
+                # Breaker blocks (violated OBs)
+                col_map = {c: c.lower() for c in df_5m.columns}
+                df_5m_norm = df_5m.rename(columns=col_map)
+                brk = calc_breaker_block(df_5m_norm.tail(100))
+                if brk and brk.get("breakers"):
+                    parts.append("\nBreaker Blocks (5m — violated OBs):")
+                    for b in brk["breakers"][-5:]:
+                        parts.append(f"  {b.get('direction', '?').upper()} Breaker: {b.get('high', 0):.2f} - {b.get('low', 0):.2f} (CE: {(b.get('high', 0) + b.get('low', 0)) / 2:.2f})")
+
+                # Liquidity sweep status
+                sweep = calc_liquidity_sweep(df_5m_norm.tail(100))
+                if sweep and sweep.get("sweeps"):
+                    parts.append("\nLiquidity Sweeps (5m):")
+                    for s in sweep["sweeps"][-3:]:
+                        parts.append(f"  {s.get('direction', '?').upper()} sweep at {s.get('level', 0):.2f} ({s.get('timestamp', '')})")
+
+            # FVG + OB on 15m
+            if df_15m is not None and not isinstance(df_15m, str) and not df_15m.empty:
+                parts.append(get_fvg(df_15m.tail(60), "15m"))
+                parts.append(get_order_blocks(df_15m.tail(60), "15m"))
+
+            # FVG + OB on 1H
+            if df_1h is not None and not isinstance(df_1h, str) and not df_1h.empty:
+                parts.append(get_fvg(df_1h.tail(30), "1H"))
+                parts.append(get_order_blocks(df_1h.tail(30), "1H"))
+
+            # Contract calc for common stop distances
+            parts.append("\n── CONTRACT SIZING (exact — base 5 MNQ at $50K) ──")
+            for stop_pts in [10, 15, 20, 25, 30, 40, 50]:
+                risk = stop_pts * 2 * 5  # pts × $2/pt × 5 MNQ
+                if risk <= 500:
+                    parts.append(f"  {stop_pts}pt stop → 5 MNQ (${risk} risk)")
+                else:
+                    contracts = max(1, int(500 / (stop_pts * 2)))
+                    actual_risk = stop_pts * 2 * contracts
+                    parts.append(f"  {stop_pts}pt stop → {contracts} MNQ (${actual_risk} risk)")
+
+            # Stop placement rules (exact formulas)
+            parts.append("\n── STOP PLACEMENT RULES (exact — structural, NOT ATR) ──")
+            parts.append("  FVG entry: stop = FVG Candle 1 low - 2 pts (long) / C1 high + 2 pts (short)")
+            parts.append("  OB entry: stop = OB low - 2 pts (long) / OB high + 2 pts (short)")
+            parts.append("  SFP entry: stop = BEYOND SFP wick extreme (sweep price - 2 pts)")
+            parts.append("  Buffer: always 2 pts beyond structural level")
+            parts.append("  T1 = entry ± (stop_distance × 1.5) → close 50%, move stop to BE")
+            parts.append("  T2 = PDH (long) or PDL (short) → runner holds to EOD or BE stop")
+
             parts.append("══════════════════════════════\n")
             return "\n".join(parts)
         except Exception as exc:
