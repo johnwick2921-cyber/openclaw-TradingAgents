@@ -81,13 +81,13 @@ DAILY BIAS — PRICE STRUCTURE ONLY (ICT/JCAP top-down):
 Daily bias comes from PRICE STRUCTURE only — ICT/JCAP top-down:
 1. Daily chart: MSS (break of prior swing H/L), liquidity sweep (wick + close back), candle direction
 2. 1H chart: confirms daily direction — 15 completed overnight candles (6PM-9AM) with full OHLC
-3. NO indicators for bias (EMA 200, ADX are reference context only, not bias determinants)
-4. If Daily and 4H agree = strong bias. If they conflict = unclear, reduce conviction.
+3. NO indicators for bias (EMA 200 is reference context only, not a bias determinant. ADX is removed from the system.)
+4. If Daily and 1H agree = strong bias. If they conflict = unclear, reduce conviction.
 
 PRE-MARKET EMA 200 CHECK (REFERENCE CONTEXT ONLY — NOT for bias):
 At 8:29 AM, note price position relative to EMA 200 on all timeframes (1m, 5m, 15m, 1H, 4H, Daily).
 This is reference context for journaling only. EMA 200 does NOT determine bias.
-Bias is determined by Daily + 4H price structure above.
+Bias is determined by Daily + 1H price structure above.
 
 ══════════════════════════════════════════════════════════════════
 STEP 2: WHICH SIDE HAS STRONGER ICT EVIDENCE?
@@ -95,7 +95,7 @@ STEP 2: WHICH SIDE HAS STRONGER ICT EVIDENCE?
 
 Compare both arguments on these criteria — use EXACT PRICES, not vague language:
 
-a) HTF Bias: Which analyst cited specific 4H/Daily structure with exact price levels?
+a) HTF Bias: Which analyst cited specific Daily/1H structure with exact price levels?
    - Long says HTF is bullish because: [summarize with prices]
    - Short says HTF is bearish because: [summarize with prices]
    - WINNER on HTF: LONG / SHORT / NEITHER
@@ -164,7 +164,7 @@ Active Kill Zones:
 {kz_str}
 
 - Are we currently inside a Kill Zone? State which one.
-- If outside Kill Zone -> NO TRADE regardless of setup quality.
+- If outside Kill Zone -> output bias direction (BULLISH/BEARISH/NEUTRAL) with GAME PLAN. No BUY/SELL.
 - Was the displacement candle INSIDE the Kill Zone? If not -> NO TRADE.
 - Was the liquidity sweep BEFORE the displacement? (correct sequence: sweep → displacement → FVG → retrace)
 - Was the FVG CREATED BY the displacement candle? (The FVG must be the gap left by the displacement, not a pre-existing gap. Check timestamps — FVG should form on the same candle or immediately after the displacement.)
@@ -207,7 +207,7 @@ STEP 7: CALCULATE ENTRY, STOP, TARGET, CONTRACTS
 - Entry: [exact price — FVG midpoint, OB body, or Breaker level]
 - Stop Loss: [exact price — behind candle 1 of FVG or OB body. Exception for Entry 0 (SFP): stop goes BEYOND the SFP candle wick extreme (the sweep low for longs, sweep high for shorts), NOT behind FVG candle 1.]
 - Stop Distance: [X] points
-- Contracts: {max_loss} / (stop_points x ${point_value}) = [X]
+- Contracts: 5 MNQ base (scales with account profit per prop firm rules)
   - {firm_scaling_description}
 - Target 1: [exact price — first liquidity pool (BSL for shorts, SSL for longs)] — close 50%. Move stop to breakeven after T1 hit.
 - Target 2: {firm_runner_description}
@@ -232,7 +232,9 @@ STEP 9: IF NEITHER VALID -> NO TRADE
 If neither the Long nor Short analyst provided sufficient evidence,
 or if any checklist item or hard rule failed:
 - Output Direction: NO TRADE
+- ALWAYS state Market Bias: BULLISH / BEARISH / UNCLEAR (from daily+1H structure)
 - State exactly which requirements failed
+- Include GAME PLAN: what price action would create a valid setup (exact levels, conditions)
 - State what needs to happen before a valid setup exists
 
 ══════════════════════════════════════════════════════════════════

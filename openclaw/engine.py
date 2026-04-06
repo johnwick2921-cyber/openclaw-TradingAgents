@@ -29,7 +29,7 @@ class RunResult:
     run_id: str = ""
     ticker: str = ""
     date: str = ""
-    signal: str = ""  # BUY/OVERWEIGHT/HOLD/UNDERWEIGHT/SELL
+    signal: str = ""  # BUY/SELL/OVERWEIGHT/UNDERWEIGHT/BULLISH/BEARISH/NEUTRAL
     market_report: str = ""
     news_report: str = ""
     investment_debate: dict = field(default_factory=dict)
@@ -153,6 +153,11 @@ class RunEngine:
                 )
                 self._persist_debate(db_path, run_id, "risk", risk_debate,
                                      judge_decision=investment_plan)
+                # Persist Tier 3 reports (investment plan + trader plan)
+                self._persist_reports(db_path, run_id, {
+                    "investment_plan": investment_plan,
+                    "trader_plan": trader_plan,
+                })
             except Exception as e:
                 self._mark_run_failed(db_path, run_id, str(e), start_time)
                 for cb in callbacks:
@@ -169,6 +174,14 @@ class RunEngine:
                 for cb in callbacks:
                     cb.on_error(e)
                 raise
+
+            # Persist final decision to SQLite reports table
+            self._persist_reports(db_path, run_id, {
+                "final_decision": final_decision,
+            })
+
+            # Write final_decision.md to results/ folder
+            self._write_final_decision(ticker, date, final_decision, run_id)
 
             signal = self._extract_signal(final_decision)
             self._update_bias_from_signal(signal, ticker, date)
@@ -418,7 +431,7 @@ class RunEngine:
         return response
 
     def _extract_signal(self, final_decision: str) -> str:
-        signals = ["BUY", "OVERWEIGHT", "HOLD", "UNDERWEIGHT", "SELL"]
+        signals = ["BUY", "SELL", "OVERWEIGHT", "UNDERWEIGHT", "BULLISH", "BEARISH", "NEUTRAL"]
         text_upper = final_decision.upper()
 
         # Pattern 1: PM format — "Rating: BUY" or "RATING: **BUY**"
@@ -431,20 +444,21 @@ class RunEngine:
             if f"FINAL TRANSACTION PROPOSAL: **{signal}**" in text_upper:
                 return signal
 
-        # Pattern 3: Common PM output — "NO TRADE" maps to HOLD
-        if "NO TRADE" in text_upper or "NO_TRADE" in text_upper:
-            return "HOLD"
+        # Pattern 3: Legacy "NO TRADE" or "HOLD" → map to NEUTRAL
+        if "NO TRADE" in text_upper or "NO_TRADE" in text_upper or "HOLD" in text_upper:
+            return "NEUTRAL"
 
         # Pattern 4: Look for signal in last 500 chars only (avoids boilerplate)
-        # The actual decision is always at the end of the response
         tail = text_upper[-500:]
         last_pos = -1
-        last_signal = "HOLD"
+        last_signal = "NEUTRAL"
         for signal in signals:
             pos = tail.rfind(signal)
             if pos > last_pos:
                 last_pos = pos
                 last_signal = signal
+        if last_pos == -1:
+            logger.warning("Signal not found in final_decision — defaulting to NEUTRAL")
         return last_signal
 
     def _update_bias_from_signal(self, signal: str, ticker: str, date: str) -> None:
@@ -452,7 +466,9 @@ class RunEngine:
         signal_to_bias = {
             "BUY": ("bullish", "high"),
             "OVERWEIGHT": ("bullish", "medium"),
-            "HOLD": ("neutral", "low"),
+            "BULLISH": ("bullish", "medium"),
+            "NEUTRAL": ("neutral", "low"),
+            "BEARISH": ("bearish", "medium"),
             "UNDERWEIGHT": ("bearish", "medium"),
             "SELL": ("bearish", "high"),
         }
@@ -494,7 +510,7 @@ class RunEngine:
         elif user_dir == "neutral":
             user_score = 0
 
-        signal_map = {"BUY": 3, "OVERWEIGHT": 2, "HOLD": 0, "UNDERWEIGHT": -2, "SELL": -3}
+        signal_map = {"BUY": 3, "OVERWEIGHT": 2, "BULLISH": 1, "NEUTRAL": 0, "BEARISH": -1, "UNDERWEIGHT": -2, "SELL": -3}
         agent_score = signal_map.get(agent_signal, 0)
 
         total = user_score + agent_score
@@ -1174,6 +1190,18 @@ Opponent's Last Argument:
         except Exception as exc:
             logger.warning("Failed to mark run as failed: %s", exc)
 
+    def _write_final_decision(self, ticker: str, date: str, decision: str, run_id: str) -> None:
+        """Write final_decision.md to results/ folder for UI display."""
+        results_dir = self._resolve_path("results")
+        try:
+            os.makedirs(results_dir, exist_ok=True)
+            filepath = os.path.join(results_dir, "final_decision.md")
+            header = f"# {ticker} — {date} (run: {run_id})\n\n"
+            with open(filepath, "w") as f:
+                f.write(header + decision + "\n")
+        except Exception as exc:
+            logger.warning("Failed to write final_decision.md: %s", exc)
+
     def _default_dispatch(self, agent_name: str, prompt: str, model: str) -> str:
         print(f"[DISPATCH] {agent_name} (model: {model})")
         print(f"[PROMPT] {prompt[:200]}...")
@@ -1238,7 +1266,7 @@ Opponent's Last Argument:
             correct = actual_change_pct > 0
         elif signal == "SELL":
             correct = actual_change_pct < 0
-        elif signal in ("HOLD", "OVERWEIGHT", "UNDERWEIGHT"):
+        elif signal in ("HOLD", "NEUTRAL", "BULLISH", "BEARISH", "OVERWEIGHT", "UNDERWEIGHT"):
             correct = None
         reflection = f"Signal {signal}, actual close {actual_close:.2f}, change {actual_change_pct:.2f}%"
         if run_id:

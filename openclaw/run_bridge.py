@@ -362,6 +362,16 @@ def main():
         args.progress_file = f"/tmp/run-{args.ticker}-{args.date}-{uuid.uuid4().hex[:8]}.jsonl"
         print(f"  Progress file: {args.progress_file}")
 
+    # Create stable symlink so monitoring can always find the latest run
+    latest_link = f"/tmp/run-{args.ticker}-latest.jsonl"
+    try:
+        if os.path.islink(latest_link) or os.path.exists(latest_link):
+            os.remove(latest_link)
+        os.symlink(args.progress_file, latest_link)
+        print(f"  Latest symlink: {latest_link}")
+    except Exception:
+        pass
+
     config_path = args.config or os.path.join(
         os.environ.get("OPENCLAW_WORKSPACE", "/home/hoang/.openclaw/workspace"),
         "trading-config.json",

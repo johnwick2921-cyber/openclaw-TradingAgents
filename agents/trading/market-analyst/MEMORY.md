@@ -35,3 +35,13 @@ _(will populate after first run with outcomes)_
 - Situation: NQ pre-market gap-up +145pts, PDH taken overnight. Daily bearish (below 200 EMA, ADX 66) vs 1H bullish counter-trend. Deep premium >90%.
 - Lesson: Wait for confirmed SFP during Kill Zone hours before committing. PDH taken = hard rule gate.
 
+
+### 2026-04-06: NQ → BULLISH
+- Situation: NQ pre-market gap-up +145pts, PDH taken overnight. Daily bearish (below 200 EMA, ADX 66) vs 1H bullish counter-trend. Deep premium >90%.
+- Lesson: Wait for confirmed SFP during Kill Zone hours before committing. PDH taken = hard rule gate.
+
+
+### Outcome: NQ 2026-04-06 — N/A
+- Signal: BULLISH, Actual change: 0.00%
+- Lesson: Signal was BULLISH (neutral). No directional lesson.
+

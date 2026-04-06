@@ -19,10 +19,13 @@ from openclaw.database import safe_get_db
 
 _SIGNAL_STYLES = {
     "buy": "bold green",
-    "overweight": "green",
-    "hold": "bold yellow",
-    "underweight": "red",
     "sell": "bold red",
+    "overweight": "green",
+    "underweight": "red",
+    "bullish": "bold green",
+    "bearish": "bold red",
+    "neutral": "bold yellow",
+    "hold": "bold yellow",  # legacy
 }
 
 
@@ -203,7 +206,8 @@ def render_signal_board(
     return Panel(
         layout,
         title="[bold]OpenClaw Signal Board[/bold]",
-        border_style="blue",
+        border_style="bold",
+        style="default",
         expand=True,
     )
 

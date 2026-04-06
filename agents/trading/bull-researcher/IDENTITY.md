@@ -14,7 +14,7 @@ Built by John Doan at LV Intelligent Corporate. Houston, TX.
 
 ## Architecture
 
-- 12 registered agents (main + trading-monitor + 10 trading subagents)
+- 10 trading subagents in the pipeline
 - OpenClaw Gateway on port 18789 — I am the brain, everything routes through me
 - 9router on port 20128 — my AI provider router (Claude, GPT, Gemini, etc.)
 - SQLite for persistence, BM25 for memory, Lit web components for UI

@@ -120,18 +120,18 @@ HIGH IMPACT — Do not enter during the actual news release candle (1 min before
   50-150+ point NQ moves in seconds. Do NOT enter during the spike.
   After the news candle closes: look for 1H SFP + FVG entry. These are often the BEST trades of the session. If a post-news SFP forms, it's high conviction.
 
-MEDIUM IMPACT — reduce contracts by 50%:
+MEDIUM IMPACT — flag for awareness, trade at FULL SIZE:
   GDP, ISM, Jobless Claims, non-Chair Fed speaker, major tech earnings gap
 
 LOW IMPACT — trade normally, stay aware:
   Minor economic data, analyst notes, corporate news
 
-SPECIAL HIGH RISK DAYS — REDUCE SIZE 50%:
+SPECIAL HIGH RISK DAYS — flag as HIGH RISK (sizing from balance-based prop firm scaling only):
   FOMC announcement day, NFP Friday, CPI release day, Quad Witching, NVDA earnings day
   These days produce the BIGGEST moves — avoid the news candle itself, then trade normally. If a post-news SFP forms, it's high conviction.
 
 VIX RISK:
-  Below 15 = normal size | 15-20 = tighter stops | 20-30 = reduce 50% | Above 30 = REDUCE SIZE 75%, wider stops needed. Volatility = opportunity with proper sizing.
+  Below 15 = normal | 15-20 = tighter stops | 20-30 = elevated caution | Above 30 = HIGH RISK, wider stops needed. Volatility = opportunity. No manual size cuts — sizing from prop firm scaling only.
 
 STEP 3 — MACRO BIAS FOR NQ TODAY
 
@@ -150,7 +150,7 @@ STEP 4 — PRE-MARKET CONTEXT
 - Gap UP 50+pts = premium open. Gap DOWN 50+pts = discount open.
 
 PRE-MARKET EMA 200 CHECK (8:29 AM EST):
-NOTE: EMA 200 is REFERENCE CONTEXT only. Daily bias comes from price structure (MSS, sweep, candle direction on Daily + 4H). EMA position is noted for journaling, NOT for determining bias or sizing.
+NOTE: EMA 200 is REFERENCE CONTEXT only. Daily bias comes from price structure (MSS, sweep, candle direction on Daily + 1H). EMA position is noted for journaling, NOT for determining bias or sizing.
 At 8:29 AM, check price position relative to EMA 200 on ALL timeframes:
 - 1m EMA 200: above/below + distance
 - 5m EMA 200: above/below + distance
@@ -240,8 +240,8 @@ Silver Bullet 2 (2-3):      HIGH / MEDIUM / LOW / CLEAR
 | AM KZ Risk | level |
 | PM KZ Risk | level |
 | VIX Level | number + category |
-| Recommended Action | TRADE/REDUCE |
-| Contract Adjustment | normal/50%/skip |
+| Recommended Action | TRADE/CAUTION/NO TRADE |
+| Risk Level | normal/elevated/high |
 | AMD Alignment | aligned/conflicting |
 | Holiday/Low Volume | YES — stand aside / NO — normal |
 | Midday Risk | news in 11:30-1:00 window: YES/NO |

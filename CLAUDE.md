@@ -35,7 +35,7 @@
 ### Architecture Decisions (locked in)
 
 - **OpenClaw is MAIN.** TradingAgents dissolves into `openclaw/` Python package. The `TradingAgents/` directory will be FULLY DELETED after merge.
-- **Full subagent architecture.** No LangGraph. Each of the 12 trading agents becomes an AI-agnostic `.md` file in `agents/trading/`. Any AI can execute them.
+- **Full subagent architecture.** No LangGraph. Each of the 10 trading agents becomes an AI-agnostic `.md` file in `agents/trading/`. Any AI can execute them.
 - **Zero LangChain.** All `@tool` decorators removed from tool files. Plain Python functions. All langchain/langgraph dependencies deleted from pyproject.toml.
 - **`dispatch_fn(agent_name, prompt, model) -> str`** is the critical hook. The RunEngine orchestrates the pipeline but does NOT call LLMs directly. The caller provides their own AI dispatch mechanism (Claude Code Agent tool, direct API, etc.).
 - **`dispatch_parallel_fn`** for Tier 1 analysts (4 at once). Everything else is sequential — pipeline order enforced.
@@ -46,7 +46,7 @@
 Tier 1: 2 Analysts → PARALLEL (market, news)
 Tier 2: Bull/Bear Debate → SEQUENTIAL (N rounds, each counters the prior)
 Tier 3: Research Manager → Trader → Risk Debate (aggressive → conservative → neutral) → SEQUENTIAL
-Tier 4: Portfolio Manager → FINAL SIGNAL (BUY/OVERWEIGHT/HOLD/UNDERWEIGHT/SELL)
+Tier 4: Portfolio Manager → FINAL SIGNAL (BUY/SELL/OVERWEIGHT/UNDERWEIGHT/BULLISH/BEARISH/NEUTRAL) + GAME PLAN always
 ```
 
 Deleted agents: social-analyst, fundamentals-analyst (removed — not needed for ICT futures)
@@ -120,7 +120,7 @@ Optional (webui): `fastapi`, `uvicorn`, `websockets`, `smartmoneyconcepts`, `dat
 
 1. Bug fixes + @tool removal
 2. Config system (trading-config.json)
-3. Agent .md files (12 subagent definitions with verbatim prompts)
+3. Agent .md files (10 subagent definitions with verbatim prompts)
 4. RunEngine (dispatch_fn, parallel Tier 1, debate loops, error recovery)
 5. Memory + outcomes (SQLite, BM25 persistence, outcome tracking)
 6. Dashboard (Rich terminal + React WebUI migration)
@@ -179,7 +179,7 @@ Each phase has a **verification gate** — must pass before proceeding to next p
 - When rerunning backtests: `pkill` FIRST, THEN start new processes — pkill kills ALL matching processes including just-started ones
 - News = 1-min blackout only (not 30 min). ForexFactory RED events via `openclaw/tools/forex_calendar.py`
 - 3-tier decision in all agent prompts: TAKE IT / REDUCE SIZE / NO TRADE (not binary)
-- OB without sweep = valid at HALF SIZE (not blocked). SFP stop = wick extreme (not FVG c1)
+- OB without sweep = valid at FULL SIZE (score 4, not blocked). SFP stop = wick extreme (not FVG c1)
 
 ## Key Rules
 

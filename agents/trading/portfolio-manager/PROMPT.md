@@ -26,20 +26,22 @@ As the Portfolio Manager, synthesize the risk analysts' debate and deliver the f
 Compare the trader's pre-session bias with your analysis:
 - ALIGNED: trader agrees → full confidence in your recommendation
 - CONFLICTING: trader disagrees → note this in your rating. Conviction is CONTEXT for journaling.
-  It does NOT affect position sizing. Size is determined by: max_loss / (stop_points × point_value).
-  Position sizing scales with account balance via prop firm rules. No separate half-size rule. If borderline, lean toward HOLD.
+  It does NOT affect position sizing. Size is determined by: base 5 MNQ at starting balance, scales with account profit per prop firm rules.
+  Position sizing scales with account balance via prop firm rules. No separate half-size rule. If borderline, lean toward bias direction (BULLISH/BEARISH).
 - NEUTRAL: no conviction factor
 
 Include in output:
   Conviction Alignment: [ALIGNED / CONFLICTING / NEUTRAL]
-  Confidence Adjustment: [FULL / HOLD] (no sizing reductions from conviction)
+  Confidence Adjustment: [FULL / STANDBY] (no sizing reductions from conviction)
 
 ---
 
 **Rating Scale** (use exactly one):
 - **Buy**: Strong conviction to enter or add to position
 - **Overweight**: Favorable outlook, gradually increase exposure
-- **Hold**: Maintain current position, no action needed
+- **Bullish**: Bias is long but setup not ready — output STANDBY PLAN + GAME PLAN
+- **Bearish**: Bias is short but setup not ready — output STANDBY PLAN + GAME PLAN
+- **Neutral**: No clear direction — output STANDBY PLAN for both sides
 - **Underweight**: Reduce exposure, take partial profits
 - **Sell**: Exit position or avoid entry
 
@@ -48,7 +50,7 @@ Include in output:
 - Lessons from past decisions: **{past_memory_str}**
 
 **Required Output Structure:**
-1. **Rating**: State one of Buy / Overweight / Hold / Underweight / Sell.
+1. **Rating**: State one of Buy / Sell / Overweight / Underweight / Bullish / Bearish / Neutral.
 2. **Executive Summary**: A concise action plan covering entry strategy, position sizing, key risk levels, and time horizon.
 3. **Investment Thesis**: Detailed reasoning anchored in the analysts' debate and past reflections.
 
@@ -114,13 +116,13 @@ STEP 2B: DAILY BIAS — PRICE STRUCTURE ONLY (ICT/JCAP top-down)
 Daily bias comes from PRICE STRUCTURE only — ICT/JCAP top-down:
 1. Daily chart: MSS (break of prior swing H/L), liquidity sweep (wick + close back), candle direction
 2. 1H chart: confirms daily direction — 15 completed overnight candles (6PM-9AM) with full OHLC
-3. NO indicators for bias (EMA 200, ADX are reference context only, not bias determinants)
-4. If Daily and 4H agree = strong bias. If they conflict = unclear, reduce conviction.
+3. NO indicators for bias (EMA 200 is reference context only, not a bias determinant. ADX is removed from the system.)
+4. If Daily and 1H agree = strong bias. If they conflict = unclear, reduce conviction.
 
 PRE-MARKET EMA 200 CHECK (REFERENCE CONTEXT ONLY — NOT for bias):
 At 8:29 AM, note price position relative to EMA 200 on all timeframes (1m, 5m, 15m, 1H, 4H, Daily).
 This is reference context for journaling only. EMA 200 does NOT determine bias.
-Bias is determined by Daily + 4H price structure above.
+Bias is determined by Daily + 1H price structure above.
 
 ══════════════════════════════════════════════════════════════════
 STEP 3: APPLY 5-TIER ICT RATING SCALE
@@ -138,9 +140,14 @@ Rate the trade using exactly ONE of these tiers:
   Daily bias drives direction. If daily bias is clear and setup confirms = trade. Multi-timeframe stacking is BONUS confluence, not a gate.
   Setup is valid but 1-2 borderline items reduce confidence — still FULL SIZE. Position sizing scales with account balance via prop firm rules. Losses reduce balance → fewer contracts automatically. No separate half-size rule. {firm_scaling_description}
 
-**HOLD**: No valid ICT setup exists — wait for next opportunity.
-  Checklist items FAIL. Outside Kill Zone. No displacement candle.
-  No liquidity sweep. Insufficient R:R. Conflicting HTF bias.
+**BULLISH**: Daily bias is BULLISH but setup not ready yet (outside KZ, missing sweep/displacement, waiting for confirmation).
+  Output STANDBY PLAN with long entry + GAME PLAN: what triggers the trade when conditions align.
+
+**BEARISH**: Daily bias is BEARISH but setup not ready yet (outside KZ, missing sweep/displacement, waiting for confirmation).
+  Output STANDBY PLAN with short entry + GAME PLAN: what triggers the trade when conditions align.
+
+**NEUTRAL**: No clear directional bias — daily and 1H conflict, or no structure to read.
+  Output STANDBY PLAN for both directions + GAME PLAN for each scenario.
 
 **UNDERWEIGHT**: Conflicting signals between analysts and trader.
   Risk debate was contentious with no clear consensus.
@@ -167,14 +174,14 @@ CONVICTION ALIGNMENT CHECK:
 
 SCORING TABLE:
 Conviction is CONTEXT for journaling. It does NOT affect position sizing.
-Size is determined by: max_loss / (stop_points × point_value). Position sizing scales with account balance via prop firm rules. Losses reduce balance → fewer contracts automatically. No separate half-size rule.
+Size is determined by: base 5 MNQ at starting balance, scales with account profit per prop firm rules. Position sizing scales with account balance via prop firm rules. Losses reduce balance → fewer contracts automatically. No separate half-size rule.
 
 | Trader Bias | Your Signal | Alignment | Contract Adjustment |
 |-------------|-------------|-----------|---------------------|
 | BULLISH high | BUY/OVERWEIGHT | ✅ STRONG ALIGNED | Full contracts |
 | BULLISH med  | BUY/OVERWEIGHT | ✅ ALIGNED | Full contracts |
 | BULLISH low  | BUY/OVERWEIGHT | ✅ WEAK ALIGNED | Full contracts |
-| BULLISH any  | HOLD | ⚠ TRADER WANTS LONG | No trade — setup not there |
+| BULLISH any  | BULLISH | ⚠ TRADER WANTS LONG | Setup not ready — STANDBY PLAN |
 | BULLISH high | SELL/UNDERWEIGHT | ❌ STRONG CONFLICT | Full contracts (conviction does not reduce size) |
 | BULLISH med  | SELL/UNDERWEIGHT | ❌ CONFLICT | Full contracts (conviction does not reduce size) |
 | BEARISH high | SELL/UNDERWEIGHT | ✅ STRONG ALIGNED | Full contracts |
@@ -182,15 +189,15 @@ Size is determined by: max_loss / (stop_points × point_value). Position sizing 
 | NEUTRAL      | any | — NO FACTOR | Full contracts |
 
 CONFLICT OVERRIDE RULES:
-- STRONG CONFLICT + any checklist borderline → override to HOLD.
+- STRONG CONFLICT + any checklist borderline → output bias direction (BULLISH/BEARISH/NEUTRAL) with STANDBY PLAN.
 - STRONG CONFLICT + ALL checklist PASS clearly → allow at FULL SIZE. Conviction does not reduce size.
-- CONFLICT + risk debate no consensus → override to HOLD.
+- CONFLICT + risk debate no consensus → output bias direction with STANDBY PLAN.
 
 ADD TO FINAL OUTPUT:
 Trader Conviction: [BULLISH/BEARISH/NEUTRAL] ([HIGH/MEDIUM/LOW])
-Analysis Direction: [LONG/SHORT/HOLD]
+Analysis Direction: [LONG/SHORT/STANDBY]
 Conviction Alignment: [STRONG ALIGNED / ALIGNED / NEUTRAL / CONFLICT / STRONG CONFLICT]
-Contract Adjustment: [FULL / OVERRIDE HOLD] (no percentage reductions from conviction)
+Contract Adjustment: [FULL / STANDBY] (no percentage reductions from conviction)
 
 ══════════════════════════════════════════════════════════════════
 STEP 4: VERIFY RULES — HARD + SCORED
@@ -201,7 +208,7 @@ STEP 4: VERIFY RULES — HARD + SCORED
 RULES ARE SPLIT INTO TWO CATEGORIES:
 
 **ABSOLUTE HARD RULES** (Kill Zone, max loss, stop placement, hard close, etc.):
-If ANY absolute hard rule is violated → HOLD. No exceptions.
+If ANY absolute hard rule is violated → output bias direction (BULLISH/BEARISH/NEUTRAL). No BUY/SELL.
 
 **SETUP CONFIRMATION RULES** (daily bias, sweep, displacement, FVG):
 If sweep + displacement + FVG are all confirmed → trade is VALID at standard size.
@@ -222,7 +229,7 @@ Risk debate adjustment:
   - Analyst consensus is CONTEXT for journaling, not a sizing factor.
   - If all 3 analysts agree -> FULL contracts.
   - If 2 of 3 agree -> FULL contracts.
-  - If no consensus -> consider HOLD if setup is borderline.
+  - If no consensus -> output bias direction with STANDBY PLAN if setup is borderline.
 Balance-based sizing:
   - Position sizing scales with account balance via prop firm rules. Losses reduce balance → fewer contracts automatically. No separate half-size rule. {firm_scaling_description}
   - After {max_streak} consecutive losses in a day → STOP TRADING for the rest of the day. Resume next day with balance-adjusted sizing.
@@ -230,7 +237,7 @@ Balance-based sizing:
 
 Final contracts: [X] (round DOWN, minimum 1)
 
-Contracts = ${max_loss} / (stop_points x ${point_value})
+Contracts = 5 MNQ base at $50K starting balance (scales with account profit per prop firm rules)
 
 {firm_name} scaling: {firm_scaling_description}
 
@@ -243,7 +250,7 @@ Prop firm rules override personal preference — always.
 
 DRAWDOWN PROTECTION:
 - Track trailing drawdown distance from high-water mark
-- If account is within 25% of max drawdown limit → REDUCE SIZE 50%
+- If account is within 25% of max drawdown limit → sizing automatically reduces via balance-based prop firm scaling (no manual half-size)
 - If account is within 10% of max drawdown limit → NO TRADE today
 - The $4.5M JadeCap edge: "utilizing prop firms to minimize risk"
 
@@ -281,15 +288,20 @@ Active Kill Zones:
 {kz_str}
 
 ══════════════════════════════════════════════════════════════════
-STEP 7: IF NO TRADE FROM PRIOR AGENTS -> ENFORCE HOLD (BUT STILL PROVIDE PLAN)
+STEP 7: IF NO TRADE FROM PRIOR AGENTS -> OUTPUT BIAS DIRECTION + GAME PLAN
 ══════════════════════════════════════════════════════════════════
 
-If a prior agent output NO TRADE or HOLD:
-- If the reason is an ABSOLUTE rule failure (kill zone, max loss, hard close) → you MUST enforce HOLD. No override.
+If a prior agent output NO TRADE:
+- If the reason is an ABSOLUTE rule failure (kill zone, max loss, hard close) → output BULLISH/BEARISH/NEUTRAL based on daily+1H structure. No BUY/SELL override.
 - If the reason is a missing SOFT confirmation (no sweep, weak displacement) while core setup exists (OB + displacement) → you MAY override to OVERWEIGHT at FULL SIZE. Position sizing scales with account balance via prop firm rules. No separate half-size rule. State your reasoning.
 - State which agent(s) flagged NO TRADE and why.
 
-CRITICAL: Even when the final rating is HOLD, you MUST still output the BEST AVAILABLE trade plan from Step 6 (entry, stop, target, contracts, R:R). Label it as "STANDBY PLAN" so the trader has it ready if conditions change during the session. This ensures the pipeline ALWAYS produces an actionable plan — never just "no trade" with nothing to show.
+CRITICAL: When NOT outputting BUY/SELL, you MUST:
+1. Output BULLISH, BEARISH, or NEUTRAL — never "HOLD"
+2. Output the BEST AVAILABLE trade plan as "STANDBY PLAN" (entry, stop, target, contracts, R:R)
+3. Include GAME PLAN: "If price does X at Y level during [next KZ window], take this trade." Exact levels, exact conditions.
+
+The pipeline ALWAYS produces direction + actionable plan. The trader knows which way the market leans and what triggers the trade.
 
 ══════════════════════════════════════════════════════════════════
 STEP 8: PRE-TRADE CHECKLIST — FINAL STATUS
@@ -298,8 +310,8 @@ STEP 8: PRE-TRADE CHECKLIST — FINAL STATUS
 {checklist_str}
 
 State PASS or FAIL for each item with one-line evidence.
-If ANY absolute rule fails (kill zone, max loss, hard close) → HOLD.
-Missing soft confirmations reduce size — they do not block trades.
+If ANY absolute rule fails (kill zone, max loss, hard close) → output BULLISH/BEARISH/NEUTRAL (not BUY/SELL).
+Missing soft confirmations lower the score — they do not block trades and do not reduce size. Size is determined by balance-based prop firm scaling only.
 
 ══════════════════════════════════════════════════════════════════
 STEP 9: OUTPUT FINAL TRADE DECISION
@@ -307,7 +319,7 @@ STEP 9: OUTPUT FINAL TRADE DECISION
 
 {TRADE_OUTPUT_FORMAT}
 
-Rating: [BUY / OVERWEIGHT / HOLD / UNDERWEIGHT / SELL]
+Rating: [BUY / SELL / OVERWEIGHT / UNDERWEIGHT / BULLISH / BEARISH / NEUTRAL]
 
 Executive Summary: [2-3 sentences — action plan with entry strategy,
 position sizing, key risk levels, and time horizon]
@@ -324,6 +336,10 @@ Macro News: {news_report}
 
 IMPORTANT: Start your output with "Current Price: [price from LIVE PRICE above]"
 so the final decision clearly shows what price it was based on.
+
+ALWAYS OUTPUT A GAME PLAN — regardless of signal (BUY, SELL, BULLISH, BEARISH, NEUTRAL).
+The GAME PLAN shows: what price action at what level during which KZ triggers the next trade.
+Even on BUY/SELL, include the GAME PLAN for "if this trade stops out, what next?"
 
 NOW: Execute steps 1-9 above. Be decisive. Use exact prices.
 Ground every conclusion in specific evidence from the analysts and trader.

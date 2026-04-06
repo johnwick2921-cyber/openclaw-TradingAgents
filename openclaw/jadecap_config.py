@@ -1256,7 +1256,7 @@ ENTRY_MODELS = {
         "invalidation":   "Price closes through Breaker without reaction",
     },
     "ote_fib": {
-        "active":     True,
+        "active":     False,  # Not in backtest entry_models — deactivated
         "name":       "Entry 5 — OTE Fibonacci (Premium/Discount)",
         "priority":   3,
         "timeframes": ["15m", "1H"],
@@ -1306,14 +1306,14 @@ RISK = {
     "a_plus_risk_pct":             0.50,
     "midday_exit_rule":            True,
     "max_losing_streak_before_stop": 3,
-    "half_risk_after_consecutive_losses": 2,
+    "half_risk_after_consecutive_losses": 0,  # DISABLED — no manual half-size. Sizing scales with balance via prop firm rules only.
     "half_risk_note": (
-        "After 2 consecutive losses, cut risk per trade in half "
-        "until account returns to starting equity. "
-        "This buys more chips to stay in the game."
+        "DISABLED — no manual half-size rule. "
+        "Losses reduce account balance → prop firm scaling auto-reduces contracts. "
+        "After max_losing_streak consecutive losses → STOP TRADING for the day."
     ),
     "scaling_note": (
-        "0.25% standard. Scale to 0.5% ONLY on 8-10/10 A+ setups."
+        "Base 5 MNQ at $50K. Scale up +5 MNQ per $2,500 profit. No manual reductions."
     ),
 
     "contract_formula": {
@@ -1524,7 +1524,7 @@ HARD_RULES = [
     "Only the FIRST FVG forming in a Silver Bullet window is valid — skip subsequent ones.",
     "Unfilled Silver Bullet limit orders CANCELED when window closes — never leave orders open.",
     "No new entries 11:30 AM – 1:00 PM EST — midday chop zone. Exit stalling trades.",
-    "After 2 consecutive losses, CUT RISK IN HALF until account returns to starting equity — buys more chips to stay in the game.",
+    "After 3 consecutive losses in a day, STOP TRADING for the rest of the day. Resume next day with balance-adjusted sizing. No manual half-size — prop firm scaling handles drawdown automatically.",
 
     # ══ SETUP CONFIRMATION RULES (guide sizing, do NOT block trades) ══
     # These were previously hard blocks that caused 100% HOLD output.
@@ -1765,9 +1765,10 @@ HOLIDAY_RULES = {
 TRADE_OUTPUT_FORMAT = """
 TRADE PLAN (fill in EVERY field — even for HOLD, output as STANDBY PLAN):
 Current Price: [REQUIRED — always show the >>> CURRENT PRICE from above]
+Market Bias:  BULLISH / BEARISH / UNCLEAR — [1-sentence reason from daily+1H structure]
 Direction:    LONG / SHORT / NO TRADE
 Entry Model:  [SFP_RAID / FVG_RETRACE / ORDER_BLOCK / LIQ_RAID / BREAKER / NONE]
-Entry Score:  [4-9] — matches backtest scoring
+Entry Score:  [SFP_RAID=9 | FVG_RETRACE=7 | LIQ_RAID=7 | ORDER_BLOCK=6(sweep)/4(no sweep) | BREAKER=6(FVG)/5(no FVG)]
 Entry:        [exact price or N/A if NO TRADE]
 Stop Loss:    [exact price or N/A]
 Target 1:     [price — first liquidity pool (close 50%, move stop to BE)] / N/A
@@ -1776,7 +1777,7 @@ Stop Points:  [number] / N/A
 Risk:         $[amount] / $0
 Contracts:    [number] / 0
 R:R Ratio:    [number]:1 / N/A
-Kill Zone:    [which window or "Outside KZ — waiting for next window"]
+Kill Zone:    [which window or "Outside KZ — next window: [time]"]
 SFP Status:   CONFIRMED at [price] on 1H / NOT YET / NO SFP TODAY
 Draw on Liquidity: [target price] — [reason]
 NDOG Level:   [price] (50% CE) / N/A
@@ -1786,8 +1787,9 @@ AMD Phase:    [from calc_amd_phase — use ACTUAL session]
 Daily Bias:   [from PRE-COMPUTED SESSION LEVELS above]
 Checklist:    [X/14 PASS — list all 14]
 
-FINAL TRANSACTION PROPOSAL: **BUY/HOLD/SELL**
-If HOLD: label above as "STANDBY PLAN" — trader needs a plan ready if conditions change.
+FINAL TRANSACTION PROPOSAL: **BUY / SELL / OVERWEIGHT / UNDERWEIGHT / BULLISH / BEARISH / NEUTRAL**
+If not BUY/SELL: label above as "STANDBY PLAN" + include GAME PLAN section.
+GAME PLAN: What specific price action at what level during which KZ window triggers entry.
 """
 
 

@@ -18,10 +18,13 @@ from openclaw.database import safe_get_db
 
 _SIGNAL_STYLES = {
     "buy": "bold green",
-    "overweight": "green",
-    "hold": "bold yellow",
-    "underweight": "red",
     "sell": "bold red",
+    "overweight": "green",
+    "underweight": "red",
+    "bullish": "bold green",
+    "bearish": "bold red",
+    "neutral": "bold yellow",
+    "hold": "bold yellow",  # legacy
 }
 
 
@@ -60,7 +63,7 @@ def _build_header_panel(run_row) -> Panel:
     if run_row["error_message"]:
         table.add_row("Error:", Text(run_row["error_message"], style="bold red"))
 
-    return Panel(table, title="[bold]Run Summary[/bold]", border_style="blue")
+    return Panel(table, title="[bold]Run Summary[/bold]", border_style="bold", style="default")
 
 
 def _build_report_panels(reports) -> list:
@@ -69,11 +72,15 @@ def _build_report_panels(reports) -> list:
     for report in reports:
         section = report["section_name"] or "Unknown Section"
         content = report["content"] or "(no content)"
+        # Skip final_decision — shown separately in the main view
+        if section == "final_decision":
+            continue
         panels.append(
             Panel(
                 content,
-                title=f"[bold]{section}[/bold]",
-                border_style="green",
+                title=f"[bold]{section.upper().replace('_', ' ')}[/bold]",
+                border_style="bold",
+                style="default",
                 expand=True,
             )
         )
@@ -86,38 +93,39 @@ def _build_debate_panels(debates) -> list:
     for debate in debates:
         debate_type = debate["debate_type"] or "Debate"
 
-        # Build the debate content
+        # Build the debate content — all text bright/white for contrast
         parts = []
 
         if debate["side_a_history"]:
             parts.append(Text.assemble(
-                ("Bull Case:\n", "bold green"),
+                ("BULL CASE:\n", "bold green"),
                 (debate["side_a_history"], ""),
             ))
 
         if debate["side_b_history"]:
             parts.append(Text.assemble(
-                ("\nBear Case:\n", "bold red"),
+                ("\nBEAR CASE:\n", "bold red"),
                 (debate["side_b_history"], ""),
             ))
 
         if debate["side_c_history"]:
             parts.append(Text.assemble(
-                ("\nNeutral Case:\n", "bold yellow"),
+                ("\nNEUTRAL CASE:\n", "bold"),
                 (debate["side_c_history"], ""),
-            ))
-
-        if debate["full_history"]:
-            parts.append(Text.assemble(
-                ("\nFull History:\n", "bold"),
-                (debate["full_history"], "dim"),
             ))
 
         # Judge decision highlighted
         if debate["judge_decision"]:
             parts.append(Text.assemble(
-                ("\nJudge Decision:\n", "bold magenta"),
+                ("\nJUDGE DECISION:\n", "bold blue"),
                 (debate["judge_decision"], "bold"),
+            ))
+
+        # Full history at end
+        if debate["full_history"] and not debate["judge_decision"]:
+            parts.append(Text.assemble(
+                ("\nFULL HISTORY:\n", "bold"),
+                (debate["full_history"], ""),
             ))
 
         # Combine parts into a single renderable
@@ -129,8 +137,9 @@ def _build_debate_panels(debates) -> list:
         panels.append(
             Panel(
                 content_table,
-                title=f"[bold]{debate_type}[/bold]",
-                border_style="magenta",
+                title=f"[bold]{debate_type.upper()}[/bold]",
+                border_style="bold",
+                style="default",
                 expand=True,
             )
         )
@@ -167,7 +176,7 @@ def show_analysis(
                 Panel(
                     f"Run [bold]{run_id}[/bold] not found.",
                     title="[bold red]Error[/bold red]",
-                    border_style="red",
+                    border_style="red", style="default",
                 )
             )
             return None
@@ -192,14 +201,110 @@ def show_analysis(
     report_panels = _build_report_panels(reports)
     debate_panels = _build_debate_panels(debates)
 
+    # Extract final decision from reports (if saved)
+    final_decision_panel = None
+    reasoning_parts = []
+    reasoning_panel = None
+    for report in reports:
+        if report["section_name"] == "final_decision" and report["content"]:
+            content = report["content"]
+            # Build a highlighted final decision panel
+            fd_table = Table.grid(expand=True, padding=(0, 1))
+            fd_table.add_column(style="bold", min_width=22)
+            fd_table.add_column()
+
+            key_fields = [
+                "Current Price", "Market Bias", "Direction", "Entry Model",
+                "Entry Score", "Entry:", "Stop Loss", "Target 1", "Target 2",
+                "Stop Points", "Risk:", "Contracts", "R:R Ratio", "Kill Zone",
+                "SFP Status", "Draw on Liquidity", "Daily Bias", "Checklist",
+                "GAME PLAN", "FINAL TRANSACTION PROPOSAL",
+            ]
+            for line in content.split("\n"):
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                for kf in key_fields:
+                    if stripped.startswith(kf):
+                        if ":" in stripped:
+                            label, _, value = stripped.partition(":")
+                            # Color-code the signal line
+                            if label.strip() == "FINAL TRANSACTION PROPOSAL":
+                                sig = value.strip().strip("*").strip()
+                                style = _signal_style(sig)
+                                fd_table.add_row(
+                                    Text(label.strip(), style="bold"),
+                                    Text(value.strip(), style=style),
+                                )
+                            elif label.strip() == "Market Bias":
+                                bias_val = value.strip()
+                                if "BULLISH" in bias_val.upper():
+                                    style = "bold green"
+                                elif "BEARISH" in bias_val.upper():
+                                    style = "bold red"
+                                else:
+                                    style = "bold yellow"
+                                fd_table.add_row(
+                                    Text(label.strip(), style="bold"),
+                                    Text(bias_val, style=style),
+                                )
+                            else:
+                                fd_table.add_row(label.strip(), value.strip())
+                        else:
+                            fd_table.add_row(stripped, "")
+                        break
+
+            # Add reasoning sections
+            reasoning_parts = []
+            in_section = False
+            for line in content.split("\n"):
+                stripped = line.strip()
+                if any(stripped.startswith(h) for h in [
+                    "Executive Summary", "Investment Thesis", "Rating:",
+                    "GAME PLAN", "Conviction", "STANDBY PLAN",
+                ]):
+                    in_section = True
+                if stripped.startswith("Analyst Reports") or stripped.startswith("Market ICT Analysis"):
+                    break
+                if in_section and stripped:
+                    reasoning_parts.append(stripped)
+
+            final_decision_panel = Panel(
+                fd_table,
+                title="[bold]FINAL DECISION[/bold]",
+                border_style="bold",
+                style="default",
+                expand=True,
+            )
+
+            if reasoning_parts:
+                reasoning_text = "\n".join(reasoning_parts)
+                reasoning_panel = Panel(
+                    reasoning_text,
+                    title="[bold]REASONING & GAME PLAN[/bold]",
+                    border_style="bold",
+                    style="default",
+                    expand=True,
+                )
+            break
+
     # Combine into a master layout
     layout = Table.grid(expand=True)
     layout.add_column()
     layout.add_row(header)
 
+    # Show final decision FIRST — most important
+    if final_decision_panel:
+        layout.add_row("")
+        layout.add_row(final_decision_panel)
+        if reasoning_parts:
+            layout.add_row("")
+            layout.add_row(reasoning_panel)
+
     if report_panels:
         layout.add_row("")
         for panel in report_panels:
+            # Skip final_decision from report panels (already shown above)
             layout.add_row(panel)
 
     if debate_panels:
@@ -207,17 +312,18 @@ def show_analysis(
         for panel in debate_panels:
             layout.add_row(panel)
 
-    if not report_panels and not debate_panels:
+    if not report_panels and not debate_panels and not final_decision_panel:
         layout.add_row("")
         layout.add_row(
             Panel("No reports or debates recorded for this run.",
-                  border_style="dim")
+                  border_style="bold", style="default")
         )
 
     master = Panel(
         layout,
         title=f"[bold]Analysis: {run_id}[/bold]",
-        border_style="blue",
+        border_style="bold",
+        style="default",
         expand=True,
     )
 

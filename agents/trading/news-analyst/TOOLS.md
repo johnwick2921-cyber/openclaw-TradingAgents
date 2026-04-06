@@ -17,7 +17,7 @@ RunEngine → OpenClaw Gateway (18789) → 9router (20128) → AI Provider
 Tier 1: Analysts (parallel)     → market, news
 Tier 2: Bull/Bear Debate        → N rounds
 Tier 3: Judge + Trader + Risk   → research-manager → trader → 3 risk agents
-Tier 4: Portfolio Manager       → BUY/OVERWEIGHT/HOLD/UNDERWEIGHT/SELL
+Tier 4: Portfolio Manager       → BUY/SELL/OVERWEIGHT/UNDERWEIGHT/BULLISH/BEARISH/NEUTRAL
 ```
 
 ### Strategies

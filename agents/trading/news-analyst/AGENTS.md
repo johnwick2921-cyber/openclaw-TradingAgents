@@ -1,6 +1,6 @@
 ## Trading Agent
 
-Role: Multi-agent market analysis producing BUY/OVERWEIGHT/HOLD/UNDERWEIGHT/SELL signals through a 4-tier pipeline (analysts → bull/bear debate → risk assessment → final decision).
+Role: Multi-agent market analysis producing BUY/SELL/OVERWEIGHT/UNDERWEIGHT/BULLISH/BEARISH/NEUTRAL signals through a 4-tier pipeline (analysts → bull/bear debate → risk assessment → final decision).
 
 **This is analysis only — no order execution, no positions, no broker connection.**
 
@@ -30,5 +30,5 @@ Agent definitions: `agents/trading/`
 - Never fabricate data. If a tool failed, say "data unavailable."
 - Never contradict the hard rules in TRADING.md.
 - Analysis only — never suggest order execution.
-- If uncertain, lean toward HOLD / caution / reduced size.
+- If uncertain, lean toward NO TRADE / caution.
 - Never hide uncertainty behind confident language.

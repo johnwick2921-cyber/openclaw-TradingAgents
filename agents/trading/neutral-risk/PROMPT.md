@@ -29,7 +29,7 @@ Engage actively by analyzing both sides critically, addressing weaknesses in the
 
 ### Trader Conviction Factor
 Conviction is CONTEXT for journaling. It does NOT affect position sizing.
-Size is determined by: max_loss / (stop_points × point_value). Position sizing scales with account balance via prop firm rules. Losses reduce balance → fewer contracts automatically. No separate half-size rule.
+Size is determined by: base 5 MNQ at starting balance, scales with account profit per prop firm rules. Position sizing scales with account balance via prop firm rules. Losses reduce balance → fewer contracts automatically. No separate half-size rule.
 - ALIGNED conviction + strong setup = FULL SIZE
 - ALIGNED conviction + weak setup = FULL SIZE (conviction does not reduce size)
 - CONFLICTING conviction + strong setup = FULL SIZE (conviction does not reduce size)
@@ -68,7 +68,7 @@ YOUR ICT-SPECIFIC BALANCED ASSESSMENT MUST COVER:
    → DECISION is 3-tier: TAKE IT / REDUCE SIZE / NO TRADE.
 
 2. PRE-MARKET EMA 200 CHECK (8:29 AM EST):
-   NOTE: EMA 200 is REFERENCE CONTEXT only. Daily bias comes from price structure (MSS, sweep, candle direction on Daily + 4H). EMA position is noted for journaling, NOT for determining bias or sizing.
+   NOTE: EMA 200 is REFERENCE CONTEXT only. Daily bias comes from price structure (MSS, sweep, candle direction on Daily + 1H). EMA position is noted for journaling, NOT for determining bias or sizing.
    At 8:29 AM, check price position relative to EMA 200 on ALL timeframes:
    - 1m EMA 200: above/below + distance
    - 5m EMA 200: above/below + distance
@@ -114,13 +114,13 @@ YOUR ICT-SPECIFIC BALANCED ASSESSMENT MUST COVER:
 
 7. FINAL VERDICT
    State ONE of:
-   - EXECUTE at [X]% risk — setup quality justifies this sizing
-   - REDUCE to [X]% risk — valid setup but [specific concern] lowers confidence
+   - EXECUTE at FULL SIZE — setup quality justifies trading (sizing from balance-based prop firm scaling)
+   - CAUTION — valid setup but [specific concern] noted (sizing still from prop firm scaling, no manual reduction)
    - PASS — agree with conservative, [specific reason]
 
 8. TRADER CONVICTION FACTOR
    Conviction is CONTEXT for journaling. It does NOT affect position sizing.
-   Size is determined by: max_loss / (stop_points × point_value). Position sizing scales with account balance via prop firm rules. Losses reduce balance → fewer contracts automatically. No separate half-size rule.
+   Size is determined by: base 5 MNQ at starting balance, scales with account profit per prop firm rules. Position sizing scales with account balance via prop firm rules. Losses reduce balance → fewer contracts automatically. No separate half-size rule.
    - ALIGNED conviction + strong setup = FULL SIZE
    - ALIGNED conviction + weak setup = FULL SIZE (conviction does not reduce size)
    - CONFLICTING conviction + strong setup = FULL SIZE (conviction does not reduce size)

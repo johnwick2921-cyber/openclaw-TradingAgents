@@ -30,9 +30,9 @@ Engage by questioning their optimism and emphasizing the potential downsides the
 ### Trader Conviction Risk
 Consider whether the trader's pre-session bias aligns with the trade direction:
 - ALIGNED: standard sizing, trader will execute with discipline
-- CONFLICTING: major red flag — trader going against own conviction leads to poor execution (late entries, early exits, widened stops). Conviction is CONTEXT for journaling. It does NOT affect position sizing. Size is determined by: max_loss / (stop_points × point_value). Position sizing scales with account balance via prop firm rules. No separate half-size rule. If any factor is borderline, recommend NO TRADE.
+- CONFLICTING: major red flag — trader going against own conviction leads to poor execution (late entries, early exits, widened stops). Conviction is CONTEXT for journaling. It does NOT affect position sizing. Size is determined by: base 5 MNQ at starting balance, scales with account profit per prop firm rules. Position sizing scales with account balance via prop firm rules. No separate half-size rule. If any factor is borderline, recommend NO TRADE.
 - NEUTRAL: assess normally
-State: "Conviction Risk: [ACCEPTABLE / HIGH — REDUCE / CRITICAL — NO TRADE]"
+State: "Conviction Risk: [ACCEPTABLE / HIGH — NOTE CONFLICT / CRITICAL — NO TRADE]"
 
 ## JadeCap Strategy Prompt
 
@@ -51,7 +51,7 @@ TRADER'S PROPOSED PLAN:
 YOUR ICT-SPECIFIC RISK ASSESSMENT MUST COVER:
 
 1. PRE-MARKET EMA 200 CHECK (8:29 AM EST):
-   NOTE: EMA 200 is REFERENCE CONTEXT only. Daily bias comes from price structure (MSS, sweep, candle direction on Daily + 4H). EMA position is noted for journaling, NOT for determining bias or sizing.
+   NOTE: EMA 200 is REFERENCE CONTEXT only. Daily bias comes from price structure (MSS, sweep, candle direction on Daily + 1H). EMA position is noted for journaling, NOT for determining bias or sizing.
    At 8:29 AM, check price position relative to EMA 200 on ALL timeframes:
    - 1m EMA 200: above/below + distance
    - 5m EMA 200: above/below + distance
@@ -70,8 +70,8 @@ YOUR ICT-SPECIFIC RISK ASSESSMENT MUST COVER:
 
 2. SETUP QUALITY CHECK
    - Are the 3 core confirmations present? Sweep + Displacement + FVG/OB = VALID TRADE.
-   - Is the SFP truly confirmed (hourly candle CLOSED back inside)? If not → reduce size, not block.
-   - Is the displacement candle real (60%+ body) or a weak doji? Weak = reduce size.
+   - Is the SFP truly confirmed (hourly candle CLOSED back inside)? If not → lower score, does NOT reduce size.
+   - Is the displacement candle real (60%+ body) or a weak doji? Weak = lower score, does NOT reduce size.
    - ABSOLUTE rule failures (kill zone, max loss, hard close) = NO TRADE.
    - OB entry WITHOUT sweep is VALID at FULL SIZE — lower score (4) but still tradeable. Position sizing scales with account balance via prop firm rules. No separate half-size rule.
    - Missing confirmations reduce score but do NOT reduce size. 40-55% of setups fail — that's normal with 3:1 R:R.
@@ -121,12 +121,12 @@ YOUR ICT-SPECIFIC RISK ASSESSMENT MUST COVER:
      • Widens stops (trying to give room they don't believe in)
      • Overrides stop near target (reverting to original conviction)
      → Conviction is CONTEXT for journaling. It does NOT affect position sizing.
-       Size is determined by: max_loss / (stop_points × point_value). Position sizing scales with account balance via prop firm rules. No separate half-size rule.
+       Size is determined by: base 5 MNQ at starting balance, scales with account profit per prop firm rules. Position sizing scales with account balance via prop firm rules. No separate half-size rule.
      → If ANY checklist item is borderline: NO TRADE.
      → The JadeCap edge comes from PASSING on trades that don't feel right.
        If the trader doesn't believe the direction, PASS.
    - NEUTRAL: assess normally.
-   State: "Conviction Risk: [ACCEPTABLE / HIGH — REDUCE / CRITICAL — NO TRADE]"
+   State: "Conviction Risk: [ACCEPTABLE / HIGH — NOTE CONFLICT / CRITICAL — NO TRADE]"
 
 REPORTS FOR REFERENCE:
 Market ICT Analysis: {market_research_report}

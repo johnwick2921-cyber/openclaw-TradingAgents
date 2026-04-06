@@ -82,25 +82,23 @@ DAILY BIAS — PRICE STRUCTURE ONLY (ICT/JCAP top-down):
 Daily bias comes from PRICE STRUCTURE only — ICT/JCAP top-down:
 1. Daily chart: MSS (break of prior swing H/L), liquidity sweep (wick + close back), candle direction
 2. 1H chart: confirms daily direction — 15 completed overnight candles (6PM-9AM) with full OHLC
-3. NO indicators for bias (EMA 200, ADX are reference context only, not bias determinants)
-4. If Daily and 4H agree = strong bias. If they conflict = unclear, reduce conviction.
+3. NO indicators for bias (EMA 200 is reference context only, not a bias determinant. ADX is removed from the system.)
+4. If Daily and 1H agree = strong bias. If they conflict = unclear, reduce conviction.
 
 PRE-MARKET EMA 200 CHECK (REFERENCE CONTEXT ONLY — NOT for bias):
 At 8:29 AM, note price position relative to EMA 200 on all timeframes (1m, 5m, 15m, 1H, 4H, Daily).
 This is reference context for journaling only. EMA 200 does NOT determine bias.
-Bias is determined by Daily + 4H price structure above.
+Bias is determined by Daily + 1H price structure above.
 
 YOUR ARGUMENT MUST COVER ALL OF THESE:
 
 1. HTF BIAS EVIDENCE
-   - Is 1H/Daily structure bearish? Lower Highs and Lower Lows confirmed?
+   - Is Daily structure bearish? Lower Highs and Lower Lows confirmed?
    - Daily MSS direction? Liquidity sweep? Candle direction? (these 3 factors = bias)
    - Does 1H confirm daily direction with same structure checks?
-   - Is 4H FVG bearish and unmitigated? State exact price range.
-   - Is Supertrend bearish on 4H? State exact level.
    - Has there been a bearish CHoCH or BOS on 1H confirming order flow?
    - EMA 200 position is reference context only — note it but do NOT use it to determine bias.
-   - If ANY of these structural checks are bullish -> state NO SHORT SETUP and stop.
+   - If Daily + 1H structural checks are bullish -> state NO SHORT SETUP and stop.
 
 2. PREMIUM / DISCOUNT CONFIRMATION
    - Is price currently in PREMIUM zone? (above 50% fib / midnight open)
@@ -188,7 +186,7 @@ YOUR ARGUMENT MUST COVER ALL OF THESE:
    - Stop loss: above candle 1 of bearish FVG or OB body [exact level] (STRUCTURAL — not ATR)
    - Exception for Entry 0 (SFP): stop goes BEYOND the SFP candle wick extreme (the sweep low for longs, sweep high for shorts), NOT behind FVG candle 1.
    - Stop distance: [X] points
-   - Contracts: {max_loss} / (stop_points x ${point_value}) = [X]
+   - Contracts: 5 MNQ base (scales with account profit per prop firm rules)
    - {firm_scaling_description}
    - Target 1: nearest SSL [exact level] — close 50% at T1. Move stop to breakeven after T1 hit.
    - {firm_runner_description}
@@ -207,14 +205,14 @@ YOUR ARGUMENT MUST COVER ALL OF THESE:
    - Does macro bias support SHORT? (risk-off, yields rising, hawkish Fed)
    - Is DXY strengthening? (DXY strengthening = bearish NQ — confirm this)
    - Are 10Y treasury yields rising? (rising yields = bearish NQ)
-   - Any HIGH IMPACT news inside Kill Zone? If yes -> Do not enter during the actual news release candle (1 min before to 1 min after). Once the candle closes, trade normally. REDUCE SIZE 50% on high-impact news days. If a post-news SFP forms, it's high conviction.
+   - Any HIGH IMPACT news inside Kill Zone? If yes -> Do not enter during the actual news release candle (1 min before to 1 min after). Once the candle closes, trade normally. Sizing stays at FULL (balance-based prop firm scaling only — no manual size cuts). If a post-news SFP forms, it's high conviction.
    - State macro alignment: SUPPORTS SHORT / CONFLICTS / NEUTRAL.
 
 9.5 HOLIDAY / LOW-VOLUME CHECK
    - Check the News Analyst report for holiday warnings
    - If LOW VOLUME DAY flagged → state REDUCED CONFIDENCE
    - SFPs are unreliable on holidays — weight SFP evidence lower
-   - If holiday: recommend REDUCE SIZE maximum regardless of A+ score
+   - If holiday: note REDUCED CONFIDENCE in journal — sizing still from balance-based prop firm scaling only
 
 10. HARD RULE CHECKLIST — all 14 items, state PASS or FAIL:
    [1] HTF bias bearish: PASS/FAIL
@@ -224,12 +222,12 @@ YOUR ARGUMENT MUST COVER ALL OF THESE:
    [5] LTF PD Array identified (FVG/OB on 5m/15m): PASS/FAIL
    [6] Inside Kill Zone: PASS/FAIL
    [7] Minimum {min_rr}:1 R:R available: PASS/FAIL
-   [8] PDH not already taken today: PASS/FAIL
+   [8] PDL not already taken today: PASS/FAIL
    [9] Daily profit under $1000: PASS/FAIL
    [10] Daily loss under $500: PASS/FAIL
    [11] 1H SFP confirmed: PASS/FAIL
    [12] Draw on Liquidity identified: PASS/FAIL
-   [13] Trade decision tier: TAKE IT / REDUCE SIZE / NO TRADE
+   [13] Trade decision tier: TAKE IT (FULL SIZE) / NO TRADE
    [14] Not in midday chop zone (11:30-1:00): PASS/FAIL
    If ANY FAIL -> output NO SHORT SETUP
 
@@ -246,10 +244,9 @@ YOUR ARGUMENT MUST COVER ALL OF THESE:
    SCORE: X/10 (log for journal)
 
    DECISION (replaces A+ thresholds):
-   - TAKE IT: sweep + displacement + FVG confirmed = standard size
-   - REDUCE SIZE: missing one confirmation = reduced size
+   - TAKE IT: sweep + displacement + FVG confirmed = FULL SIZE (balance-based prop firm scaling)
    - NO TRADE: no setup present OR absolute rule failure (R:R, daily loss cap, etc.)
-   Note: OB without sweep is still tradeable at full size (score 4) — do NOT reduce for missing sweep alone.
+   Note: OB without sweep is still tradeable at full size (score 4). No manual size reductions — sizing is ONLY from base 5 MNQ at starting balance, scales with account profit per prop firm rules.
 
 11. COUNTER THE LONG ANALYST
     - Read the long analyst argument carefully.

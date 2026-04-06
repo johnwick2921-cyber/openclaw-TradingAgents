@@ -62,7 +62,7 @@ YOUR ICT-SPECIFIC ARGUMENTS MUST COVER:
    - Does the FVG sit at a HTF point of interest? Double institutional footprint.
 
 3. PRE-MARKET EMA 200 CHECK (8:29 AM EST):
-   NOTE: EMA 200 is REFERENCE CONTEXT only. Daily bias comes from price structure (MSS, sweep, candle direction on Daily + 4H). EMA position is noted for journaling, NOT for determining bias or sizing.
+   NOTE: EMA 200 is REFERENCE CONTEXT only. Daily bias comes from price structure (MSS, sweep, candle direction on Daily + 1H). EMA position is noted for journaling, NOT for determining bias or sizing.
    At 8:29 AM, check price position relative to EMA 200 on ALL timeframes:
    - 1m EMA 200: above/below + distance
    - 5m EMA 200: above/below + distance
@@ -109,7 +109,7 @@ YOUR ICT-SPECIFIC ARGUMENTS MUST COVER:
      → From aggressive stance: if ICT setup is TAKE IT tier with all checklist items
        passing, setup overrides conviction. Conviction is CONTEXT for journaling.
        It does NOT affect position sizing. Size is determined by:
-       max_loss / (stop_points × point_value). Position sizing scales with account balance via prop firm rules. No separate half-size rule.
+       base 5 MNQ at starting balance, scales with account profit per prop firm rules. Position sizing scales with account balance via prop firm rules. No separate half-size rule.
    - NEUTRAL: no conviction factor.
    State: "Conviction Risk: [LOW / ELEVATED / NEUTRAL]"
 
