@@ -1,5 +1,24 @@
 # CLAUDE.md — OpenClaw Workspace
 
+## Quick Start
+
+```bash
+# Run 2-year backtest (9:30 KZ, Apex $50K, respawn on bust)
+python3 -m openclaw.backtest --ticker NQ --start 2024-04-01 --end 2026-04-01 --kz 930 --apex --respawn
+
+# Run live pipeline (10 agents, ~19 min)
+python3 -m openclaw.run_bridge --ticker NQ
+
+# Monitor pipeline (latest run)
+tail -f /tmp/run-NQ-latest.jsonl
+
+# View report in terminal
+python3 -c "from dashboard.terminal.analysis_viewer import show_analysis; show_analysis('RUN_ID')"
+
+# View signal board
+python3 -c "from dashboard.terminal.monitor import show_monitor; show_monitor()"
+```
+
 ## What This Is
 
 **OpenClaw** is the main project — a self-evolving AI agent framework. It gives AI assistants persistent identity, memory, personality, and behavioral protocols across sessions. The agent wakes up fresh each time and uses these files as its continuity.
@@ -116,19 +135,9 @@ Core: `pandas`, `yfinance`, `stockstats`, `rank-bm25`, `requests`, `aiosqlite`, 
 Optional (webui): `fastapi`, `uvicorn`, `websockets`, `smartmoneyconcepts`, `databento`
 **ZERO langchain/langgraph**
 
-### 9 Phases (see full plan for detail)
+### Merge Complete (v0.1.0)
 
-1. Bug fixes + @tool removal
-2. Config system (trading-config.json)
-3. Agent .md files (10 subagent definitions with verbatim prompts)
-4. RunEngine (dispatch_fn, parallel Tier 1, debate loops, error recovery)
-5. Memory + outcomes (SQLite, BM25 persistence, outcome tracking)
-6. Dashboard (Rich terminal + React WebUI migration)
-7. OpenClaw integration (TOOLS.md, HEARTBEAT.md, AGENTS.md, SOUL.md, trading-integrator.md)
-8. Cleanup (move to openclaw/, delete TradingAgents/ entirely)
-9. Full review + test (code-reviewer agent, regression, all tests pass)
-
-Each phase has a **verification gate** — must pass before proceeding to next phase.
+All 9 phases completed. TradingAgents/ fully deleted. Pipeline verified with 10-agent runs and 2-year backtest.
 
 ### Gotchas for Future Sessions
 
@@ -165,7 +174,7 @@ Each phase has a **verification gate** — must pass before proceeding to next p
 - **DD budget:** if AM loss used >60% of daily cap ($500) → skip PM
 - **`--kz` flag:** `830` (8:30-11:30), `930` (9:30-11:30), `full` (6:00-16:00)
 - **`--apex`** simulates prop firm with cashout ladder + full send mode
-- **Best config:** 9:30 KZ, $175K/yr, PF 4.37, no bust (vs 8:30 KZ $147K)
+- **Best config:** 9:30 KZ, $141K/2yr, 66.6% WR, PF 2.53, 0 busts, 19 cashouts (verified Apr 2026)
 - Databento timestamps are tz-aware — strip with `.tz_localize(None)` before comparing to naive timestamps
 - Bulk fetch: 500-day lookback for indicator warmup (EMA 200 needs 200+ trading days)
 
@@ -178,8 +187,12 @@ Each phase has a **verification gate** — must pass before proceeding to next p
 - Prop firm config: PROP_FIRMS in jadecap_config.py is source of truth, injected via `{firm_*}` template vars — never hardcode firm values in prompts
 - When rerunning backtests: `pkill` FIRST, THEN start new processes — pkill kills ALL matching processes including just-started ones
 - News = 1-min blackout only (not 30 min). ForexFactory RED events via `openclaw/tools/forex_calendar.py`
-- 3-tier decision in all agent prompts: TAKE IT / REDUCE SIZE / NO TRADE (not binary)
+- Signal scale: BUY / SELL / OVERWEIGHT / UNDERWEIGHT / BULLISH / BEARISH / NEUTRAL (no HOLD — replaced with directional bias)
+- GAME PLAN always output — what triggers the trade when conditions align
+- Sizing: 5 MNQ base at $50K, scales +5 per $2,500 profit. No manual size reductions (no 50% cuts for news/conviction/missing confirmations)
 - OB without sweep = valid at FULL SIZE (score 4, not blocked). SFP stop = wick extreme (not FVG c1)
+- DB path: absolute in trading-config.json (`/home/hoang/.openclaw/workspace/trading.db`). Symlinked from `~/.openclaw/trading.db` for gateway access
+- Monitoring: `run_bridge.py` creates `/tmp/run-{ticker}-latest.jsonl` symlink for each run
 
 ## Key Rules
 
