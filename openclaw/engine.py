@@ -615,9 +615,24 @@ class RunEngine:
             df_15m = _fetch_ohlcv_df(ticker, "15m", date)
             df_daily = _fetch_ohlcv_df(ticker, "1D", date)
 
-            # ── MIDNIGHT OPEN + PDH/PDL + NDOG/NWOG ──
+            # ── MIDNIGHT OPEN + NDOG/NWOG ──
             if df_1m is not None and not isinstance(df_1m, str) and not df_1m.empty:
                 parts.append(get_midnight_open(df_1m, date))
+                # NDOG (New Day Opening Gap) + NWOG (New Week Opening Gap)
+                try:
+                    from openclaw.indicators import calc_ndog, calc_nwog
+                    col_map = {c: c.lower() for c in df_1m.columns}
+                    df_1m_norm = df_1m.rename(columns=col_map)
+                    ndog = calc_ndog(df_1m_norm)
+                    if ndog and ndog.get("ndog_high"):
+                        ndog_ce = (ndog["ndog_high"] + ndog["ndog_low"]) / 2
+                        parts.append(f"\nNDOG: {ndog['ndog_high']:.2f} - {ndog['ndog_low']:.2f} (CE: {ndog_ce:.2f})")
+                    nwog = calc_nwog(df_1m_norm)
+                    if nwog and nwog.get("nwog_high"):
+                        nwog_ce = (nwog["nwog_high"] + nwog["nwog_low"]) / 2
+                        parts.append(f"NWOG: {nwog['nwog_high']:.2f} - {nwog['nwog_low']:.2f} (CE: {nwog_ce:.2f})")
+                except Exception:
+                    pass
 
             # ── PDH / PDL (9:30-16:00 regular hours — same as backtest) ──
             if df_1h is not None and not isinstance(df_1h, str) and not df_1h.empty:
@@ -670,12 +685,12 @@ class RunEngine:
                     status = sfp_result.get("status", "no_sfp")
                     if status == "sfp_confirmed":
                         latest = sfp_result.get("latest_sfp", {})
-                        parts.append(f"\nSFP CONFIRMED: {latest.get('direction', '?')} at {latest.get('swept_level', '?'):.2f} "
+                        parts.append(f"\nSFP CONFIRMED: {latest.get('type', '?')} at {latest.get('swept_level', '?'):.2f} "
                                      f"(penetration: {latest.get('points_beyond', 0):.1f} pts)")
                     else:
                         parts.append(f"\nSFP Status: {status}")
 
-            # ── DISPLACEMENT CANDLES (5m — from indicators.py) ──
+            # ── DISPLACEMENT CANDLES (15m — from indicators.py) ──
             if df_15m is not None and not isinstance(df_15m, str) and not df_15m.empty:
                 disp = calc_displacement_candle(df_15m)
                 latest = disp.get("latest")
