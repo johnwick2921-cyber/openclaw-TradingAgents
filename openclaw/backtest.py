@@ -34,7 +34,7 @@ FIXED_CONTRACTS = 5  # Base contract count (scaled by --scale)
 MAX_CONTRACTS = 140  # Cap for progressive scaling (140 MNQ = 14 NQ for $150K accounts)
 DAILY_LOSS_CAP = 500   # Stop trading after $500 daily loss
 DAILY_PROFIT_CAP = 1000  # Lock in after $1000 daily profit
-CONSEC_LOSS_HALF = 2  # Half size after 2 consecutive losses
+CONSEC_LOSS_HALT = 3  # Stop trading after 3 consecutive losses (no half-size rule)
 CONSEC_LOSS_HALT = 3  # Stop trading for the day after 3 consecutive losses
 T1_CLOSE_PCT = 0.5  # Close 50% at T1 (first liquidity pool)
 T1_RR = 1.5        # T1 target = 1.5R
@@ -124,8 +124,9 @@ def _precompute_indicators(df_all: pd.DataFrame) -> dict:
         """Wrap DataFrame for stockstats — same as indicators.py does."""
         return stockstats.wrap(df.rename(columns={c: c.lower() for c in df.columns}).copy())
 
-    # Daily indicators
-    # Daily indicators via stockstats (ATR removed — not used for ICT decisions)
+    # Daily EMA 200 (reference context only — not for bias or sizing)
+    if len(df_d) >= 5:
+        ss_d = _ss(df_d)
         if len(df_d) >= 200:
             indicators["ema_200"] = ss_d["close_200_ema"]
         elif len(df_d) >= 50:

@@ -1538,15 +1538,14 @@ HARD_RULES = [
     "1H SFP CONFIRMATION (SCORED -2): 1H SFP should confirm before LTF entry. If absent, reduce A+ by 2. OVERRIDE ALLOWED: if 15m shows clear CHoCH + FVG + displacement, SFP may form on the next 1H candle — flag as early entry with tighter stop.",
 
     # ══ TRADE DECISION (simple 3-tier) ══
-    "TAKE IT (standard size): Sweep confirmed + displacement confirmed + FVG/OB entry available + inside Kill Zone. This is a valid setup — take it. 40-55% of setups will fail and that is NORMAL. The edge is in R:R (3:1 minimum), not win rate.",
-    "REDUCE SIZE (half size): Daily bias is clear but missing ONE confirmation (e.g., no clear sweep but strong displacement, or SFP not yet confirmed on 1H). Flag as reduced-conviction entry.",
-    "NO TRADE: No sweep + no displacement, OR outside Kill Zone, OR daily bias unclear, OR max loss/profit limits hit. These are the ONLY reasons to not trade.",
+    "TAKE IT (FULL SIZE): Sweep confirmed + displacement confirmed + FVG/OB entry available + inside Kill Zone. This is a valid setup — take it at FULL SIZE (5 MNQ base, scales with balance). 40-55% of setups will fail and that is NORMAL. The edge is in R:R (3:1 minimum), not win rate.",
+    "NO TRADE: No sweep + no displacement, OR outside Kill Zone, OR daily bias unclear, OR max loss/profit limits hit. Missing one confirmation lowers the score but does NOT reduce size — sizing is balance-based only.",
 
     # ══ NEWS EVENTS (news candle blackout only) ══
-    "NEWS EVENTS: Do not enter during the actual news release candle (1 min before to 1 min after). Once the candle closes, trade normally. REDUCE SIZE 50% on high-impact news days (FOMC, CPI, NFP, RED events). If already in a position before news, hold — set and forget. If a post-news SFP forms, it's high conviction.",
+    "NEWS EVENTS: Do not enter during the actual news release candle (1 min before to 1 min after). Once the candle closes, trade normally at FULL SIZE. No manual size cuts for news — sizing from prop firm scaling only. If already in a position before news, hold — set and forget. If a post-news SFP forms, it's high conviction.",
 
     # ══ RISK MANAGEMENT (always enforced) ══
-    "Stand aside or reduce size 75% on holiday/low-volume days — SFPs are unreliable.",
+    "Stand aside (NO TRADE) on holiday/low-volume days — SFPs are unreliable. No manual size reductions.",
     "Only trade during Distribution phase (NY session). Not Accumulation or Manipulation.",
 ]
 

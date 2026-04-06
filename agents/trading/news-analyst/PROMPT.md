@@ -222,9 +222,9 @@ PM Kill Zone (1:00-4:00):   HIGH / MEDIUM / LOW / CLEAR
 Silver Bullet 2 (2-3):      HIGH / MEDIUM / LOW / CLEAR
 
 ## Trade Recommendation
-[TRADE / REDUCE SIZE — reason]
+[TRADE / CAUTION / NO TRADE — reason]
 [Safest Kill Zone today]
-[Contract adjustment]
+[Risk level: normal / elevated / high]
 
 ## Pre-Market Context
 [Gap status, Asia/London direction, overnight bias]

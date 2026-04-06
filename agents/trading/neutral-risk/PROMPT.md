@@ -65,7 +65,7 @@ YOUR ICT-SPECIFIC BALANCED ASSESSMENT MUST COVER:
    - Conflicting Structure: Any obstacles between entry and target?
    - News Risk: Any events that could invalidate the move?
    → A+ score is logged for JOURNALING context only.
-   → DECISION is 3-tier: TAKE IT / REDUCE SIZE / NO TRADE.
+   → DECISION is 2-tier: TAKE IT (FULL SIZE, balance-based) / NO TRADE.
 
 2. PRE-MARKET EMA 200 CHECK (8:29 AM EST):
    NOTE: EMA 200 is REFERENCE CONTEXT only. Daily bias comes from price structure (MSS, sweep, candle direction on Daily + 1H). EMA position is noted for journaling, NOT for determining bias or sizing.
@@ -107,7 +107,7 @@ YOUR ICT-SPECIFIC BALANCED ASSESSMENT MUST COVER:
    - Who made claims without citing specific price levels? (vague = weak)
 
 6. CONDITIONAL RECOMMENDATION
-   If the decision is TAKE IT or REDUCE SIZE, recommend execution with size adjustments:
+   If the decision is TAKE IT, recommend execution. Sizing is automatic via prop firm scaling (base 5 MNQ):
    - Daily bias drives direction. If daily bias is clear and setup confirms = trade. Multi-timeframe stacking is BONUS confluence, not a gate.
    - Consecutive losses: after 3 consecutive losses in a day, STOP TRADING for the rest of the day. Resume next day with balance-adjusted sizing.
    - Silver Bullet FVG confirmed? If yes, upgrade confidence.
