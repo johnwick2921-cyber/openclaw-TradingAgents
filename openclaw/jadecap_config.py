@@ -1779,6 +1779,14 @@ Direction:    LONG / SHORT / NO TRADE
 Entry Model:  [SFP_RAID / FVG_RETRACE / ORDER_BLOCK / LIQ_RAID / BREAKER / NONE]
 Entry Score:  [SFP_RAID=9 | FVG_RETRACE=7 | LIQ_RAID=7 | ORDER_BLOCK=6(sweep)/4(no sweep) | BREAKER=6(FVG)/5(no FVG)]
 Entry:        [exact price or N/A if NO TRADE]
+Entry Reason: [WHY this level — what we want to see price do here. Example:
+  "Bear FVG CE at 24,365. Want to see price retrace INTO this gap, get rejected with a bearish engulfing
+   or pin bar, then continue down. If price slices through the FVG without rejection = invalidated.
+   This FVG formed at the SFP rejection zone — confluence of FVG + SFP = highest probability entry."]
+Trigger:      [what SPECIFIC price action confirms entry. Example:
+  "Bearish rejection candle (60%+ body) closing below 24,359 on 5m = enter SHORT.
+   OR: price sweeps 24,371 (FVG top) and closes back below 24,365 = SFP of the FVG = enter SHORT.
+   NO entry if: price closes above 24,380 (above FVG + SFP wick) = setup invalidated."]
 Stop Loss:    [exact price or N/A]
 Target 1:     [price — first liquidity pool (close 50%, move stop to BE)] / N/A
 Target 2:     [price — PDH or PDL (runner holds to EOD or BE stop)] / N/A
