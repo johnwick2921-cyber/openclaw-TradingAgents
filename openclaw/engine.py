@@ -606,6 +606,9 @@ class RunEngine:
             parts = [f"\n══ PRE-COMPUTED SESSION LEVELS (exact values — use these, do not recompute) ══"]
             parts.append(self._get_time_context())
 
+            # ── PRIOR SAME-DAY RUNS (what the pipeline concluded earlier today) ──
+            parts.append(self._get_prior_runs_context(ticker, date))
+
             # Fetch data via indicators engine
             df_1m = _fetch_ohlcv_df(ticker, "1m", date)
             df_1h = _fetch_ohlcv_df(ticker, "1H", date)
@@ -938,6 +941,51 @@ Debate History:
 Opponent's Last Argument:
 {opponent_snippet}
 """
+
+    def _get_prior_runs_context(self, ticker: str, date: str) -> str:
+        """Inject prior same-day run signals + key plan details.
+
+        Agents need to know what the pipeline concluded earlier today
+        so they can build on it or explain why the bias changed.
+        """
+        try:
+            from openclaw.database import get_db
+            db_path = self._resolve_path(self.config["paths"]["database"])
+            with get_db(db_path) as conn:
+                rows = conn.execute(
+                    "SELECT r.id, r.signal, r.created_at, rp.content "
+                    "FROM runs r LEFT JOIN reports rp ON r.id = rp.run_id AND rp.section_name = 'final_decision' "
+                    "WHERE r.ticker = ? AND r.trade_date = ? AND r.status = 'completed' "
+                    "ORDER BY r.created_at DESC LIMIT 3",
+                    (ticker, date),
+                ).fetchall()
+
+            if not rows:
+                return ""
+
+            parts = ["\n── PRIOR RUNS TODAY (what the pipeline concluded earlier) ──"]
+            for row in rows:
+                run_id, signal, created, content = row["id"], row["signal"], row["created_at"], row["content"]
+                parts.append(f"\nRun {run_id} | Signal: {signal} | {created}")
+
+                if content:
+                    # Extract key fields from prior final decision
+                    for line in content.split("\n"):
+                        s = line.strip()
+                        if s and any(s.startswith(k) for k in [
+                            "Direction", "Entry:", "Stop Loss", "Target 1", "Target 2",
+                            "Market Bias", "Contracts", "R:R", "Kill Zone", "GAME PLAN",
+                            "Entry Model", "Entry Score",
+                        ]):
+                            parts.append(f"  {s[:120]}")
+
+            parts.append("\nIf bias CHANGED from prior run, explain WHY structure shifted.")
+            parts.append("If bias is SAME, confirm the setup is still valid at current price.")
+            parts.append("── END PRIOR RUNS ──\n")
+            return "\n".join(parts)
+        except Exception as exc:
+            logger.warning("Failed to get prior runs context: %s", exc)
+            return ""
 
     def _get_time_context(self) -> str:
         """Return current ET time + active Kill Zone for agent prompts."""
