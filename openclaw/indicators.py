@@ -507,33 +507,14 @@ def _fetch_ohlcv_df(symbol: str, timeframe: str, trade_date: str):
 
     if not csv_data or csv_data.startswith("No data"):
         return None
-    # Detect error strings — retry with fallback end date if available
+    # Detect error strings — metadata query should prevent this, but if it happens, return None
+    # NO fallback to yesterday, NO fallback to yfinance — Databento metadata gives exact available end
     if any(csv_data.startswith(prefix) for prefix in [
         "Databento API error", "Databento authentication", "No data found",
         "[Failed", "Error:", "error:",
     ]):
-        if fetch_end_fallback and "422" in csv_data:
-            logger.info("Retrying %s %s with fallback end date %s", symbol, timeframe, fetch_end_fallback)
-            try:
-                if vendor == "databento":
-                    from openclaw.dataflows.databento_nq import get_databento_ohlcv
-                    csv_data = get_databento_ohlcv(
-                        symbol, start_dt.strftime("%Y-%m-%d"), fetch_end_fallback, timeframe=timeframe
-                    )
-                else:
-                    from openclaw.dataflows.interface import route_to_vendor
-                    csv_data = route_to_vendor("get_stock_data", symbol, start_dt.strftime("%Y-%m-%d"), fetch_end_fallback)
-                if csv_data and not any(csv_data.startswith(p) for p in ["Databento API error", "No data", "[Failed", "Error:"]):
-                    logger.info("Fallback succeeded for %s %s", symbol, timeframe)
-                else:
-                    logger.warning("Fallback also failed for %s %s", symbol, timeframe)
-                    return None
-            except Exception as exc:
-                logger.warning("Fallback fetch failed for %s %s: %s", symbol, timeframe, exc)
-                return None
-        else:
-            logger.warning("Data fetch error for %s %s: %s", symbol, timeframe, csv_data[:100])
-            return None
+        logger.warning("Data fetch error for %s %s: %s", symbol, timeframe, csv_data[:100])
+        return None
 
     # Parse CSV — Databento CSV has # comment lines then headerless data rows
     lines = csv_data.split("\n")
