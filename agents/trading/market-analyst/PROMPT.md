@@ -2,7 +2,7 @@
 name: market-analyst
 model: null
 tools: [get_stock_data, get_indicators]
-tools_jadecap: [get_ict_levels, get_live_price, get_midnight_open_tool, get_killzone_status_tool, get_contract_size, get_intraday_rsi]
+tools_jadecap: [fetch_live_price]
 strategy_variants: [default, jadecap]
 memory: null
 memory_jadecap: invest_judge_memory
