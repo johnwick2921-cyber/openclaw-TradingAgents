@@ -227,7 +227,8 @@ YOUR ARGUMENT MUST COVER ALL OF THESE:
    [12] Draw on Liquidity identified: PASS/FAIL
    [13] Trade decision tier: TAKE IT (FULL SIZE) / NO TRADE
    [14] Not in midday chop zone (11:30-1:00): PASS/FAIL
-   If ANY FAIL -> output NO LONG SETUP
+   If ABSOLUTE rules FAIL (KZ, max loss, R:R, daily limits) -> NO LONG SETUP.
+   If SCORED rules FAIL (sweep, SFP, displacement) -> lower score, still tradeable. OB without sweep = valid at FULL SIZE (score 4).
 
 10.5 A+ SCORE CALCULATION (context metric for journaling, NOT a gate)
    [+2] HTF + LTF Alignment (all TFs bullish): YES/NO
