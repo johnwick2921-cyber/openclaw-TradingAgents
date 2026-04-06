@@ -441,16 +441,36 @@ def _fetch_ohlcv_df(symbol: str, timeframe: str, trade_date: str):
     }
     days_back = lookback_map.get(timeframe, 600)
     start_dt = end_dt - timedelta(days=days_back)
-    # Databento Historical API lag: data availability varies (15min to hours).
-    # Try "now minus 20 min" first. If that fails (422), fall back to yesterday.
+    # Databento Historical API: query metadata for actual available end time.
+    # ohlcv-1m is typically ~25 min behind live. ohlcv-1d is previous day only.
     from datetime import timezone as _tz
     now = datetime.now(_tz.utc).replace(tzinfo=None)
+    fetch_end_fallback = None
+
     if end_dt.date() >= now.date():
-        fetch_end = (now - timedelta(minutes=20)).strftime("%Y-%m-%dT%H:%M")
-        fetch_end_fallback = end_dt.strftime("%Y-%m-%d")  # midnight today = yesterday's data
+        # Today's data — check actual availability from Databento metadata
+        schema = {"1m": "ohlcv-1m", "5m": "ohlcv-1m", "15m": "ohlcv-1m", "30m": "ohlcv-1m",
+                  "1H": "ohlcv-1h", "4H": "ohlcv-1h", "1D": "ohlcv-1d"}.get(timeframe, "ohlcv-1m")
+        try:
+            if vendor == "databento":
+                import databento as _db
+                from openclaw.dataflows.databento_nq import _get_api_key, _databento_dataset
+                _client = _db.Historical(_get_api_key())
+                _meta = _client.metadata.get_dataset_range(dataset=_databento_dataset(symbol))
+                schema_end = _meta.get("schema", {}).get(schema, {}).get("end", "")
+                if schema_end:
+                    # Use actual available end (trim nanoseconds)
+                    fetch_end = schema_end[:19].replace("T", "T")  # "2026-04-06T14:30:00"
+                    logger.info("Databento %s available up to %s for %s", schema, fetch_end, symbol)
+                else:
+                    fetch_end = (now - timedelta(minutes=30)).strftime("%Y-%m-%dT%H:%M")
+            else:
+                fetch_end = (now - timedelta(minutes=20)).strftime("%Y-%m-%dT%H:%M")
+        except Exception:
+            fetch_end = (now - timedelta(minutes=30)).strftime("%Y-%m-%dT%H:%M")
+        fetch_end_fallback = end_dt.strftime("%Y-%m-%d")
     else:
         fetch_end = (end_dt + timedelta(days=1)).strftime("%Y-%m-%d")
-        fetch_end_fallback = None
 
     try:
         # Databento supports all timeframes natively
